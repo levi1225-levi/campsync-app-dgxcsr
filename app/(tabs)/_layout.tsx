@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { Stack } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
+import { colors } from '@/styles/commonStyles';
 
 export default function TabLayout() {
   // Define the tabs configuration
@@ -12,10 +14,22 @@ export default function TabLayout() {
       label: 'Home',
     },
     {
-      name: 'profile',
-      route: '/(tabs)/profile',
-      icon: 'person',
-      label: 'Profile',
+      name: 'campers',
+      route: '/(tabs)/campers',
+      icon: 'people',
+      label: 'Campers',
+    },
+    {
+      name: 'incidents',
+      route: '/(tabs)/incidents',
+      icon: 'report',
+      label: 'Incidents',
+    },
+    {
+      name: 'nfc-scanner',
+      route: '/(tabs)/nfc-scanner',
+      icon: 'nfc',
+      label: 'NFC',
     },
   ];
 
@@ -25,11 +39,13 @@ export default function TabLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'none', // Remove fade animation to prevent black screen flash
+          animation: 'none',
         }}
       >
         <Stack.Screen key="home" name="(home)" />
-        <Stack.Screen key="profile" name="profile" />
+        <Stack.Screen key="campers" name="campers" />
+        <Stack.Screen key="incidents" name="incidents" />
+        <Stack.Screen key="nfc-scanner" name="nfc-scanner" />
       </Stack>
       <FloatingTabBar tabs={tabs} />
     </>

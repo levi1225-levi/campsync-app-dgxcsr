@@ -1,22 +1,5 @@
-export const modalDemos = [
-  {
-    title: "Standard Modal",
-    description: "Full screen modal presentation",
-    route: "/modal",
-    color: "#007AFF",
-  },
-  {
-    title: "Form Sheet",
-    description: "Bottom sheet with detents and grabber",
-    route: "/formsheet",
-    color: "#34C759",
-  },
-  {
-    title: "Transparent Modal",
-    description: "Overlay without obscuring background",
-    route: "/transparent-modal",
-    color: "#FF9500",
-  }
-];
 
-export type ModalDemo = typeof modalDemos[0];
+// This file is kept for backwards compatibility but is no longer used
+// CampSync uses its own data structures defined in /data and /types folders
+export const modalDemos: any[] = [];
+export type ModalDemo = any;

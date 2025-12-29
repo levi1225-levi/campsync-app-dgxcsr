@@ -1,33 +1,283 @@
-import React from "react";
-import { FlatList, StyleSheet, View } from "react-native";
-import { useTheme } from "@react-navigation/native";
-import { modalDemos } from "@/components/homeData";
-import { DemoCard } from "@/components/DemoCard";
+
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import { IconSymbol } from '@/components/IconSymbol';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { mockCampers } from '@/data/mockCampers';
+import { mockIncidents } from '@/data/mockIncidents';
 
 export default function HomeScreen() {
-  const theme = useTheme();
+  const router = useRouter();
+
+  const checkedInCount = mockCampers.filter(c => c.checkInStatus === 'checked-in').length;
+  const totalCampers = mockCampers.length;
+  const openIncidents = mockIncidents.filter(i => i.status === 'open' || i.status === 'in-progress').length;
+
+  const quickActions = [
+    {
+      title: 'Camper Management',
+      description: 'View and manage camper profiles',
+      icon: 'people' as const,
+      route: '/(tabs)/campers',
+      color: colors.primary,
+    },
+    {
+      title: 'Incident Reporting',
+      description: 'Log and track incidents',
+      icon: 'report' as const,
+      route: '/(tabs)/incidents',
+      color: colors.secondary,
+    },
+    {
+      title: 'NFC Scanner',
+      description: 'Scan wristbands for quick access',
+      icon: 'nfc' as const,
+      route: '/(tabs)/nfc-scanner',
+      color: colors.accent,
+    },
+  ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <FlatList
-        data={modalDemos}
-        renderItem={({ item }) => <DemoCard item={item} />}
-        keyExtractor={(item) => item.route}
-        contentContainerStyle={styles.listContainer}
-        contentInsetAdjustmentBehavior="automatic"
+    <View style={[commonStyles.container, styles.container]}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-      />
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>CampSync</Text>
+          <Text style={styles.headerSubtitle}>Summer Camp Management</Text>
+        </View>
+
+        {/* Stats Overview */}
+        <View style={styles.statsContainer}>
+          <View style={[styles.statCard, { backgroundColor: colors.primary }]}>
+            <IconSymbol
+              ios_icon_name="person.2.fill"
+              android_material_icon_name="people"
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={styles.statNumber}>{checkedInCount}/{totalCampers}</Text>
+            <Text style={styles.statLabel}>Checked In</Text>
+          </View>
+
+          <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="warning"
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={styles.statNumber}>{openIncidents}</Text>
+            <Text style={styles.statLabel}>Open Incidents</Text>
+          </View>
+        </View>
+
+        {/* Announcements */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Today&apos;s Announcements</Text>
+          <View style={commonStyles.card}>
+            <View style={styles.announcementHeader}>
+              <IconSymbol
+                ios_icon_name="megaphone.fill"
+                android_material_icon_name="campaign"
+                size={24}
+                color={colors.accent}
+              />
+              <Text style={styles.announcementTitle}>Welcome to Camp!</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              All staff: Please ensure camper wristbands are properly registered. Check-in closes at 5 PM today.
+            </Text>
+            <Text style={[commonStyles.textSecondary, styles.announcementTime]}>
+              Posted 2 hours ago
+            </Text>
+          </View>
+
+          <View style={commonStyles.card}>
+            <View style={styles.announcementHeader}>
+              <IconSymbol
+                ios_icon_name="sun.max.fill"
+                android_material_icon_name="wb-sunny"
+                size={24}
+                color={colors.highlight}
+              />
+              <Text style={styles.announcementTitle}>Weather Alert</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              Sunny weather expected all week. Remember to apply sunscreen and stay hydrated!
+            </Text>
+            <Text style={[commonStyles.textSecondary, styles.announcementTime]}>
+              Posted 5 hours ago
+            </Text>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          {quickActions.map((action, index) => (
+            <React.Fragment key={index}>
+              <TouchableOpacity
+                style={commonStyles.card}
+                onPress={() => router.push(action.route as any)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.actionCard}>
+                  <View style={[styles.actionIconContainer, { backgroundColor: action.color }]}>
+                    <IconSymbol
+                      ios_icon_name={action.icon}
+                      android_material_icon_name={action.icon}
+                      size={28}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                  <View style={styles.actionContent}>
+                    <Text style={commonStyles.cardTitle}>{action.title}</Text>
+                    <Text style={commonStyles.textSecondary}>{action.description}</Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron-right"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+            </React.Fragment>
+          ))}
+        </View>
+
+        {/* Offline Notice */}
+        <View style={[styles.offlineNotice, { backgroundColor: colors.accent }]}>
+          <IconSymbol
+            ios_icon_name="wifi.slash"
+            android_material_icon_name="wifi-off"
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.offlineText}>
+            Offline mode enabled - Data will sync when connected
+          </Text>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    paddingTop: Platform.OS === 'android' ? 48 : 0,
+  },
+  scrollView: {
     flex: 1,
   },
-  listContainer: {
-    paddingTop: 48,
+  contentContainer: {
+    paddingBottom: 120,
+  },
+  header: {
     paddingHorizontal: 16,
-    paddingBottom: 100, // Extra padding for floating tab bar
+    paddingTop: 20,
+    paddingBottom: 24,
+    backgroundColor: colors.primary,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#FFFFFF',
+    opacity: 0.9,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginTop: -40,
+    marginBottom: 24,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+    elevation: 4,
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    opacity: 0.9,
+    marginTop: 4,
+  },
+  section: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  announcementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  announcementTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  announcementTime: {
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionContent: {
+    flex: 1,
+  },
+  offlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  offlineText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });
