@@ -33,6 +33,7 @@ export default function RegisterScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleValidateCode = async () => {
+    console.log('handleValidateCode called');
     if (!authCode.trim()) {
       Alert.alert('Error', 'Please enter an authorization code');
       return;
@@ -40,7 +41,9 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
+      console.log('Validating code:', authCode.trim().toUpperCase());
       const result = await validateAuthorizationCode(authCode.trim().toUpperCase());
+      console.log('Validation result:', result);
 
       if (!result.valid) {
         Alert.alert('Invalid Code', result.error || 'The authorization code is invalid');
@@ -54,6 +57,7 @@ export default function RegisterScreen() {
         `You will be registered as: ${result.role?.replace('-', ' ').toUpperCase()}`
       );
     } catch (error) {
+      console.error('Error in handleValidateCode:', error);
       Alert.alert('Error', 'Failed to validate authorization code');
     } finally {
       setIsLoading(false);
@@ -61,33 +65,50 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
+    console.log('=== handleRegister called ===');
+    console.log('Email:', email);
+    console.log('Password length:', password.length);
+    console.log('Full name:', fullName);
+    console.log('Validated code:', validatedCode);
+
     // Validation
     if (!email || !password || !confirmPassword || !fullName) {
+      console.log('Validation failed: missing fields');
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
     if (password !== confirmPassword) {
+      console.log('Validation failed: passwords do not match');
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
+      console.log('Validation failed: password too short');
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
 
+    console.log('Validation passed, starting registration...');
     setIsLoading(true);
+    
     try {
       // Re-validate the authorization code
+      console.log('Re-validating authorization code...');
       const revalidation = await validateAuthorizationCode(authCode.trim().toUpperCase());
+      console.log('Revalidation result:', revalidation);
+      
       if (!revalidation.valid) {
+        console.log('Revalidation failed');
         Alert.alert('Error', 'Authorization code is no longer valid');
         setStep('code');
+        setIsLoading(false);
         return;
       }
 
       // Create user account with Supabase Auth
+      console.log('Creating Supabase auth user...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
@@ -100,18 +121,26 @@ export default function RegisterScreen() {
         }
       });
 
+      console.log('Supabase auth response:', { authData, authError });
+
       if (authError) {
         console.error('Supabase auth error:', authError);
         Alert.alert('Registration Failed', authError.message);
+        setIsLoading(false);
         return;
       }
 
       if (!authData.user) {
+        console.error('No user returned from Supabase');
         Alert.alert('Error', 'Failed to create user account');
+        setIsLoading(false);
         return;
       }
 
+      console.log('User created successfully:', authData.user.id);
+
       // Create user profile with role from authorization code
+      console.log('Creating user profile...');
       const { error: profileError } = await supabase
         .from('user_profiles')
         .insert({
@@ -125,19 +154,26 @@ export default function RegisterScreen() {
 
       if (profileError) {
         console.error('Error creating user profile:', profileError);
-        Alert.alert('Error', 'Failed to create user profile');
+        Alert.alert('Error', 'Failed to create user profile: ' + profileError.message);
+        setIsLoading(false);
         return;
       }
 
+      console.log('User profile created successfully');
+
       // Handle parent-specific linking
       if (revalidation.role === 'parent') {
+        console.log('Handling parent linking...');
         await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
       }
 
       // Increment code usage atomically
       if (revalidation.code_id) {
+        console.log('Incrementing code usage...');
         await incrementCodeUsage(revalidation.code_id);
       }
+
+      console.log('Registration completed successfully!');
 
       // Show success message
       Alert.alert(
@@ -146,14 +182,18 @@ export default function RegisterScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.replace('/sign-in')
+            onPress: () => {
+              console.log('Navigating to sign-in...');
+              router.replace('/sign-in');
+            }
           }
         ]
       );
     } catch (error) {
       console.error('Registration error:', error);
-      Alert.alert('Error', 'An error occurred during registration');
+      Alert.alert('Error', 'An error occurred during registration: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
+      console.log('Setting isLoading to false');
       setIsLoading(false);
     }
   };
@@ -164,18 +204,22 @@ export default function RegisterScreen() {
     validatedCode: any
   ) => {
     try {
+      console.log('Starting parent linking for user:', userId);
+      
       // A) Code-based linking
       const codeCamperIds = validatedCode.linked_camper_ids || [];
+      console.log('Code-based camper IDs:', codeCamperIds);
 
       // B) Email-based auto-matching
       const emailCamperIds = await findCampersByParentEmail(email);
+      console.log('Email-based camper IDs:', emailCamperIds);
 
       // Union of both (no duplicates)
       const allCamperIds = Array.from(new Set([...codeCamperIds, ...emailCamperIds]));
-
-      console.log('Linking parent to campers:', allCamperIds);
+      console.log('All linked camper IDs:', allCamperIds);
 
       // Create parent_guardian record
+      console.log('Creating parent_guardian record...');
       const { error: parentError } = await supabase
         .from('parent_guardians')
         .insert({
@@ -187,10 +231,14 @@ export default function RegisterScreen() {
 
       if (parentError) {
         console.error('Error creating parent guardian:', parentError);
+        throw parentError;
       }
+
+      console.log('Parent guardian record created');
 
       // Create parent-camper links
       if (allCamperIds.length > 0) {
+        console.log('Creating parent-camper links...');
         const links = allCamperIds.map(camperId => ({
           parent_id: userId,
           camper_id: camperId,
@@ -203,10 +251,16 @@ export default function RegisterScreen() {
 
         if (linkError) {
           console.error('Error creating parent-camper links:', linkError);
+          throw linkError;
         }
+
+        console.log('Parent-camper links created successfully');
+      } else {
+        console.log('No campers to link');
       }
     } catch (error) {
       console.error('Error in parent linking:', error);
+      throw error;
     }
   };
 
@@ -224,7 +278,14 @@ export default function RegisterScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => step === 'details' ? setStep('code') : router.back()}
+            onPress={() => {
+              console.log('Back button pressed, current step:', step);
+              if (step === 'details') {
+                setStep('code');
+              } else {
+                router.back();
+              }
+            }}
           >
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -438,7 +499,10 @@ export default function RegisterScreen() {
 
             <TouchableOpacity
               style={[buttonStyles.primary, styles.button]}
-              onPress={handleRegister}
+              onPress={() => {
+                console.log('Create Account button pressed!');
+                handleRegister();
+              }}
               disabled={isLoading}
             >
               {isLoading ? (
