@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -74,21 +75,16 @@ export default function SignInScreen() {
           <Text style={styles.subtitle}>Summer Camp Management</Text>
         </View>
 
-        {/* Demo Instructions */}
-        <View style={[commonStyles.card, styles.demoCard]}>
-          <Text style={styles.demoTitle}>Demo Login Instructions</Text>
+        {/* Info Card */}
+        <View style={[commonStyles.card, styles.infoCard]}>
+          <IconSymbol
+            ios_icon_name="info.circle.fill"
+            android_material_icon_name="info"
+            size={24}
+            color={colors.primary}
+          />
           <Text style={commonStyles.textSecondary}>
-            Use any email with these keywords to test different roles:
-          </Text>
-          <View style={styles.demoList}>
-            <Text style={styles.demoItem}>• superadmin@example.com - Super Admin</Text>
-            <Text style={styles.demoItem}>• admin@example.com - Camp Admin</Text>
-            <Text style={styles.demoItem}>• staff@example.com - Staff</Text>
-            <Text style={styles.demoItem}>• parent@example.com - Parent</Text>
-            <Text style={styles.demoItem}>• newparent@example.com - Parent (incomplete registration)</Text>
-          </View>
-          <Text style={[commonStyles.textSecondary, { marginTop: 8 }]}>
-            Password can be anything for demo purposes.
+            New to CampSync? You&apos;ll need an authorization code from your camp administrator to create an account.
           </Text>
         </View>
 
@@ -182,6 +178,14 @@ export default function SignInScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Registration Link */}
+        <View style={styles.registerContainer}>
+          <Text style={styles.registerText}>Don&apos;t have an account? </Text>
+          <TouchableOpacity onPress={() => router.push('/register')}>
+            <Text style={styles.registerLink}>Register with Code</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Footer */}
         <View style={styles.footer}>
           <IconSymbol
@@ -231,24 +235,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
   },
-  demoCard: {
+  infoCard: {
     backgroundColor: '#E3F2FD',
     marginBottom: 24,
-  },
-  demoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  demoList: {
-    marginTop: 8,
-    marginLeft: 8,
-  },
-  demoItem: {
-    fontSize: 14,
-    color: colors.text,
-    marginVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   formContainer: {
     marginBottom: 24,
@@ -311,6 +303,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.primary,
+  },
+  registerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  registerText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  registerLink: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

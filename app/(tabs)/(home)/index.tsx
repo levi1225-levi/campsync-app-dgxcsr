@@ -196,24 +196,31 @@ function HomeScreenContent() {
           </View>
         )}
 
-        {/* Super Admin Only Section */}
-        {user?.role === 'super-admin' && (
+        {/* Admin Tools Section */}
+        {(user?.role === 'super-admin' || user?.role === 'camp-admin') && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Super Admin Tools</Text>
-            <View style={commonStyles.card}>
+            <Text style={styles.sectionTitle}>
+              {user?.role === 'super-admin' ? 'Super Admin Tools' : 'Admin Tools'}
+            </Text>
+            
+            <TouchableOpacity
+              style={commonStyles.card}
+              onPress={() => router.push('/manage-authorization-codes' as any)}
+              activeOpacity={0.7}
+            >
               <View style={styles.actionCard}>
-                <View style={[styles.actionIconContainer, { backgroundColor: colors.highlight }]}>
+                <View style={[styles.actionIconContainer, { backgroundColor: colors.warning }]}>
                   <IconSymbol
-                    ios_icon_name="building.2.fill"
-                    android_material_icon_name="business"
+                    ios_icon_name="key.fill"
+                    android_material_icon_name="vpn-key"
                     size={28}
                     color="#FFFFFF"
                   />
                 </View>
                 <View style={styles.actionContent}>
-                  <Text style={commonStyles.cardTitle}>Manage Camps</Text>
+                  <Text style={commonStyles.cardTitle}>Authorization Codes</Text>
                   <Text style={commonStyles.textSecondary}>
-                    Create and configure camp settings
+                    Manage registration codes and invitations
                   </Text>
                 </View>
                 <IconSymbol
@@ -223,32 +230,61 @@ function HomeScreenContent() {
                   color={colors.textSecondary}
                 />
               </View>
-            </View>
+            </TouchableOpacity>
 
-            <View style={commonStyles.card}>
-              <View style={styles.actionCard}>
-                <View style={[styles.actionIconContainer, { backgroundColor: colors.success }]}>
-                  <IconSymbol
-                    ios_icon_name="person.badge.key.fill"
-                    android_material_icon_name="admin-panel-settings"
-                    size={28}
-                    color="#FFFFFF"
-                  />
+            {user?.role === 'super-admin' && (
+              <>
+                <View style={commonStyles.card}>
+                  <View style={styles.actionCard}>
+                    <View style={[styles.actionIconContainer, { backgroundColor: colors.highlight }]}>
+                      <IconSymbol
+                        ios_icon_name="building.2.fill"
+                        android_material_icon_name="business"
+                        size={28}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <View style={styles.actionContent}>
+                      <Text style={commonStyles.cardTitle}>Manage Camps</Text>
+                      <Text style={commonStyles.textSecondary}>
+                        Create and configure camp settings
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="chevron-right"
+                      size={24}
+                      color={colors.textSecondary}
+                    />
+                  </View>
                 </View>
-                <View style={styles.actionContent}>
-                  <Text style={commonStyles.cardTitle}>User Management</Text>
-                  <Text style={commonStyles.textSecondary}>
-                    Assign roles and manage access
-                  </Text>
+
+                <View style={commonStyles.card}>
+                  <View style={styles.actionCard}>
+                    <View style={[styles.actionIconContainer, { backgroundColor: colors.success }]}>
+                      <IconSymbol
+                        ios_icon_name="person.badge.key.fill"
+                        android_material_icon_name="admin-panel-settings"
+                        size={28}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <View style={styles.actionContent}>
+                      <Text style={commonStyles.cardTitle}>User Management</Text>
+                      <Text style={commonStyles.textSecondary}>
+                        Assign roles and manage access
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="chevron-right"
+                      size={24}
+                      color={colors.textSecondary}
+                    />
+                  </View>
                 </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron-right"
-                  size={24}
-                  color={colors.textSecondary}
-                />
-              </View>
-            </View>
+              </>
+            )}
           </View>
         )}
 

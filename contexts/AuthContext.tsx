@@ -193,34 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Helper function to create mock users for demo
-  const createMockUser = (email: string): User => {
-    // Determine role based on email for demo purposes
-    let role: UserRole = 'staff';
-    let registrationComplete = true;
-    
-    if (email.includes('superadmin') || email.includes('super')) {
-      role = 'super-admin';
-    } else if (email.includes('admin')) {
-      role = 'camp-admin';
-    } else if (email.includes('parent')) {
-      role = 'parent';
-      registrationComplete = !email.includes('new');
-    } else if (email.includes('staff')) {
-      role = 'staff';
-    }
 
-    return {
-      id: `user_${Date.now()}`,
-      email,
-      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      role,
-      campId: role !== 'super-admin' && role !== 'parent' ? 'camp_001' : undefined,
-      campIds: role === 'super-admin' ? ['camp_001', 'camp_002'] : undefined,
-      childrenIds: role === 'parent' ? ['camper_001', 'camper_002'] : undefined,
-      registrationComplete,
-    };
-  };
 
   return (
     <AuthContext.Provider
