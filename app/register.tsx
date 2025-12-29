@@ -33,7 +33,7 @@ export default function RegisterScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleValidateCode = async () => {
-    console.log('handleValidateCode called');
+    console.log('=== Validating Authorization Code ===');
     if (!authCode.trim()) {
       Alert.alert('Error', 'Please enter an authorization code');
       return;
@@ -41,39 +41,40 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      console.log('Validating code:', authCode.trim().toUpperCase());
+      console.log('Code entered:', authCode.trim().toUpperCase());
       const result = await validateAuthorizationCode(authCode.trim().toUpperCase());
       console.log('Validation result:', result);
 
       if (!result.valid) {
-        Alert.alert('Invalid Code', result.error || 'The authorization code is invalid');
+        console.log('Code validation failed:', result.error);
+        Alert.alert('Invalid Code', result.error || 'The authorization code is invalid or expired');
         return;
       }
 
+      console.log('Code validated successfully! Role:', result.role);
       setValidatedCode(result);
       setStep('details');
       Alert.alert(
-        'Code Validated',
+        'Code Validated ✓',
         `You will be registered as: ${result.role?.replace('-', ' ').toUpperCase()}`
       );
     } catch (error) {
-      console.error('Error in handleValidateCode:', error);
-      Alert.alert('Error', 'Failed to validate authorization code');
+      console.error('Error validating code:', error);
+      Alert.alert('Error', 'Failed to validate authorization code. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRegister = async () => {
-    console.log('=== handleRegister called ===');
+    console.log('=== Starting Registration Process ===');
     console.log('Email:', email);
-    console.log('Password length:', password.length);
     console.log('Full name:', fullName);
-    console.log('Validated code:', validatedCode);
+    console.log('Role:', validatedCode?.role);
 
     // Validation
     if (!email || !password || !confirmPassword || !fullName) {
-      console.log('Validation failed: missing fields');
+      console.log('Validation failed: missing required fields');
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -90,25 +91,25 @@ export default function RegisterScreen() {
       return;
     }
 
-    console.log('Validation passed, starting registration...');
+    console.log('Validation passed, proceeding with registration...');
     setIsLoading(true);
     
     try {
       // Re-validate the authorization code
-      console.log('Re-validating authorization code...');
+      console.log('Step 1: Re-validating authorization code...');
       const revalidation = await validateAuthorizationCode(authCode.trim().toUpperCase());
       console.log('Revalidation result:', revalidation);
       
       if (!revalidation.valid) {
-        console.log('Revalidation failed');
-        Alert.alert('Error', 'Authorization code is no longer valid');
+        console.log('Revalidation failed:', revalidation.error);
+        Alert.alert('Error', 'Authorization code is no longer valid. Please start over.');
         setStep('code');
         setIsLoading(false);
         return;
       }
 
       // Create user account with Supabase Auth
-      console.log('Creating Supabase auth user...');
+      console.log('Step 2: Creating Supabase auth user...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
@@ -121,64 +122,98 @@ export default function RegisterScreen() {
         }
       });
 
-      console.log('Supabase auth response:', { authData, authError });
+      console.log('Auth response:', { 
+        hasUser: !!authData?.user, 
+        userId: authData?.user?.id,
+        hasSession: !!authData?.session,
+        error: authError 
+      });
 
       if (authError) {
         console.error('Supabase auth error:', authError);
-        Alert.alert('Registration Failed', authError.message);
+        let errorMessage = authError.message;
+        
+        // Provide more helpful error messages
+        if (errorMessage.includes('already registered')) {
+          errorMessage = 'This email is already registered. Please sign in instead.';
+        }
+        
+        Alert.alert('Registration Failed', errorMessage);
         setIsLoading(false);
         return;
       }
 
       if (!authData.user) {
         console.error('No user returned from Supabase');
-        Alert.alert('Error', 'Failed to create user account');
+        Alert.alert('Error', 'Failed to create user account. Please try again.');
         setIsLoading(false);
         return;
       }
 
-      console.log('User created successfully:', authData.user.id);
+      console.log('User created successfully! User ID:', authData.user.id);
 
       // Create user profile with role from authorization code
-      console.log('Creating user profile...');
+      console.log('Step 3: Creating user profile...');
+      const profileData = {
+        id: authData.user.id,
+        email: email.toLowerCase().trim(),
+        full_name: fullName,
+        phone: phone || null,
+        role: revalidation.role,
+        registration_complete: revalidation.role !== 'parent', // Parents need to complete registration
+      };
+      console.log('Profile data:', profileData);
+
       const { error: profileError } = await supabase
         .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          email: email.toLowerCase().trim(),
-          full_name: fullName,
-          phone: phone || null,
-          role: revalidation.role,
-          registration_complete: revalidation.role !== 'parent', // Parents need to complete registration
-        });
+        .insert(profileData);
 
       if (profileError) {
         console.error('Error creating user profile:', profileError);
-        Alert.alert('Error', 'Failed to create user profile: ' + profileError.message);
+        Alert.alert(
+          'Profile Creation Failed', 
+          `Failed to create user profile: ${profileError.message}\n\nPlease contact support with this error.`
+        );
         setIsLoading(false);
         return;
       }
 
-      console.log('User profile created successfully');
+      console.log('User profile created successfully!');
 
       // Handle parent-specific linking
       if (revalidation.role === 'parent') {
-        console.log('Handling parent linking...');
-        await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
+        console.log('Step 4: Handling parent linking...');
+        try {
+          await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
+          console.log('Parent linking completed successfully!');
+        } catch (linkError) {
+          console.error('Parent linking error:', linkError);
+          // Don't fail the entire registration if linking fails
+          Alert.alert(
+            'Warning',
+            'Account created but there was an issue linking to campers. Please contact support.'
+          );
+        }
       }
 
       // Increment code usage atomically
       if (revalidation.code_id) {
-        console.log('Incrementing code usage...');
-        await incrementCodeUsage(revalidation.code_id);
+        console.log('Step 5: Incrementing code usage...');
+        try {
+          await incrementCodeUsage(revalidation.code_id);
+          console.log('Code usage incremented successfully!');
+        } catch (codeError) {
+          console.error('Error incrementing code usage:', codeError);
+          // Don't fail registration if this fails
+        }
       }
 
-      console.log('Registration completed successfully!');
+      console.log('=== Registration Completed Successfully! ===');
 
       // Show success message
       Alert.alert(
-        'Registration Successful',
-        'Please check your email to verify your account before signing in.',
+        'Registration Successful! ✓',
+        'Please check your email to verify your account before signing in. The verification link will expire in 24 hours.',
         [
           {
             text: 'OK',
@@ -190,8 +225,11 @@ export default function RegisterScreen() {
         ]
       );
     } catch (error) {
-      console.error('Registration error:', error);
-      Alert.alert('Error', 'An error occurred during registration: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error('Unexpected registration error:', error);
+      Alert.alert(
+        'Registration Error', 
+        `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support.`
+      );
     } finally {
       console.log('Setting isLoading to false');
       setIsLoading(false);
@@ -234,11 +272,11 @@ export default function RegisterScreen() {
         throw parentError;
       }
 
-      console.log('Parent guardian record created');
+      console.log('Parent guardian record created successfully!');
 
       // Create parent-camper links
       if (allCamperIds.length > 0) {
-        console.log('Creating parent-camper links...');
+        console.log('Creating parent-camper links for', allCamperIds.length, 'campers...');
         const links = allCamperIds.map(camperId => ({
           parent_id: userId,
           camper_id: camperId,
@@ -254,7 +292,7 @@ export default function RegisterScreen() {
           throw linkError;
         }
 
-        console.log('Parent-camper links created successfully');
+        console.log('Parent-camper links created successfully!');
       } else {
         console.log('No campers to link');
       }

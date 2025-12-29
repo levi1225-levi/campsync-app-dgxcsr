@@ -25,6 +25,9 @@ export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleEmailSignIn = async () => {
+    console.log('=== Sign In Attempt ===');
+    console.log('Email:', email);
+
     if (!email || !password) {
       Alert.alert('Error', 'Please enter both email and password');
       return;
@@ -32,20 +35,42 @@ export default function SignInScreen() {
 
     setIsLoading(true);
     try {
-      await signIn(email, password);
+      console.log('Calling signIn...');
+      await signIn(email.toLowerCase().trim(), password);
+      console.log('Sign in successful!');
+      // Navigation is handled by AuthContext
     } catch (error) {
-      Alert.alert('Sign In Failed', error instanceof Error ? error.message : 'An error occurred');
+      console.error('Sign in error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during sign in';
+      
+      // Provide more helpful error messages
+      let userMessage = errorMessage;
+      if (errorMessage.includes('Invalid login credentials')) {
+        userMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (errorMessage.includes('Email not confirmed')) {
+        userMessage = 'Please verify your email address before signing in. Check your inbox for the verification link.';
+      } else if (errorMessage.includes('User not found')) {
+        userMessage = 'No account found with this email. Please register first.';
+      }
+      
+      Alert.alert('Sign In Failed', userMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
+    console.log('=== Google Sign In Attempt ===');
     setIsLoading(true);
     try {
       await signInWithGoogle();
+      console.log('Google sign in initiated');
     } catch (error) {
-      Alert.alert('Sign In Failed', error instanceof Error ? error.message : 'An error occurred');
+      console.error('Google sign in error:', error);
+      Alert.alert(
+        'Sign In Failed',
+        error instanceof Error ? error.message : 'An error occurred during Google sign in'
+      );
     } finally {
       setIsLoading(false);
     }
