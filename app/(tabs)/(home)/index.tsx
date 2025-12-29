@@ -2,13 +2,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
 import { mockIncidents } from '@/data/mockIncidents';
 
-export default function HomeScreen() {
+function HomeScreenContent() {
   const router = useRouter();
+  const { user, signOut, hasPermission } = useAuth();
 
   const checkedInCount = mockCampers.filter(c => c.checkInStatus === 'checked-in').length;
   const totalCampers = mockCampers.length;
@@ -21,6 +24,7 @@ export default function HomeScreen() {
       icon: 'people' as const,
       route: '/(tabs)/campers',
       color: colors.primary,
+      roles: ['super-admin', 'camp-admin', 'staff'] as const,
     },
     {
       title: 'Incident Reporting',
@@ -28,6 +32,7 @@ export default function HomeScreen() {
       icon: 'report' as const,
       route: '/(tabs)/incidents',
       color: colors.secondary,
+      roles: ['super-admin', 'camp-admin', 'staff'] as const,
     },
     {
       title: 'NFC Scanner',
@@ -35,8 +40,14 @@ export default function HomeScreen() {
       icon: 'nfc' as const,
       route: '/(tabs)/nfc-scanner',
       color: colors.accent,
+      roles: ['super-admin', 'camp-admin', 'staff'] as const,
     },
   ];
+
+  // Filter actions based on user role
+  const availableActions = quickActions.filter(action => 
+    hasPermission(action.roles as any)
+  );
 
   return (
     <View style={[commonStyles.container, styles.container]}>
@@ -47,8 +58,40 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>CampSync</Text>
-          <Text style={styles.headerSubtitle}>Summer Camp Management</Text>
+          <View>
+            <Text style={styles.headerTitle}>CampSync</Text>
+            <Text style={styles.headerSubtitle}>
+              {user?.role === 'super-admin' && 'Super Admin Dashboard'}
+              {user?.role === 'camp-admin' && 'Camp Admin Dashboard'}
+              {user?.role === 'staff' && 'Staff Dashboard'}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
+            <IconSymbol
+              ios_icon_name="rectangle.portrait.and.arrow.right"
+              android_material_icon_name="logout"
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* User Info Badge */}
+        <View style={styles.userBadge}>
+          <IconSymbol
+            ios_icon_name="person.circle.fill"
+            android_material_icon_name="account-circle"
+            size={24}
+            color={colors.primary}
+          />
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{user?.name}</Text>
+            <Text style={styles.userRole}>
+              {user?.role === 'super-admin' && 'Super Administrator'}
+              {user?.role === 'camp-admin' && 'Camp Administrator'}
+              {user?.role === 'staff' && 'Staff Member'}
+            </Text>
+          </View>
         </View>
 
         {/* Stats Overview */}
@@ -117,39 +160,97 @@ export default function HomeScreen() {
         </View>
 
         {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          {quickActions.map((action, index) => (
-            <React.Fragment key={index}>
-              <TouchableOpacity
-                style={commonStyles.card}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.actionCard}>
-                  <View style={[styles.actionIconContainer, { backgroundColor: action.color }]}>
+        {availableActions.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            {availableActions.map((action, index) => (
+              <React.Fragment key={index}>
+                <TouchableOpacity
+                  style={commonStyles.card}
+                  onPress={() => router.push(action.route as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.actionCard}>
+                    <View style={[styles.actionIconContainer, { backgroundColor: action.color }]}>
+                      <IconSymbol
+                        ios_icon_name={action.icon}
+                        android_material_icon_name={action.icon}
+                        size={28}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <View style={styles.actionContent}>
+                      <Text style={commonStyles.cardTitle}>{action.title}</Text>
+                      <Text style={commonStyles.textSecondary}>{action.description}</Text>
+                    </View>
                     <IconSymbol
-                      ios_icon_name={action.icon}
-                      android_material_icon_name={action.icon}
-                      size={28}
-                      color="#FFFFFF"
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="chevron-right"
+                      size={24}
+                      color={colors.textSecondary}
                     />
                   </View>
-                  <View style={styles.actionContent}>
-                    <Text style={commonStyles.cardTitle}>{action.title}</Text>
-                    <Text style={commonStyles.textSecondary}>{action.description}</Text>
-                  </View>
+                </TouchableOpacity>
+              </React.Fragment>
+            ))}
+          </View>
+        )}
+
+        {/* Super Admin Only Section */}
+        {user?.role === 'super-admin' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Super Admin Tools</Text>
+            <View style={commonStyles.card}>
+              <View style={styles.actionCard}>
+                <View style={[styles.actionIconContainer, { backgroundColor: colors.highlight }]}>
                   <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron-right"
-                    size={24}
-                    color={colors.textSecondary}
+                    ios_icon_name="building.2.fill"
+                    android_material_icon_name="business"
+                    size={28}
+                    color="#FFFFFF"
                   />
                 </View>
-              </TouchableOpacity>
-            </React.Fragment>
-          ))}
-        </View>
+                <View style={styles.actionContent}>
+                  <Text style={commonStyles.cardTitle}>Manage Camps</Text>
+                  <Text style={commonStyles.textSecondary}>
+                    Create and configure camp settings
+                  </Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron-right"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </View>
+
+            <View style={commonStyles.card}>
+              <View style={styles.actionCard}>
+                <View style={[styles.actionIconContainer, { backgroundColor: colors.success }]}>
+                  <IconSymbol
+                    ios_icon_name="person.badge.key.fill"
+                    android_material_icon_name="admin-panel-settings"
+                    size={28}
+                    color="#FFFFFF"
+                  />
+                </View>
+                <View style={styles.actionContent}>
+                  <Text style={commonStyles.cardTitle}>User Management</Text>
+                  <Text style={commonStyles.textSecondary}>
+                    Assign roles and manage access
+                  </Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron-right"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Offline Notice */}
         <View style={[styles.offlineNotice, { backgroundColor: colors.accent }]}>
@@ -168,6 +269,14 @@ export default function HomeScreen() {
   );
 }
 
+export default function HomeScreen() {
+  return (
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff']}>
+      <HomeScreenContent />
+    </ProtectedRoute>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     paddingTop: Platform.OS === 'android' ? 48 : 0,
@@ -179,6 +288,9 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 24,
@@ -196,10 +308,38 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.9,
   },
+  signOutButton: {
+    padding: 8,
+  },
+  userBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    marginHorizontal: 16,
+    marginTop: -20,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 12,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+    gap: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  userRole: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    marginTop: -40,
     marginBottom: 24,
     gap: 12,
   },

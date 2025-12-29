@@ -1,28 +1,72 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Alert,
+} from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
+import { Camper } from '@/types/camper';
 
-export default function NFCScannerScreen() {
+function NFCScannerScreenContent() {
+  const { hasPermission } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
-  const [scannedCamper, setScannedCamper] = useState<typeof mockCampers[0] | null>(null);
+  const [scannedCamper, setScannedCamper] = useState<Camper | null>(null);
+
+  const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
   const handleScan = () => {
+    if (!canScan) {
+      Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
+      return;
+    }
+
     setIsScanning(true);
     
-    // Simulate NFC scan with a random camper after 1.5 seconds
+    // Simulate NFC scan - In production, use actual NFC library
     setTimeout(() => {
+      // Mock: randomly select a camper
       const randomCamper = mockCampers[Math.floor(Math.random() * mockCampers.length)];
       setScannedCamper(randomCamper);
       setIsScanning(false);
     }, 1500);
   };
 
-  const handleReset = () => {
-    setScannedCamper(null);
-    setIsScanning(false);
+  const handleCheckIn = () => {
+    if (scannedCamper) {
+      Alert.alert(
+        'Check In Successful',
+        `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked in.`,
+        [{ text: 'OK', onPress: () => setScannedCamper(null) }]
+      );
+    }
+  };
+
+  const handleCheckOut = () => {
+    if (scannedCamper) {
+      Alert.alert(
+        'Check Out Successful',
+        `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked out.`,
+        [{ text: 'OK', onPress: () => setScannedCamper(null) }]
+      );
+    }
+  };
+
+  const handleLogIncident = () => {
+    if (scannedCamper) {
+      Alert.alert(
+        'Log Incident',
+        `Opening incident form for ${scannedCamper.firstName} ${scannedCamper.lastName}`,
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   return (
@@ -30,157 +74,179 @@ export default function NFCScannerScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>NFC Scanner</Text>
-        <Text style={styles.headerSubtitle}>Scan wristbands for quick access</Text>
+        <Text style={styles.headerSubtitle}>
+          Scan camper wristbands for quick access
+        </Text>
       </View>
 
-      <View style={styles.content}>
-        {/* NFC Scanner Area */}
-        <View style={styles.scannerContainer}>
-          {!scannedCamper ? (
-            <>
-              <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
+      {/* Scanner Area */}
+      <View style={styles.scannerContainer}>
+        <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
+          <IconSymbol
+            ios_icon_name="wave.3.right"
+            android_material_icon_name="nfc"
+            size={80}
+            color={isScanning ? colors.primary : colors.textSecondary}
+          />
+        </View>
+
+        <Text style={styles.scannerText}>
+          {isScanning ? 'Scanning...' : 'Tap to scan NFC wristband'}
+        </Text>
+
+        <TouchableOpacity
+          style={[styles.scanButton, isScanning && styles.scanButtonDisabled]}
+          onPress={handleScan}
+          disabled={isScanning || !canScan}
+        >
+          <Text style={styles.scanButtonText}>
+            {isScanning ? 'Scanning...' : 'Start Scan'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Scanned Camper Info */}
+      {scannedCamper && (
+        <View style={styles.camperInfoContainer}>
+          <View style={commonStyles.card}>
+            <View style={styles.camperHeader}>
+              <View style={styles.camperAvatar}>
                 <IconSymbol
-                  ios_icon_name="wave.3.right"
-                  android_material_icon_name="nfc"
-                  size={80}
-                  color={isScanning ? colors.accent : colors.primary}
+                  ios_icon_name="person.fill"
+                  android_material_icon_name="person"
+                  size={40}
+                  color={colors.primary}
                 />
               </View>
-              
-              <Text style={styles.scannerTitle}>
-                {isScanning ? 'Scanning...' : 'Ready to Scan'}
-              </Text>
-              
-              <Text style={styles.scannerDescription}>
-                {isScanning
-                  ? 'Hold the wristband near your device'
-                  : 'Tap the button below to simulate NFC scan'}
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.scanButton, isScanning && styles.scanButtonDisabled]}
-                onPress={handleScan}
-                disabled={isScanning}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.scanButtonText}>
-                  {isScanning ? 'Scanning...' : 'Simulate NFC Scan'}
+              <View style={styles.camperInfo}>
+                <Text style={styles.camperName}>
+                  {scannedCamper.firstName} {scannedCamper.lastName}
                 </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <View style={styles.successIcon}>
+                <Text style={commonStyles.textSecondary}>
+                  Age {scannedCamper.age} • Cabin {scannedCamper.cabin}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor:
+                      scannedCamper.checkInStatus === 'checked-in'
+                        ? colors.success
+                        : scannedCamper.checkInStatus === 'checked-out'
+                        ? colors.warning
+                        : colors.textSecondary,
+                  },
+                ]}
+              >
+                <Text style={styles.statusText}>
+                  {scannedCamper.checkInStatus === 'checked-in'
+                    ? 'Checked In'
+                    : scannedCamper.checkInStatus === 'checked-out'
+                    ? 'Checked Out'
+                    : 'Not Arrived'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={commonStyles.divider} />
+
+            {/* Medical Alerts */}
+            {scannedCamper.medicalInfo.allergies.length > 0 && (
+              <View style={styles.alertRow}>
+                <IconSymbol
+                  ios_icon_name="exclamationmark.triangle.fill"
+                  android_material_icon_name="warning"
+                  size={20}
+                  color={colors.error}
+                />
+                <Text style={[commonStyles.textSecondary, { color: colors.error }]}>
+                  Allergies: {scannedCamper.medicalInfo.allergies.join(', ')}
+                </Text>
+              </View>
+            )}
+
+            {scannedCamper.medicalInfo.medications.length > 0 && (
+              <View style={styles.alertRow}>
+                <IconSymbol
+                  ios_icon_name="pills.fill"
+                  android_material_icon_name="medication"
+                  size={20}
+                  color={colors.secondary}
+                />
+                <Text style={commonStyles.textSecondary}>
+                  Medications: {scannedCamper.medicalInfo.medications.join(', ')}
+                </Text>
+              </View>
+            )}
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.success }]}
+                onPress={handleCheckIn}
+              >
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
                   android_material_icon_name="check-circle"
-                  size={80}
-                  color={colors.success}
-                />
-              </View>
-
-              <Text style={styles.successTitle}>Scan Successful!</Text>
-
-              {/* Camper Info Card */}
-              <View style={styles.camperCard}>
-                <View style={styles.camperHeader}>
-                  <View style={styles.camperAvatar}>
-                    <IconSymbol
-                      ios_icon_name="person.fill"
-                      android_material_icon_name="person"
-                      size={40}
-                      color={colors.primary}
-                    />
-                  </View>
-                  <View style={styles.camperInfo}>
-                    <Text style={styles.camperName}>
-                      {scannedCamper.firstName} {scannedCamper.lastName}
-                    </Text>
-                    <Text style={styles.camperDetail}>Age {scannedCamper.age} • {scannedCamper.cabin}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoSection}>
-                  <View style={styles.infoRow}>
-                    <IconSymbol
-                      ios_icon_name="wave.3.right"
-                      android_material_icon_name="nfc"
-                      size={18}
-                      color={colors.textSecondary}
-                    />
-                    <Text style={styles.infoLabel}>Wristband ID:</Text>
-                    <Text style={styles.infoValue}>{scannedCamper.nfcWristbandId}</Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <IconSymbol
-                      ios_icon_name="checkmark.circle.fill"
-                      android_material_icon_name="check-circle"
-                      size={18}
-                      color={scannedCamper.checkInStatus === 'checked-in' ? colors.success : colors.warning}
-                    />
-                    <Text style={styles.infoLabel}>Status:</Text>
-                    <Text style={[
-                      styles.infoValue,
-                      { color: scannedCamper.checkInStatus === 'checked-in' ? colors.success : colors.warning }
-                    ]}>
-                      {scannedCamper.checkInStatus === 'checked-in' ? 'Checked In' : 
-                       scannedCamper.checkInStatus === 'checked-out' ? 'Checked Out' : 'Not Arrived'}
-                    </Text>
-                  </View>
-
-                  {scannedCamper.medicalInfo.allergies.length > 0 && (
-                    <View style={styles.alertBox}>
-                      <IconSymbol
-                        ios_icon_name="exclamationmark.triangle.fill"
-                        android_material_icon_name="warning"
-                        size={18}
-                        color={colors.error}
-                      />
-                      <View style={styles.alertContent}>
-                        <Text style={styles.alertTitle}>Medical Alert</Text>
-                        <Text style={styles.alertText}>
-                          Allergies: {scannedCamper.medicalInfo.allergies.join(', ')}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.resetButton}
-                onPress={handleReset}
-                activeOpacity={0.8}
-              >
-                <IconSymbol
-                  ios_icon_name="arrow.clockwise"
-                  android_material_icon_name="refresh"
-                  size={20}
+                  size={24}
                   color="#FFFFFF"
                 />
-                <Text style={styles.resetButtonText}>Scan Another</Text>
+                <Text style={styles.actionButtonText}>Check In</Text>
               </TouchableOpacity>
-            </>
-          )}
-        </View>
 
-        {/* Info Box */}
-        {!scannedCamper && (
-          <View style={styles.infoBox}>
-            <IconSymbol
-              ios_icon_name="info.circle.fill"
-              android_material_icon_name="info"
-              size={24}
-              color={colors.accent}
-            />
-            <Text style={styles.infoBoxText}>
-              Note: NFC functionality requires compatible hardware. This demo simulates the scanning process.
-            </Text>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.warning }]}
+                onPress={handleCheckOut}
+              >
+                <IconSymbol
+                  ios_icon_name="arrow.right.circle.fill"
+                  android_material_icon_name="exit-to-app"
+                  size={24}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.actionButtonText}>Check Out</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.incidentButton]}
+              onPress={handleLogIncident}
+            >
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle.fill"
+                android_material_icon_name="report"
+                size={24}
+                color="#FFFFFF"
+              />
+              <Text style={styles.actionButtonText}>Log Incident</Text>
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
+      )}
+
+      {/* Instructions */}
+      <View style={styles.instructions}>
+        <Text style={styles.instructionsTitle}>How to use:</Text>
+        <Text style={commonStyles.textSecondary}>
+          1. Hold the device near the camper&apos;s NFC wristband
+        </Text>
+        <Text style={commonStyles.textSecondary}>
+          2. Wait for the scan to complete
+        </Text>
+        <Text style={commonStyles.textSecondary}>
+          3. Review camper information and take action
+        </Text>
       </View>
     </View>
+  );
+}
+
+export default function NFCScannerScreen() {
+  return (
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff']}>
+      <NFCScannerScreenContent />
+    </ProtectedRoute>
   );
 }
 
@@ -191,7 +257,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 24,
     backgroundColor: colors.accent,
   },
   headerTitle: {
@@ -201,21 +267,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '400',
     color: '#FFFFFF',
     opacity: 0.9,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 32,
-    paddingBottom: 120,
-  },
   scannerContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
+    paddingVertical: 40,
   },
   scannerCircle: {
     width: 200,
@@ -224,65 +283,42 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
-    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.1)',
-    elevation: 4,
+    marginBottom: 24,
+    borderWidth: 4,
+    borderColor: colors.border,
   },
   scannerCircleActive: {
-    backgroundColor: colors.highlight,
+    borderColor: colors.primary,
+    backgroundColor: '#E3F2FD',
   },
-  scannerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+  scannerText: {
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
-  },
-  scannerDescription: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 32,
+    marginBottom: 24,
   },
   scanButton: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     paddingVertical: 16,
     paddingHorizontal: 48,
     borderRadius: 12,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 3,
   },
   scanButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   scanButtonText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-  successIcon: {
+  camperInfoContainer: {
+    paddingHorizontal: 16,
     marginBottom: 24,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.success,
-    marginBottom: 24,
-  },
-  camperCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    marginBottom: 24,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
   },
   camperHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    gap: 16,
+    marginBottom: 12,
   },
   camperAvatar: {
     width: 64,
@@ -291,6 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   camperInfo: {
     flex: 1,
@@ -301,77 +338,55 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 4,
   },
-  camperDetail: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  infoSection: {
-    gap: 12,
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
-  infoRow: {
+  alertRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 12,
     gap: 8,
   },
-  infoLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    flex: 1,
-  },
-  alertBox: {
+  actionButtons: {
     flexDirection: 'row',
-    backgroundColor: '#FFF3E0',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
+    marginTop: 16,
     gap: 12,
   },
-  alertContent: {
+  actionButton: {
     flex: 1,
-  },
-  alertTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.error,
-    marginBottom: 4,
-  },
-  alertText: {
-    fontSize: 13,
-    color: colors.text,
-  },
-  resetButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
     gap: 8,
   },
-  resetButtonText: {
+  incidentButton: {
+    backgroundColor: colors.secondary,
+    marginTop: 12,
+  },
+  actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  infoBox: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
-    marginTop: 24,
+  instructions: {
+    paddingHorizontal: 16,
+    marginTop: 'auto',
+    paddingBottom: 120,
   },
-  infoBoxText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
+  instructionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
   },
 });

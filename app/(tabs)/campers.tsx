@@ -1,52 +1,42 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Platform,
+} from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
 import { Camper } from '@/types/camper';
 
-export default function CampersScreen() {
-  const router = useRouter();
+function CampersScreenContent() {
+  const { user, hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'checked-in' | 'checked-out' | 'not-arrived'>('all');
+  const [selectedCamper, setSelectedCamper] = useState<Camper | null>(null);
 
-  const filteredCampers = mockCampers.filter(camper => {
-    const matchesSearch = 
-      camper.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      camper.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      camper.cabin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      camper.nfcWristbandId.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesFilter = filterStatus === 'all' || camper.checkInStatus === filterStatus;
-    
-    return matchesSearch && matchesFilter;
-  });
+  const canEdit = hasPermission(['super-admin', 'camp-admin']);
+  const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  const getStatusColor = (status: Camper['checkInStatus']) => {
+  const filteredCampers = mockCampers.filter(camper =>
+    `${camper.firstName} ${camper.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    camper.cabin.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'checked-in':
         return colors.success;
       case 'checked-out':
         return colors.warning;
-      case 'not-arrived':
-        return colors.textSecondary;
       default:
         return colors.textSecondary;
-    }
-  };
-
-  const getStatusLabel = (status: Camper['checkInStatus']) => {
-    switch (status) {
-      case 'checked-in':
-        return 'Checked In';
-      case 'checked-out':
-        return 'Checked Out';
-      case 'not-arrived':
-        return 'Not Arrived';
-      default:
-        return status;
     }
   };
 
@@ -55,7 +45,9 @@ export default function CampersScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Campers</Text>
-        <Text style={styles.headerSubtitle}>{filteredCampers.length} campers</Text>
+        <Text style={styles.headerSubtitle}>
+          {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
+        </Text>
       </View>
 
       {/* Search Bar */}
@@ -68,7 +60,7 @@ export default function CampersScreen() {
         />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name, cabin, or wristband ID..."
+          placeholder="Search by name or cabin..."
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -85,34 +77,20 @@ export default function CampersScreen() {
         )}
       </View>
 
-      {/* Filter Buttons */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
-        {(['all', 'checked-in', 'checked-out', 'not-arrived'] as const).map((status, index) => (
-          <React.Fragment key={index}>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filterStatus === status && styles.filterButtonActive,
-              ]}
-              onPress={() => setFilterStatus(status)}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterStatus === status && styles.filterButtonTextActive,
-                ]}
-              >
-                {status === 'all' ? 'All' : getStatusLabel(status)}
-              </Text>
-            </TouchableOpacity>
-          </React.Fragment>
-        ))}
-      </ScrollView>
+      {/* Add Camper Button (Admin only) */}
+      {canEdit && (
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity style={styles.addButton}>
+            <IconSymbol
+              ios_icon_name="plus.circle.fill"
+              android_material_icon_name="add-circle"
+              size={24}
+              color="#FFFFFF"
+            />
+            <Text style={styles.addButtonText}>Add New Camper</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Campers List */}
       <ScrollView
@@ -120,110 +98,169 @@ export default function CampersScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {filteredCampers.map((camper, index) => (
-          <React.Fragment key={index}>
-            <TouchableOpacity
-              style={commonStyles.card}
-              onPress={() => router.push(`/camper-detail?id=${camper.id}` as any)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.camperCard}>
-                <View style={styles.camperAvatar}>
-                  <IconSymbol
-                    ios_icon_name="person.fill"
-                    android_material_icon_name="person"
-                    size={32}
-                    color={colors.primary}
-                  />
+        {filteredCampers.length === 0 ? (
+          <View style={styles.emptyState}>
+            <IconSymbol
+              ios_icon_name="person.slash.fill"
+              android_material_icon_name="person-off"
+              size={48}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.emptyText}>No campers found</Text>
+          </View>
+        ) : (
+          filteredCampers.map((camper, index) => (
+            <React.Fragment key={index}>
+              <TouchableOpacity
+                style={commonStyles.card}
+                onPress={() => setSelectedCamper(selectedCamper?.id === camper.id ? null : camper)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.camperHeader}>
+                  <View style={styles.camperAvatar}>
+                    <IconSymbol
+                      ios_icon_name="person.fill"
+                      android_material_icon_name="person"
+                      size={28}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <View style={styles.camperInfo}>
+                    <Text style={commonStyles.cardTitle}>
+                      {camper.firstName} {camper.lastName}
+                    </Text>
+                    <Text style={commonStyles.textSecondary}>
+                      Age {camper.age} • Cabin {camper.cabin}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.checkInStatus) }]}>
+                    <Text style={styles.statusText}>
+                      {camper.checkInStatus === 'checked-in' ? 'In' : 
+                       camper.checkInStatus === 'checked-out' ? 'Out' : 'N/A'}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.camperInfo}>
-                  <Text style={styles.camperName}>
-                    {camper.firstName} {camper.lastName}
-                  </Text>
-                  <View style={styles.camperDetails}>
-                    <View style={styles.detailRow}>
-                      <IconSymbol
-                        ios_icon_name="house.fill"
-                        android_material_icon_name="home"
-                        size={14}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={styles.detailText}>{camper.cabin}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <IconSymbol
-                        ios_icon_name="person.fill"
-                        android_material_icon_name="person"
-                        size={14}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={styles.detailText}>Age {camper.age}</Text>
-                    </View>
+
+                {/* Expanded Details */}
+                {selectedCamper?.id === camper.id && (
+                  <>
+                    <View style={commonStyles.divider} />
+                    
+                    {/* NFC Wristband */}
                     <View style={styles.detailRow}>
                       <IconSymbol
                         ios_icon_name="wave.3.right"
                         android_material_icon_name="nfc"
-                        size={14}
-                        color={colors.textSecondary}
+                        size={20}
+                        color={colors.accent}
                       />
-                      <Text style={styles.detailText}>{camper.nfcWristbandId}</Text>
+                      <Text style={commonStyles.textSecondary}>
+                        NFC ID: {camper.nfcWristbandId}
+                      </Text>
                     </View>
-                  </View>
-                </View>
-                <View style={styles.camperStatus}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(camper.checkInStatus) },
-                    ]}
-                  >
-                    <Text style={styles.statusText}>
-                      {getStatusLabel(camper.checkInStatus)}
-                    </Text>
-                  </View>
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron-right"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </View>
-              </View>
 
-              {/* Medical Alert Indicator */}
-              {(camper.medicalInfo.allergies.length > 0 ||
-                camper.medicalInfo.medications.length > 0 ||
-                camper.medicalInfo.conditions.length > 0) && (
-                <View style={styles.medicalAlert}>
-                  <IconSymbol
-                    ios_icon_name="cross.case.fill"
-                    android_material_icon_name="medical-services"
-                    size={16}
-                    color={colors.error}
-                  />
-                  <Text style={styles.medicalAlertText}>Medical info on file</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </React.Fragment>
-        ))}
+                    {/* Medical Info (if permitted) */}
+                    {canViewMedical && (
+                      <>
+                        {camper.medicalInfo.allergies.length > 0 && (
+                          <View style={styles.detailRow}>
+                            <IconSymbol
+                              ios_icon_name="exclamationmark.triangle.fill"
+                              android_material_icon_name="warning"
+                              size={20}
+                              color={colors.error}
+                            />
+                            <Text style={commonStyles.textSecondary}>
+                              Allergies: {camper.medicalInfo.allergies.join(', ')}
+                            </Text>
+                          </View>
+                        )}
 
-        {filteredCampers.length === 0 && (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="person.slash"
-              android_material_icon_name="person-off"
-              size={64}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.emptyStateText}>No campers found</Text>
-            <Text style={commonStyles.textSecondary}>
-              Try adjusting your search or filters
-            </Text>
-          </View>
+                        {camper.medicalInfo.medications.length > 0 && (
+                          <View style={styles.detailRow}>
+                            <IconSymbol
+                              ios_icon_name="pills.fill"
+                              android_material_icon_name="medication"
+                              size={20}
+                              color={colors.secondary}
+                            />
+                            <Text style={commonStyles.textSecondary}>
+                              Medications: {camper.medicalInfo.medications.join(', ')}
+                            </Text>
+                          </View>
+                        )}
+
+                        {camper.medicalInfo.dietaryRestrictions.length > 0 && (
+                          <View style={styles.detailRow}>
+                            <IconSymbol
+                              ios_icon_name="fork.knife"
+                              android_material_icon_name="restaurant"
+                              size={20}
+                              color={colors.accent}
+                            />
+                            <Text style={commonStyles.textSecondary}>
+                              Diet: {camper.medicalInfo.dietaryRestrictions.join(', ')}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+
+                    {/* Check-in/out times */}
+                    {camper.lastCheckIn && (
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          ios_icon_name="clock.fill"
+                          android_material_icon_name="schedule"
+                          size={20}
+                          color={colors.primary}
+                        />
+                        <Text style={commonStyles.textSecondary}>
+                          Last check-in: {new Date(camper.lastCheckIn).toLocaleString()}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Action Buttons */}
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity style={styles.actionButton}>
+                        <IconSymbol
+                          ios_icon_name="doc.text.fill"
+                          android_material_icon_name="description"
+                          size={20}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.actionButtonText}>View Full Profile</Text>
+                      </TouchableOpacity>
+
+                      {canEdit && (
+                        <TouchableOpacity style={styles.actionButton}>
+                          <IconSymbol
+                            ios_icon_name="pencil"
+                            android_material_icon_name="edit"
+                            size={20}
+                            color={colors.secondary}
+                          />
+                          <Text style={styles.actionButtonText}>Edit</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </>
+                )}
+              </TouchableOpacity>
+            </React.Fragment>
+          ))
         )}
       </ScrollView>
     </View>
+  );
+}
+
+export default function CampersScreen() {
+  return (
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff']}>
+      <CampersScreenContent />
+    </ProtectedRoute>
   );
 }
 
@@ -244,7 +281,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '400',
     color: '#FFFFFF',
     opacity: 0.9,
@@ -255,126 +292,105 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     marginHorizontal: 16,
     marginTop: 16,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 8,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 12,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: colors.text,
   },
-  filterContainer: {
-    maxHeight: 50,
-    marginBottom: 12,
-  },
-  filterContent: {
+  addButtonContainer: {
     paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
     gap: 8,
   },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  filterButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  filterButtonTextActive: {
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 16,
+    padding: 16,
     paddingBottom: 120,
-  },
-  camperCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  camperAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  camperInfo: {
-    flex: 1,
-  },
-  camperName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 6,
-  },
-  camperDetails: {
-    gap: 4,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  detailText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  camperStatus: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  medicalAlert: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: 6,
-  },
-  medicalAlertText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.error,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
   },
-  emptyStateText: {
-    fontSize: 18,
+  emptyText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  camperHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  camperAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  camperInfo: {
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  actionButtonText: {
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
   },
 });

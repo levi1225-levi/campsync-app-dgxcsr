@@ -1,18 +1,33 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockIncidents } from '@/data/mockIncidents';
-import { Incident, IncidentSeverity, IncidentStatus } from '@/types/incident';
+import { Incident, IncidentSeverity } from '@/types/incident';
 
-export default function IncidentsScreen() {
-  const router = useRouter();
-  const [filterStatus, setFilterStatus] = useState<IncidentStatus | 'all'>('all');
+function IncidentsScreenContent() {
+  const { hasPermission } = useAuth();
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
+
+  const canEdit = hasPermission(['super-admin', 'camp-admin']);
+  const canCreate = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
   const filteredIncidents = mockIncidents.filter(incident => {
-    return filterStatus === 'all' || incident.status === filterStatus;
+    if (filter === 'all') return true;
+    if (filter === 'open') return incident.status === 'open' || incident.status === 'in-progress';
+    if (filter === 'resolved') return incident.status === 'resolved' || incident.status === 'closed';
+    return true;
   });
 
   const getSeverityColor = (severity: IncidentSeverity) => {
@@ -30,7 +45,7 @@ export default function IncidentsScreen() {
     }
   };
 
-  const getStatusColor = (status: IncidentStatus) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'open':
         return colors.error;
@@ -45,81 +60,58 @@ export default function IncidentsScreen() {
     }
   };
 
-  const getTypeIcon = (type: Incident['type']) => {
-    switch (type) {
-      case 'medical':
-        return 'medical-services' as const;
-      case 'behavioral':
-        return 'psychology' as const;
-      case 'safety':
-        return 'warning' as const;
-      case 'other':
-        return 'info' as const;
-      default:
-        return 'info' as const;
-    }
-  };
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   return (
     <View style={[commonStyles.container, styles.container]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Incidents</Text>
-        <Text style={styles.headerSubtitle}>{filteredIncidents.length} incidents</Text>
+        <Text style={styles.headerSubtitle}>
+          {filteredIncidents.length} incident{filteredIncidents.length !== 1 ? 's' : ''}
+        </Text>
       </View>
 
-      {/* Add New Incident Button */}
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => router.push('/new-incident' as any)}
-        activeOpacity={0.8}
-      >
-        <IconSymbol
-          ios_icon_name="plus.circle.fill"
-          android_material_icon_name="add-circle"
-          size={24}
-          color="#FFFFFF"
-        />
-        <Text style={styles.addButtonText}>Report New Incident</Text>
-      </TouchableOpacity>
+      {/* Filter Tabs */}
+      <View style={styles.filterContainer}>
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
+          onPress={() => setFilter('all')}
+        >
+          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+            All
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'open' && styles.filterTabActive]}
+          onPress={() => setFilter('open')}
+        >
+          <Text style={[styles.filterText, filter === 'open' && styles.filterTextActive]}>
+            Open
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'resolved' && styles.filterTabActive]}
+          onPress={() => setFilter('resolved')}
+        >
+          <Text style={[styles.filterText, filter === 'resolved' && styles.filterTextActive]}>
+            Resolved
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Filter Buttons */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
-        {(['all', 'open', 'in-progress', 'resolved', 'closed'] as const).map((status, index) => (
-          <React.Fragment key={index}>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                filterStatus === status && styles.filterButtonActive,
-              ]}
-              onPress={() => setFilterStatus(status)}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterStatus === status && styles.filterButtonTextActive,
-                ]}
-              >
-                {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
-              </Text>
-            </TouchableOpacity>
-          </React.Fragment>
-        ))}
-      </ScrollView>
+      {/* Add Incident Button */}
+      {canCreate && (
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity style={styles.addButton}>
+            <IconSymbol
+              ios_icon_name="plus.circle.fill"
+              android_material_icon_name="add-circle"
+              size={24}
+              color="#FFFFFF"
+            />
+            <Text style={styles.addButtonText}>Report New Incident</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Incidents List */}
       <ScrollView
@@ -127,116 +119,155 @@ export default function IncidentsScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {filteredIncidents.map((incident, index) => (
-          <React.Fragment key={index}>
-            <TouchableOpacity
-              style={commonStyles.card}
-              onPress={() => router.push(`/incident-detail?id=${incident.id}` as any)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.incidentHeader}>
-                <View style={styles.incidentHeaderLeft}>
-                  <View
-                    style={[
-                      styles.typeIcon,
-                      { backgroundColor: getSeverityColor(incident.severity) },
-                    ]}
-                  >
-                    <IconSymbol
-                      ios_icon_name={getTypeIcon(incident.type)}
-                      android_material_icon_name={getTypeIcon(incident.type)}
-                      size={20}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                  <View style={styles.incidentTitleContainer}>
-                    <Text style={styles.incidentTitle}>{incident.title}</Text>
-                    <Text style={styles.incidentCamper}>{incident.camperName}</Text>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(incident.status) },
-                  ]}
-                >
-                  <Text style={styles.statusText}>
-                    {incident.status.charAt(0).toUpperCase() + incident.status.slice(1).replace('-', ' ')}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.incidentDescription} numberOfLines={2}>
-                {incident.description}
-              </Text>
-
-              <View style={styles.incidentFooter}>
-                <View style={styles.incidentMeta}>
-                  <View style={styles.metaItem}>
-                    <IconSymbol
-                      ios_icon_name="location.fill"
-                      android_material_icon_name="location-on"
-                      size={14}
-                      color={colors.textSecondary}
-                    />
-                    <Text style={styles.metaText}>{incident.location}</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <IconSymbol
-                      ios_icon_name="clock.fill"
-                      android_material_icon_name="schedule"
-                      size={14}
-                      color={colors.textSecondary}
-                    />
-                    <Text style={styles.metaText}>{formatDate(incident.reportedAt)}</Text>
-                  </View>
-                </View>
-                <View style={styles.severityBadge}>
-                  <View
-                    style={[
-                      styles.severityDot,
-                      { backgroundColor: getSeverityColor(incident.severity) },
-                    ]}
-                  />
-                  <Text style={styles.severityText}>
-                    {incident.severity.charAt(0).toUpperCase() + incident.severity.slice(1)}
-                  </Text>
-                </View>
-              </View>
-
-              {incident.parentNotified && (
-                <View style={styles.notificationBadge}>
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check-circle"
-                    size={14}
-                    color={colors.success}
-                  />
-                  <Text style={styles.notificationText}>Parent notified</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </React.Fragment>
-        ))}
-
-        {filteredIncidents.length === 0 && (
+        {filteredIncidents.length === 0 ? (
           <View style={styles.emptyState}>
             <IconSymbol
-              ios_icon_name="checkmark.circle"
+              ios_icon_name="checkmark.circle.fill"
               android_material_icon_name="check-circle"
-              size={64}
-              color={colors.textSecondary}
+              size={48}
+              color={colors.success}
             />
-            <Text style={styles.emptyStateText}>No incidents found</Text>
-            <Text style={commonStyles.textSecondary}>
-              {filterStatus === 'all'
-                ? 'No incidents have been reported yet'
-                : `No ${filterStatus} incidents`}
-            </Text>
+            <Text style={styles.emptyText}>No incidents to display</Text>
           </View>
+        ) : (
+          filteredIncidents.map((incident, index) => (
+            <React.Fragment key={index}>
+              <TouchableOpacity
+                style={commonStyles.card}
+                onPress={() => setSelectedIncident(selectedIncident?.id === incident.id ? null : incident)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.incidentHeader}>
+                  <View style={styles.incidentInfo}>
+                    <Text style={commonStyles.cardTitle}>{incident.title}</Text>
+                    <Text style={commonStyles.textSecondary}>
+                      {incident.camperName} • {incident.location}
+                    </Text>
+                  </View>
+                  <View style={styles.badges}>
+                    <View style={[styles.badge, { backgroundColor: getSeverityColor(incident.severity) }]}>
+                      <Text style={styles.badgeText}>
+                        {incident.severity.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.statusRow}>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(incident.status) }]}>
+                    <Text style={styles.statusText}>
+                      {incident.status.replace('-', ' ').toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={commonStyles.textSecondary}>
+                    {new Date(incident.reportedAt).toLocaleDateString()}
+                  </Text>
+                </View>
+
+                {/* Expanded Details */}
+                {selectedIncident?.id === incident.id && (
+                  <>
+                    <View style={commonStyles.divider} />
+                    
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailLabel}>Description</Text>
+                      <Text style={commonStyles.textSecondary}>{incident.description}</Text>
+                    </View>
+
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailLabel}>Type</Text>
+                      <Text style={commonStyles.textSecondary}>
+                        {incident.type.charAt(0).toUpperCase() + incident.type.slice(1)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailLabel}>Reported By</Text>
+                      <Text style={commonStyles.textSecondary}>{incident.reportedBy}</Text>
+                    </View>
+
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailLabel}>Reported At</Text>
+                      <Text style={commonStyles.textSecondary}>
+                        {new Date(incident.reportedAt).toLocaleString()}
+                      </Text>
+                    </View>
+
+                    {incident.actionsTaken && (
+                      <View style={styles.detailSection}>
+                        <Text style={styles.detailLabel}>Actions Taken</Text>
+                        <Text style={commonStyles.textSecondary}>{incident.actionsTaken}</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.detailRow}>
+                      <IconSymbol
+                        ios_icon_name={incident.parentNotified ? 'checkmark.circle.fill' : 'xmark.circle.fill'}
+                        android_material_icon_name={incident.parentNotified ? 'check-circle' : 'cancel'}
+                        size={20}
+                        color={incident.parentNotified ? colors.success : colors.error}
+                      />
+                      <Text style={commonStyles.textSecondary}>
+                        Parent {incident.parentNotified ? 'Notified' : 'Not Notified'}
+                      </Text>
+                    </View>
+
+                    {incident.followUpRequired && (
+                      <View style={styles.detailRow}>
+                        <IconSymbol
+                          ios_icon_name="bell.fill"
+                          android_material_icon_name="notifications"
+                          size={20}
+                          color={colors.warning}
+                        />
+                        <Text style={commonStyles.textSecondary}>Follow-up Required</Text>
+                      </View>
+                    )}
+
+                    {/* Action Buttons */}
+                    {canEdit && (
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity style={styles.actionButton}>
+                          <IconSymbol
+                            ios_icon_name="pencil"
+                            android_material_icon_name="edit"
+                            size={20}
+                            color={colors.primary}
+                          />
+                          <Text style={styles.actionButtonText}>Edit</Text>
+                        </TouchableOpacity>
+
+                        {incident.status !== 'resolved' && incident.status !== 'closed' && (
+                          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.success }]}>
+                            <IconSymbol
+                              ios_icon_name="checkmark.circle.fill"
+                              android_material_icon_name="check-circle"
+                              size={20}
+                              color="#FFFFFF"
+                            />
+                            <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                              Mark Resolved
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </>
+                )}
+              </TouchableOpacity>
+            </React.Fragment>
+          ))
         )}
       </ScrollView>
     </View>
+  );
+}
+
+export default function IncidentsScreen() {
+  return (
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff']}>
+      <IncidentsScreenContent />
+    </ProtectedRoute>
   );
 }
 
@@ -257,64 +288,71 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '400',
     color: '#FFFFFF',
     opacity: 0.9,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginTop: 16,
+    gap: 8,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+  },
+  filterTabActive: {
+    backgroundColor: colors.primary,
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+  addButtonContainer: {
+    paddingHorizontal: 16,
+    marginTop: 16,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.secondary,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    paddingVertical: 14,
-    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
     gap: 8,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
-    elevation: 3,
   },
   addButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  filterContainer: {
-    maxHeight: 50,
-    marginBottom: 12,
-  },
-  filterContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  filterButtonActive: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  filterButtonTextActive: {
-    color: '#FFFFFF',
-  },
   scrollView: {
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 16,
+    padding: 16,
     paddingBottom: 120,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
   },
   incidentHeader: {
     flexDirection: 'row',
@@ -322,106 +360,72 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  incidentHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  incidentInfo: {
     flex: 1,
-    gap: 12,
+    marginRight: 12,
   },
-  typeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+  badges: {
+    gap: 4,
   },
-  incidentTitleContainer: {
-    flex: 1,
-  },
-  incidentTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  incidentCamper: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
+  badge: {
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 8,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-  incidentDescription: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  incidentFooter: {
+  statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  incidentMeta: {
-    flex: 1,
-    gap: 6,
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  severityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  severityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  severityText: {
+  statusText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.text,
+    color: '#FFFFFF',
   },
-  notificationBadge: {
+  detailSection: {
+    marginTop: 12,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: 6,
+    gap: 8,
   },
-  notificationText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.success,
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 12,
   },
-  emptyState: {
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    backgroundColor: colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
   },
-  emptyStateText: {
-    fontSize: 18,
+  actionButtonText: {
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
   },
 });
