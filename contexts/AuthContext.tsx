@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, AuthSession, UserRole } from '@/types/user';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { supabase } from '@/app/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -63,24 +64,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Signing in with email:', email);
       
-      // Mock authentication - In production, this would call your backend API
-      // For demo purposes, we'll create mock users based on email
-      const mockUser = createMockUser(email);
-      
+      // Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Supabase sign in error:', error);
+        throw new Error(error.message);
+      }
+
+      if (!data.user || !data.session) {
+        throw new Error('No user or session returned');
+      }
+
+      // Get user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        throw new Error('Failed to fetch user profile');
+      }
+
+      const user: User = {
+        id: data.user.id,
+        email: data.user.email!,
+        name: profile.full_name,
+        role: profile.role as UserRole,
+        registrationComplete: profile.registration_complete,
+      };
+
       const session: AuthSession = {
-        user: mockUser,
-        token: `mock_token_${Date.now()}`,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        user,
+        token: data.session.access_token,
+        expiresAt: new Date(data.session.expires_at!),
       };
 
       await saveSession(session);
-      setUser(mockUser);
+      setUser(user);
 
       // Role-based redirection
-      redirectAfterLogin(mockUser);
+      redirectAfterLogin(user);
     } catch (error) {
       console.error('Sign in error:', error);
-      throw new Error('Failed to sign in. Please check your credentials.');
+      throw error;
     }
   };
 
@@ -88,23 +120,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Signing in with Google...');
       
-      // Mock Google sign-in - In production, use @react-native-google-signin/google-signin
-      // For demo, we'll create a mock user
-      const mockUser = createMockUser('google.user@example.com');
-      
-      const session: AuthSession = {
-        user: mockUser,
-        token: `google_token_${Date.now()}`,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      };
+      // Sign in with Google via Supabase
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'https://natively.dev/auth/callback',
+        },
+      });
 
-      await saveSession(session);
-      setUser(mockUser);
+      if (error) {
+        console.error('Google sign in error:', error);
+        throw new Error(error.message);
+      }
 
-      redirectAfterLogin(mockUser);
+      // Note: The actual user session will be handled by the OAuth callback
+      console.log('Google OAuth initiated');
     } catch (error) {
       console.error('Google sign in error:', error);
-      throw new Error('Failed to sign in with Google.');
+      throw error;
     }
   };
 

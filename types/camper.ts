@@ -1,46 +1,60 @@
 
 export interface Camper {
   id: string;
+  campId: string;
+  sessionId?: string;
   firstName: string;
   lastName: string;
-  age: number;
-  cabin: string;
-  nfcWristbandId: string;
+  dateOfBirth: Date;
+  registrationStatus: 'pending' | 'incomplete' | 'complete' | 'cancelled';
+  wristbandId?: string;
+  wristbandAssigned: boolean;
   photoUrl?: string;
-  medicalInfo: MedicalInfo;
-  emergencyContacts: EmergencyContact[];
-  parentInfo: ParentInfo;
   checkInStatus: 'checked-in' | 'checked-out' | 'not-arrived';
   lastCheckIn?: Date;
   lastCheckOut?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface MedicalInfo {
+export interface CamperMedicalInfo {
+  id: string;
+  camperId: string;
   allergies: string[];
   medications: string[];
-  conditions: string[];
+  medicalConditions: string[];
+  specialCareInstructions?: string;
   dietaryRestrictions: string[];
   doctorName?: string;
   doctorPhone?: string;
   insuranceProvider?: string;
   insuranceNumber?: string;
   notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface EmergencyContact {
   id: string;
-  name: string;
-  relationship: string;
+  camperId: string;
+  fullName: string;
   phone: string;
-  email?: string;
-  isPrimary: boolean;
+  relationship: string;
+  priorityOrder: 1 | 2;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface ParentInfo {
-  fatherName?: string;
-  fatherPhone?: string;
-  fatherEmail?: string;
-  motherName?: string;
-  motherPhone?: string;
-  motherEmail?: string;
+// Combined type for UI display
+export interface CamperWithDetails extends Camper {
+  medicalInfo?: CamperMedicalInfo;
+  emergencyContacts: EmergencyContact[];
+  parents: ParentGuardian[];
+  session?: Session;
+  camp?: Camp;
 }
+
+// Import types from other files
+import { ParentGuardian } from './parent';
+import { Session } from './session';
+import { Camp } from './camp';
