@@ -131,34 +131,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('No user or session returned. Please try again.');
       }
 
-      console.log('User authenticated, fetching profile...');
+      console.log('User authenticated with ID:', data.user.id);
+      console.log('Fetching user profile...');
 
-      // Get user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
+      // Get user profile with retry logic
+      let profile = null;
+      let profileError = null;
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        console.log(`Profile fetch attempt ${attempt}/3...`);
+        
+        const { data: profileData, error: fetchError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
 
-      console.log('Profile fetch result:', {
-        hasProfile: !!profile,
-        error: profileError?.message
-      });
+        if (!fetchError && profileData) {
+          profile = profileData;
+          console.log('Profile found:', profile);
+          break;
+        }
+        
+        profileError = fetchError;
+        console.log(`Attempt ${attempt} failed:`, fetchError?.message);
+        
+        // Wait before retry (except on last attempt)
+        if (attempt < 3) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
 
       if (profileError) {
-        console.error('Error fetching user profile:', profileError);
+        console.error('Error fetching user profile after retries:', profileError);
         
         // Check if profile doesn't exist
         if (profileError.code === 'PGRST116') {
-          throw new Error('Your account setup is incomplete. Please contact support or try registering again with your authorization code.');
+          throw new Error('No user profile found. Your account was created but the profile setup failed. Please contact support with your email address.');
         }
         
         throw new Error('Failed to fetch user profile. Please contact support.');
       }
 
       if (!profile) {
-        console.error('No profile found for user');
-        throw new Error('Your account setup is incomplete. Please contact support or try registering again with your authorization code.');
+        console.error('No profile found for user after retries');
+        throw new Error('No user profile found. Your account was created but the profile setup failed. Please contact support with your email address.');
       }
 
       const authenticatedUser: User = {

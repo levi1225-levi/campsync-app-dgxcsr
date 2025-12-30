@@ -65,7 +65,10 @@ export default function SignInScreen() {
         userMessage = 'No account found with this email. Please register first.';
       } else if (errorMessage.includes('account setup is incomplete')) {
         alertTitle = 'Account Setup Incomplete';
-        userMessage = errorMessage;
+        userMessage = 'Your account was created but the profile setup failed. Please contact support with your email address to complete the setup.';
+      } else if (errorMessage.includes('No user profile found')) {
+        alertTitle = 'Profile Missing';
+        userMessage = 'Your account exists but the profile is missing. Please contact support with your email address to resolve this issue.';
       }
       
       Alert.alert(alertTitle, userMessage);
