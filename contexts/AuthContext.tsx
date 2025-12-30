@@ -4,6 +4,7 @@ import { User, AuthSession, UserRole } from '@/types/user';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { supabase } from '@/app/integrations/supabase/client';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signUpWithGoogle: (authCode: string) => Promise<void>;
   signOut: () => Promise<void>;
   hasPermission: (requiredRoles: UserRole[]) => boolean;
   updateUser: (user: User) => Promise<void>;
@@ -24,33 +26,89 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load session on mount
+  // Configure Google Sign-In on mount
   useEffect(() => {
+    configureGoogleSignIn();
     loadSession();
   }, []);
+
+  const configureGoogleSignIn = () => {
+    try {
+      GoogleSignin.configure({
+        webClientId: 'YOUR_WEB_CLIENT_ID_HERE', // User needs to provide this
+        offlineAccess: true,
+      });
+      console.log('Google Sign-In configured successfully');
+    } catch (error) {
+      console.error('Error configuring Google Sign-In:', error);
+    }
+  };
 
   const loadSession = async () => {
     try {
       console.log('Loading session from secure storage...');
-      const sessionData = await SecureStore.getItemAsync(SESSION_KEY);
-      if (sessionData) {
-        const session: AuthSession = JSON.parse(sessionData);
-        
-        // Check if session is expired
-        if (new Date(session.expiresAt) > new Date()) {
-          setUser(session.user);
-          console.log('Session loaded successfully:', session.user.email, session.user.role);
-        } else {
-          console.log('Session expired, clearing...');
-          await SecureStore.deleteItemAsync(SESSION_KEY);
-        }
+      
+      // First check Supabase session
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Error getting Supabase session:', error);
+      }
+      
+      if (session?.user) {
+        console.log('Found active Supabase session');
+        await loadUserProfile(session.user.id);
       } else {
-        console.log('No session found in storage');
+        // Fallback to local storage
+        const sessionData = await SecureStore.getItemAsync(SESSION_KEY);
+        if (sessionData) {
+          const localSession: AuthSession = JSON.parse(sessionData);
+          
+          // Check if session is expired
+          if (new Date(localSession.expiresAt) > new Date()) {
+            setUser(localSession.user);
+            console.log('Session loaded from local storage:', localSession.user.email, localSession.user.role);
+          } else {
+            console.log('Local session expired, clearing...');
+            await SecureStore.deleteItemAsync(SESSION_KEY);
+          }
+        } else {
+          console.log('No session found');
+        }
       }
     } catch (error) {
       console.error('Error loading session:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error loading user profile:', error);
+        return;
+      }
+
+      if (profile) {
+        const user: User = {
+          id: profile.id,
+          email: profile.email,
+          name: profile.full_name,
+          role: profile.role as UserRole,
+          registrationComplete: profile.registration_complete,
+        };
+        setUser(user);
+        console.log('User profile loaded:', user.email, user.role);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
     }
   };
 
@@ -70,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.toLowerCase().trim(),
         password,
       });
 
@@ -151,23 +209,156 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('=== Google Sign In Process Started ===');
       
-      // Sign in with Google via Supabase
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      // Check if Google Play Services are available
+      await GoogleSignin.hasPlayServices();
+      
+      // Sign in with Google
+      const userInfo = await GoogleSignin.signIn();
+      console.log('Google sign-in successful, user info:', userInfo.data?.user?.email);
+      
+      if (!userInfo.data?.idToken) {
+        throw new Error('No ID token received from Google');
+      }
+
+      // Sign in with Supabase using the ID token
+      const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
-        options: {
-          redirectTo: 'https://natively.dev/auth/callback',
-        },
+        token: userInfo.data.idToken,
       });
 
       if (error) {
-        console.error('Google sign in error:', error);
+        console.error('Supabase Google sign in error:', error);
         throw new Error(error.message);
       }
 
-      // Note: The actual user session will be handled by the OAuth callback
-      console.log('Google OAuth initiated successfully');
-    } catch (error) {
+      if (!data.user) {
+        throw new Error('No user returned from Supabase');
+      }
+
+      console.log('Google sign in successful, loading profile...');
+      await loadUserProfile(data.user.id);
+      
+      if (user) {
+        redirectAfterLogin(user);
+      }
+    } catch (error: any) {
       console.error('Google sign in error:', error);
+      
+      // Handle specific Google Sign-In errors
+      if (error.code === 'SIGN_IN_CANCELLED') {
+        throw new Error('Sign in was cancelled');
+      } else if (error.code === 'IN_PROGRESS') {
+        throw new Error('Sign in is already in progress');
+      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+        throw new Error('Google Play Services not available');
+      }
+      
+      throw error;
+    }
+  };
+
+  const signUpWithGoogle = async (authCode: string) => {
+    try {
+      console.log('=== Google Sign Up Process Started ===');
+      console.log('Authorization code:', authCode);
+      
+      // Check if Google Play Services are available
+      await GoogleSignin.hasPlayServices();
+      
+      // Sign in with Google
+      const userInfo = await GoogleSignin.signIn();
+      console.log('Google sign-in successful, user info:', userInfo.data?.user?.email);
+      
+      if (!userInfo.data?.idToken) {
+        throw new Error('No ID token received from Google');
+      }
+
+      // Sign in with Supabase using the ID token
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: userInfo.data.idToken,
+      });
+
+      if (error) {
+        console.error('Supabase Google sign up error:', error);
+        throw new Error(error.message);
+      }
+
+      if (!data.user) {
+        throw new Error('No user returned from Supabase');
+      }
+
+      console.log('Google authentication successful, creating profile with authorization code...');
+
+      // Check if profile already exists
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (existingProfile) {
+        console.log('Profile already exists, signing in...');
+        await loadUserProfile(data.user.id);
+        if (user) {
+          redirectAfterLogin(user);
+        }
+        return;
+      }
+
+      // Validate authorization code
+      const { data: codeValidation, error: codeError } = await supabase.rpc('validate_authorization_code', {
+        p_code: authCode.trim().toUpperCase()
+      });
+
+      if (codeError || !codeValidation?.valid) {
+        throw new Error(codeValidation?.error || 'Invalid authorization code');
+      }
+
+      console.log('Authorization code validated, role:', codeValidation.role);
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: data.user.id,
+          email: data.user.email!,
+          full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email!.split('@')[0],
+          role: codeValidation.role,
+          registration_complete: codeValidation.role !== 'parent',
+        });
+
+      if (profileError) {
+        console.error('Error creating user profile:', profileError);
+        throw new Error('Failed to create user profile: ' + profileError.message);
+      }
+
+      console.log('User profile created successfully');
+
+      // Increment code usage
+      if (codeValidation.code_id) {
+        await supabase.rpc('increment_code_usage', {
+          p_code_id: codeValidation.code_id
+        });
+      }
+
+      // Load the new profile and redirect
+      await loadUserProfile(data.user.id);
+      if (user) {
+        redirectAfterLogin(user);
+      }
+    } catch (error: any) {
+      console.error('Google sign up error:', error);
+      
+      // Handle specific Google Sign-In errors
+      if (error.code === 'SIGN_IN_CANCELLED') {
+        throw new Error('Sign in was cancelled');
+      } else if (error.code === 'IN_PROGRESS') {
+        throw new Error('Sign in is already in progress');
+      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+        throw new Error('Google Play Services not available');
+      }
+      
       throw error;
     }
   };
@@ -175,6 +366,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       console.log('=== Sign Out Process Started ===');
+      
+      // Sign out from Google if signed in
+      try {
+        const isSignedIn = await GoogleSignin.isSignedIn();
+        if (isSignedIn) {
+          await GoogleSignin.signOut();
+          console.log('Signed out from Google');
+        }
+      } catch (error) {
+        console.error('Error signing out from Google:', error);
+      }
       
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -247,6 +449,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         signIn,
         signInWithGoogle,
+        signUpWithGoogle,
         signOut,
         hasPermission,
         updateUser,

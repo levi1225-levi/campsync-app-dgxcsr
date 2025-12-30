@@ -18,8 +18,10 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { validateAuthorizationCode } from '@/services/authorizationCode.service';
 import { supabase } from '@/app/integrations/supabase/client';
 import { incrementCodeUsage, findCampersByParentEmail } from '@/services/authorizationCode.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function RegisterScreen() {
+  const { signUpWithGoogle } = useAuth();
   const [step, setStep] = useState<'code' | 'details'>('code');
   const [authCode, setAuthCode] = useState('');
   const [validatedCode, setValidatedCode] = useState<any>(null);
@@ -61,6 +63,48 @@ export default function RegisterScreen() {
     } catch (error) {
       console.error('Error validating code:', error);
       Alert.alert('Error', 'Failed to validate authorization code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    console.log('=== Google Sign Up Attempt ===');
+    if (!authCode.trim()) {
+      Alert.alert('Error', 'Please validate your authorization code first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await signUpWithGoogle(authCode.trim().toUpperCase());
+      console.log('Google sign up successful!');
+      Alert.alert(
+        'Registration Successful! ✓',
+        'Your account has been created successfully.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('Navigating to sign-in...');
+              router.replace('/sign-in');
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Google sign up error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during Google sign up';
+      
+      // Check if it's a configuration error
+      if (errorMessage.includes('webClientId')) {
+        Alert.alert(
+          'Configuration Required',
+          'Google Sign-Up is not configured yet. Please provide your Google OAuth Client ID to enable this feature.'
+        );
+      } else {
+        Alert.alert('Sign Up Failed', errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -391,6 +435,31 @@ export default function RegisterScreen() {
               )}
             </TouchableOpacity>
 
+            {/* Google Sign Up Option */}
+            {validatedCode && (
+              <React.Fragment>
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={handleGoogleSignUp}
+                  disabled={isLoading}
+                >
+                  <IconSymbol
+                    ios_icon_name="g.circle.fill"
+                    android_material_icon_name="login"
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.googleButtonText}>Sign Up with Google</Text>
+                </TouchableOpacity>
+              </React.Fragment>
+            )}
+
             {/* Demo Codes */}
             <View style={[commonStyles.card, styles.demoCard]}>
               <Text style={styles.demoTitle}>Demo Authorization Codes</Text>
@@ -655,6 +724,40 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 16,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    gap: 12,
+    marginBottom: 16,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
   },
   demoCard: {
     backgroundColor: '#E3F2FD',

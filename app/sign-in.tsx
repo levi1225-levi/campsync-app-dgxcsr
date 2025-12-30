@@ -67,10 +67,17 @@ export default function SignInScreen() {
       console.log('Google sign in initiated');
     } catch (error) {
       console.error('Google sign in error:', error);
-      Alert.alert(
-        'Sign In Failed',
-        error instanceof Error ? error.message : 'An error occurred during Google sign in'
-      );
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during Google sign in';
+      
+      // Check if it's a configuration error
+      if (errorMessage.includes('webClientId')) {
+        Alert.alert(
+          'Configuration Required',
+          'Google Sign-In is not configured yet. Please provide your Google OAuth Client ID to enable this feature.'
+        );
+      } else {
+        Alert.alert('Sign In Failed', errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
