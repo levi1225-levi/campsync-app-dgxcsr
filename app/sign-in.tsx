@@ -18,7 +18,7 @@ import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
 export default function SignInScreen() {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -54,23 +54,6 @@ export default function SignInScreen() {
       }
       
       Alert.alert('Sign In Failed', userMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    console.log('=== Google Sign In Attempt ===');
-    setIsLoading(true);
-    try {
-      await signInWithGoogle();
-      console.log('Google sign in initiated successfully');
-      // Navigation is handled by AuthContext
-    } catch (error) {
-      console.error('Google sign in error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred during Google sign in';
-      
-      Alert.alert('Sign In Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -168,6 +151,15 @@ export default function SignInScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Forgot Password Link */}
+          <TouchableOpacity
+            style={styles.forgotPasswordLink}
+            onPress={() => router.push('/forgot-password' as any)}
+            disabled={isLoading}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[buttonStyles.primary, styles.signInButton]}
             onPress={handleEmailSignIn}
@@ -176,30 +168,8 @@ export default function SignInScreen() {
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={buttonStyles.text}>Sign In with Email</Text>
+              <Text style={buttonStyles.text}>Sign In</Text>
             )}
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google Sign In */}
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={handleGoogleSignIn}
-            disabled={isLoading}
-          >
-            <IconSymbol
-              ios_icon_name="g.circle.fill"
-              android_material_icon_name="login"
-              size={24}
-              color={colors.primary}
-            />
-            <Text style={styles.googleButtonText}>Sign In with Google</Text>
           </TouchableOpacity>
         </View>
 
@@ -293,41 +263,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  forgotPasswordLink: {
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+  },
   signInButton: {
     marginTop: 8,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    gap: 12,
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
   },
   registerContainer: {
     flexDirection: 'row',
