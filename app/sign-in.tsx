@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function SignInScreen() {
   const { signIn } = useAuth();
@@ -75,19 +76,24 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Header with Gradient */}
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
           <View style={styles.logoContainer}>
             <IconSymbol
               ios_icon_name="tent.fill"
               android_material_icon_name="camping"
               size={64}
-              color={colors.primary}
+              color="#FFFFFF"
             />
           </View>
           <Text style={styles.title}>CampSync</Text>
           <Text style={styles.subtitle}>Summer Camp Management</Text>
-        </View>
+        </LinearGradient>
 
         {/* Info Card */}
         <View style={[commonStyles.card, styles.infoCard]}>
@@ -95,7 +101,7 @@ export default function SignInScreen() {
             ios_icon_name="info.circle.fill"
             android_material_icon_name="info"
             size={24}
-            color={colors.primary}
+            color={colors.info}
           />
           <Text style={commonStyles.textSecondary}>
             New to CampSync? You&apos;ll need an authorization code from your camp administrator to create an account.
@@ -214,30 +220,35 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderRadius: 24,
   },
   logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.card,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-    elevation: 4,
+    marginBottom: 20,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '800',
-    color: colors.text,
-    marginBottom: 4,
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: '#FFFFFF',
+    opacity: 0.9,
   },
   infoCard: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.info + '15',
     marginBottom: 24,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -247,10 +258,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   formTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 20,
+    letterSpacing: -0.3,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -258,8 +270,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 12,
+    paddingVertical: 14,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 12,
@@ -271,7 +283,7 @@ const styles = StyleSheet.create({
   },
   forgotPasswordLink: {
     alignSelf: 'flex-end',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   forgotPasswordText: {
     fontSize: 14,

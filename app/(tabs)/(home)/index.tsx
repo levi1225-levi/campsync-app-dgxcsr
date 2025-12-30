@@ -7,8 +7,8 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
-import { mockIncidents } from '@/data/mockIncidents';
 import * as Network from 'expo-network';
+import { LinearGradient } from 'expo-linear-gradient';
 
 function HomeScreenContent() {
   const router = useRouter();
@@ -37,7 +37,6 @@ function HomeScreenContent() {
 
   const checkedInCount = mockCampers.filter(c => c.checkInStatus === 'checked-in').length;
   const totalCampers = mockCampers.length;
-  const openIncidents = mockIncidents.filter(i => i.status === 'open' || i.status === 'in-progress').length;
 
   const quickActions = [
     {
@@ -49,20 +48,20 @@ function HomeScreenContent() {
       roles: ['super-admin', 'camp-admin', 'staff'] as const,
     },
     {
-      title: 'Incident Reporting',
-      description: 'Log and track incidents',
-      icon: 'report' as const,
-      route: '/(tabs)/incidents',
-      color: colors.secondary,
-      roles: ['super-admin', 'camp-admin', 'staff'] as const,
-    },
-    {
       title: 'NFC Scanner',
       description: 'Scan wristbands for quick access',
       icon: 'nfc' as const,
       route: '/(tabs)/nfc-scanner',
       color: colors.accent,
       roles: ['super-admin', 'camp-admin', 'staff'] as const,
+    },
+    {
+      title: 'Bulk Import',
+      description: 'Import campers from CSV',
+      icon: 'upload' as const,
+      route: '/bulk-import-campers',
+      color: colors.secondary,
+      roles: ['super-admin', 'camp-admin'] as const,
     },
   ];
 
@@ -78,106 +77,62 @@ function HomeScreenContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>CampSync</Text>
-            <Text style={styles.headerSubtitle}>
-              {user?.role === 'super-admin' && 'Super Admin Dashboard'}
-              {user?.role === 'camp-admin' && 'Camp Admin Dashboard'}
-              {user?.role === 'staff' && 'Staff Dashboard'}
-            </Text>
+        {/* Header with Gradient */}
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.headerGreeting}>Welcome back,</Text>
+              <Text style={styles.headerTitle}>{user?.name}</Text>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>
+                  {user?.role === 'super-admin' && 'Super Admin'}
+                  {user?.role === 'camp-admin' && 'Camp Admin'}
+                  {user?.role === 'staff' && 'Staff Member'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
+              <IconSymbol
+                ios_icon_name="rectangle.portrait.and.arrow.right"
+                android_material_icon_name="logout"
+                size={24}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
-            <IconSymbol
-              ios_icon_name="rectangle.portrait.and.arrow.right"
-              android_material_icon_name="logout"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* User Info Badge */}
-        <View style={styles.userBadge}>
-          <IconSymbol
-            ios_icon_name="person.circle.fill"
-            android_material_icon_name="account-circle"
-            size={24}
-            color={colors.primary}
-          />
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.userRole}>
-              {user?.role === 'super-admin' && 'Super Administrator'}
-              {user?.role === 'camp-admin' && 'Camp Administrator'}
-              {user?.role === 'staff' && 'Staff Member'}
-            </Text>
-          </View>
-        </View>
+        </LinearGradient>
 
         {/* Stats Overview */}
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, { backgroundColor: colors.primary }]}>
-            <IconSymbol
-              ios_icon_name="person.2.fill"
-              android_material_icon_name="people"
-              size={32}
-              color="#FFFFFF"
-            />
+            <View style={styles.statIconContainer}>
+              <IconSymbol
+                ios_icon_name="person.2.fill"
+                android_material_icon_name="people"
+                size={28}
+                color="#FFFFFF"
+              />
+            </View>
             <Text style={styles.statNumber}>{checkedInCount}/{totalCampers}</Text>
-            <Text style={styles.statLabel}>Checked In</Text>
+            <Text style={styles.statLabel}>Checked In Today</Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="warning"
-              size={32}
-              color="#FFFFFF"
-            />
-            <Text style={styles.statNumber}>{openIncidents}</Text>
-            <Text style={styles.statLabel}>Open Incidents</Text>
-          </View>
-        </View>
-
-        {/* Announcements */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today&apos;s Announcements</Text>
-          <View style={commonStyles.card}>
-            <View style={styles.announcementHeader}>
+          <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
+            <View style={styles.statIconContainer}>
               <IconSymbol
-                ios_icon_name="megaphone.fill"
-                android_material_icon_name="campaign"
-                size={24}
-                color={colors.accent}
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check-circle"
+                size={28}
+                color="#FFFFFF"
               />
-              <Text style={styles.announcementTitle}>Welcome to Camp!</Text>
             </View>
-            <Text style={commonStyles.textSecondary}>
-              All staff: Please ensure camper wristbands are properly registered. Check-in closes at 5 PM today.
-            </Text>
-            <Text style={[commonStyles.textSecondary, styles.announcementTime]}>
-              Posted 2 hours ago
-            </Text>
-          </View>
-
-          <View style={commonStyles.card}>
-            <View style={styles.announcementHeader}>
-              <IconSymbol
-                ios_icon_name="sun.max.fill"
-                android_material_icon_name="wb-sunny"
-                size={24}
-                color={colors.highlight}
-              />
-              <Text style={styles.announcementTitle}>Weather Alert</Text>
-            </View>
-            <Text style={commonStyles.textSecondary}>
-              Sunny weather expected all week. Remember to apply sunscreen and stay hydrated!
-            </Text>
-            <Text style={[commonStyles.textSecondary, styles.announcementTime]}>
-              Posted 5 hours ago
-            </Text>
+            <Text style={styles.statNumber}>{totalCampers}</Text>
+            <Text style={styles.statLabel}>Total Campers</Text>
           </View>
         </View>
 
@@ -197,7 +152,7 @@ function HomeScreenContent() {
                       <IconSymbol
                         ios_icon_name={action.icon}
                         android_material_icon_name={action.icon}
-                        size={28}
+                        size={24}
                         color="#FFFFFF"
                       />
                     </View>
@@ -218,6 +173,45 @@ function HomeScreenContent() {
           </View>
         )}
 
+        {/* Today's Activity */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Today&apos;s Activity</Text>
+          <View style={commonStyles.card}>
+            <View style={styles.activityHeader}>
+              <IconSymbol
+                ios_icon_name="clock.fill"
+                android_material_icon_name="schedule"
+                size={24}
+                color={colors.info}
+              />
+              <Text style={styles.activityTitle}>Recent Check-ins</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              {checkedInCount} campers checked in today. All systems operational.
+            </Text>
+            <View style={styles.activityTime}>
+              <Text style={[commonStyles.textSecondary, { fontSize: 12 }]}>
+                Last updated: {new Date().toLocaleTimeString()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={commonStyles.card}>
+            <View style={styles.activityHeader}>
+              <IconSymbol
+                ios_icon_name="sun.max.fill"
+                android_material_icon_name="wb-sunny"
+                size={24}
+                color={colors.warning}
+              />
+              <Text style={styles.activityTitle}>Camp Status</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              All activities running smoothly. Weather is perfect for outdoor activities!
+            </Text>
+          </View>
+        </View>
+
         {/* Admin Tools Section */}
         {(user?.role === 'super-admin' || user?.role === 'camp-admin') && (
           <View style={styles.section}>
@@ -233,7 +227,7 @@ function HomeScreenContent() {
                   <IconSymbol
                     ios_icon_name="key.fill"
                     android_material_icon_name="vpn-key"
-                    size={28}
+                    size={24}
                     color="#FFFFFF"
                   />
                 </View>
@@ -251,31 +245,6 @@ function HomeScreenContent() {
                 />
               </View>
             </TouchableOpacity>
-
-            <View style={commonStyles.card}>
-              <View style={styles.actionCard}>
-                <View style={[styles.actionIconContainer, { backgroundColor: colors.success }]}>
-                  <IconSymbol
-                    ios_icon_name="person.badge.key.fill"
-                    android_material_icon_name="admin-panel-settings"
-                    size={28}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <View style={styles.actionContent}>
-                  <Text style={commonStyles.cardTitle}>User Management</Text>
-                  <Text style={commonStyles.textSecondary}>
-                    Assign roles and manage access
-                  </Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron-right"
-                  size={24}
-                  color={colors.textSecondary}
-                />
-              </View>
-            </View>
           </View>
         )}
 
@@ -317,116 +286,117 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   header: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 24,
-    backgroundColor: colors.primary,
+    alignItems: 'flex-start',
+  },
+  headerGreeting: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    opacity: 0.9,
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: 16,
-    fontWeight: '400',
+  roleBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  roleBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#FFFFFF',
-    opacity: 0.9,
+    letterSpacing: 0.5,
   },
   signOutButton: {
     padding: 8,
-  },
-  userBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    marginHorizontal: 16,
-    marginTop: -20,
-    marginBottom: 16,
-    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-    gap: 12,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  userRole: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
+    marginTop: -20,
     marginBottom: 24,
     gap: 12,
   },
   statCard: {
     flex: 1,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.12)',
     elevation: 4,
   },
+  statIconContainer: {
+    marginBottom: 12,
+  },
   statNumber: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginTop: 8,
+    marginBottom: 4,
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#FFFFFF',
     opacity: 0.9,
-    marginTop: 4,
+    textAlign: 'center',
   },
   section: {
     paddingHorizontal: 16,
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 16,
+    letterSpacing: -0.3,
   },
-  announcementHeader: {
+  activityHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    marginBottom: 12,
+    gap: 12,
   },
-  announcementTitle: {
-    fontSize: 16,
+  activityTitle: {
+    fontSize: 17,
     fontWeight: '600',
     color: colors.text,
   },
-  announcementTime: {
-    fontSize: 12,
-    marginTop: 8,
-    fontStyle: 'italic',
+  activityTime: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   actionIconContainer: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -440,9 +410,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 16,
     marginBottom: 24,
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
   },
   offlineText: {
     fontSize: 14,

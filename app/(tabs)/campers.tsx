@@ -8,15 +8,19 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  Alert,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
 import { Camper } from '@/types/camper';
+import { LinearGradient } from 'expo-linear-gradient';
 
 function CampersScreenContent() {
+  const router = useRouter();
   const { user, hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCamper, setSelectedCamper] = useState<Camper | null>(null);
@@ -40,15 +44,50 @@ function CampersScreenContent() {
     }
   };
 
+  const handleViewFullProfile = (camper: Camper) => {
+    // Show detailed profile in an alert for now
+    // In a real app, this would navigate to a dedicated profile screen
+    Alert.alert(
+      `${camper.firstName} ${camper.lastName}`,
+      `Age: ${camper.age}\nCabin: ${camper.cabin}\nNFC ID: ${camper.nfcWristbandId}\n\nMedical Info:\n${
+        camper.medicalInfo.allergies.length > 0 
+          ? `Allergies: ${camper.medicalInfo.allergies.join(', ')}\n` 
+          : ''
+      }${
+        camper.medicalInfo.medications.length > 0 
+          ? `Medications: ${camper.medicalInfo.medications.join(', ')}\n` 
+          : ''
+      }${
+        camper.medicalInfo.dietaryRestrictions.length > 0 
+          ? `Dietary: ${camper.medicalInfo.dietaryRestrictions.join(', ')}` 
+          : ''
+      }`,
+      [{ text: 'Close', style: 'cancel' }]
+    );
+  };
+
+  const handleEditCamper = (camper: Camper) => {
+    Alert.alert(
+      'Edit Camper',
+      `Editing functionality for ${camper.firstName} ${camper.lastName} will be implemented in the admin dashboard.`,
+      [{ text: 'OK' }]
+    );
+  };
+
   return (
     <View style={[commonStyles.container, styles.container]}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={[colors.primary, colors.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
         <Text style={styles.headerTitle}>Campers</Text>
         <Text style={styles.headerSubtitle}>
           {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
         </Text>
-      </View>
+      </LinearGradient>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -80,14 +119,17 @@ function CampersScreenContent() {
       {/* Add Camper Button (Admin only) */}
       {canEdit && (
         <View style={styles.addButtonContainer}>
-          <TouchableOpacity style={styles.addButton}>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => router.push('/bulk-import-campers' as any)}
+          >
             <IconSymbol
               ios_icon_name="plus.circle.fill"
               android_material_icon_name="add-circle"
               size={24}
               color="#FFFFFF"
             />
-            <Text style={styles.addButtonText}>Add New Camper</Text>
+            <Text style={styles.addButtonText}>Import Campers</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -103,10 +145,13 @@ function CampersScreenContent() {
             <IconSymbol
               ios_icon_name="person.slash.fill"
               android_material_icon_name="person-off"
-              size={48}
+              size={64}
               color={colors.textSecondary}
             />
             <Text style={styles.emptyText}>No campers found</Text>
+            <Text style={commonStyles.textSecondary}>
+              {searchQuery ? 'Try a different search term' : 'Import campers to get started'}
+            </Text>
           </View>
         ) : (
           filteredCampers.map((camper, index) => (
@@ -170,7 +215,7 @@ function CampersScreenContent() {
                               size={20}
                               color={colors.error}
                             />
-                            <Text style={commonStyles.textSecondary}>
+                            <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
                               Allergies: {camper.medicalInfo.allergies.join(', ')}
                             </Text>
                           </View>
@@ -184,7 +229,7 @@ function CampersScreenContent() {
                               size={20}
                               color={colors.secondary}
                             />
-                            <Text style={commonStyles.textSecondary}>
+                            <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
                               Medications: {camper.medicalInfo.medications.join(', ')}
                             </Text>
                           </View>
@@ -198,7 +243,7 @@ function CampersScreenContent() {
                               size={20}
                               color={colors.accent}
                             />
-                            <Text style={commonStyles.textSecondary}>
+                            <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
                               Diet: {camper.medicalInfo.dietaryRestrictions.join(', ')}
                             </Text>
                           </View>
@@ -213,7 +258,7 @@ function CampersScreenContent() {
                           ios_icon_name="clock.fill"
                           android_material_icon_name="schedule"
                           size={20}
-                          color={colors.primary}
+                          color={colors.info}
                         />
                         <Text style={commonStyles.textSecondary}>
                           Last check-in: {new Date(camper.lastCheckIn).toLocaleString()}
@@ -223,25 +268,31 @@ function CampersScreenContent() {
 
                     {/* Action Buttons */}
                     <View style={styles.actionButtons}>
-                      <TouchableOpacity style={styles.actionButton}>
+                      <TouchableOpacity 
+                        style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                        onPress={() => handleViewFullProfile(camper)}
+                      >
                         <IconSymbol
                           ios_icon_name="doc.text.fill"
                           android_material_icon_name="description"
                           size={20}
-                          color={colors.primary}
+                          color="#FFFFFF"
                         />
-                        <Text style={styles.actionButtonText}>View Full Profile</Text>
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>View Full Profile</Text>
                       </TouchableOpacity>
 
                       {canEdit && (
-                        <TouchableOpacity style={styles.actionButton}>
+                        <TouchableOpacity 
+                          style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+                          onPress={() => handleEditCamper(camper)}
+                        >
                           <IconSymbol
                             ios_icon_name="pencil"
                             android_material_icon_name="edit"
                             size={20}
-                            color={colors.secondary}
+                            color="#FFFFFF"
                           />
-                          <Text style={styles.actionButtonText}>Edit</Text>
+                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Edit</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -269,20 +320,22 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 48 : 0,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 16,
-    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800',
     color: '#FFFFFF',
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#FFFFFF',
     opacity: 0.9,
   },
@@ -293,11 +346,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     gap: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   searchInput: {
     flex: 1,
@@ -313,15 +368,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
     gap: 8,
+    boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.3)',
+    elevation: 4,
   },
   addButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   scrollView: {
     flex: 1,
@@ -333,48 +391,53 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyText: {
-    fontSize: 16,
-    color: colors.textSecondary,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
     marginTop: 16,
+    marginBottom: 8,
   },
   camperHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   camperAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   camperInfo: {
     flex: 1,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   detailRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginTop: 12,
-    gap: 8,
+    gap: 12,
   },
   actionButtons: {
     flexDirection: 'row',
-    marginTop: 16,
+    marginTop: 20,
     gap: 12,
   },
   actionButton: {
@@ -382,15 +445,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 6,
+    borderRadius: 12,
+    gap: 8,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
   actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.text,
+    letterSpacing: 0.3,
   },
 });

@@ -5,7 +5,7 @@ import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 
 export default function TabLayout() {
-  // Define the tabs configuration
+  // Define the tabs configuration (removed incidents)
   const tabs: TabBarItem[] = [
     {
       name: '(home)',
@@ -20,16 +20,16 @@ export default function TabLayout() {
       label: 'Campers',
     },
     {
-      name: 'incidents',
-      route: '/(tabs)/incidents',
-      icon: 'report',
-      label: 'Incidents',
-    },
-    {
       name: 'nfc-scanner',
       route: '/(tabs)/nfc-scanner',
       icon: 'nfc',
       label: 'NFC',
+    },
+    {
+      name: 'profile',
+      route: '/(tabs)/profile',
+      icon: 'person',
+      label: 'Profile',
     },
   ];
 
@@ -44,8 +44,8 @@ export default function TabLayout() {
       >
         <Stack.Screen key="home" name="(home)" />
         <Stack.Screen key="campers" name="campers" />
-        <Stack.Screen key="incidents" name="incidents" />
         <Stack.Screen key="nfc-scanner" name="nfc-scanner" />
+        <Stack.Screen key="profile" name="profile" />
       </Stack>
       <FloatingTabBar tabs={tabs} />
     </>

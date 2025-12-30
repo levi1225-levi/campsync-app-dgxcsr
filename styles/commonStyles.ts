@@ -1,50 +1,101 @@
 
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
 
+// Modern, vibrant color palette
 export const colors = {
-  background: '#F9F9F9',
-  text: '#212121',
-  textSecondary: '#757575',
-  primary: '#3F51B5',
-  secondary: '#E64A19',
-  accent: '#009688',
+  // Backgrounds
+  background: '#F8F9FA',
+  backgroundDark: '#1A1B1E',
   card: '#FFFFFF',
-  highlight: '#FFD54F',
-  border: '#E0E0E0',
-  error: '#D32F2F',
-  success: '#388E3C',
-  warning: '#F57C00',
+  cardDark: '#25262B',
+  
+  // Text
+  text: '#1A1B1E',
+  textDark: '#F8F9FA',
+  textSecondary: '#6C757D',
+  textSecondaryDark: '#ADB5BD',
+  
+  // Primary brand colors - Modern blue/purple gradient
+  primary: '#6366F1',      // Indigo
+  primaryLight: '#818CF8',
+  primaryDark: '#4F46E5',
+  
+  // Secondary colors
+  secondary: '#EC4899',    // Pink
+  secondaryLight: '#F472B6',
+  
+  // Accent colors
+  accent: '#10B981',       // Emerald green
+  accentLight: '#34D399',
+  
+  // Status colors
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#3B82F6',
+  
+  // UI elements
+  border: '#E5E7EB',
+  borderDark: '#374151',
+  highlight: '#FCD34D',
+  
+  // Gradients (for future use)
+  gradientStart: '#6366F1',
+  gradientEnd: '#EC4899',
 };
 
 export const buttonStyles = StyleSheet.create({
   primary: {
     backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.3)',
+    elevation: 4,
   },
   secondary: {
     backgroundColor: colors.secondary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0px 4px 12px rgba(236, 72, 153, 0.3)',
+    elevation: 4,
   },
   accent: {
     backgroundColor: colors.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0px 4px 12px rgba(16, 185, 129, 0.3)',
+    elevation: 4,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   text: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  outlineText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });
 
@@ -68,17 +119,19 @@ export const commonStyles = StyleSheet.create({
     width: '100%',
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '800',
     textAlign: 'center',
     color: colors.text,
-    marginBottom: 10,
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   text: {
     fontSize: 16,
@@ -96,16 +149,18 @@ export const commonStyles = StyleSheet.create({
   section: {
     width: '100%',
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginVertical: 8,
     width: '100%',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
+    boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -117,6 +172,7 @@ export const commonStyles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
+    letterSpacing: -0.3,
   },
   cardSubtitle: {
     fontSize: 14,
@@ -125,20 +181,21 @@ export const commonStyles = StyleSheet.create({
     marginTop: 4,
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     alignSelf: 'flex-start',
   },
   badgeText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   divider: {
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: 12,
+    marginVertical: 16,
   },
   row: {
     flexDirection: 'row',

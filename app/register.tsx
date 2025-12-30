@@ -18,6 +18,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { validateAuthorizationCode } from '@/services/authorizationCode.service';
 import { supabase } from '@/app/integrations/supabase/client';
 import { incrementCodeUsage, findCampersByParentEmail } from '@/services/authorizationCode.service';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function RegisterScreen() {
   const [step, setStep] = useState<'code' | 'details'>('code');
@@ -332,14 +333,19 @@ export default function RegisterScreen() {
               color={colors.primary}
             />
           </TouchableOpacity>
-          <View style={styles.logoContainer}>
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.logoContainer}
+          >
             <IconSymbol
               ios_icon_name="tent.fill"
               android_material_icon_name="camping"
               size={48}
-              color={colors.primary}
+              color="#FFFFFF"
             />
-          </View>
+          </LinearGradient>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>
             {step === 'code' ? 'Enter your authorization code' : 'Complete your profile'}
@@ -580,23 +586,24 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     padding: 8,
+    zIndex: 10,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.card,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+    marginBottom: 20,
+    boxShadow: '0px 4px 16px rgba(99, 102, 241, 0.3)',
     elevation: 4,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
@@ -631,10 +638,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   formTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -642,8 +650,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginTop: 12,
+    paddingVertical: 14,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 12,
@@ -654,10 +662,10 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   button: {
-    marginTop: 16,
+    marginTop: 20,
   },
   demoCard: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.info + '15',
     marginTop: 24,
   },
   demoTitle: {
