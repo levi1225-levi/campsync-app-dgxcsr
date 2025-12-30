@@ -45,15 +45,21 @@ export default function SignInScreen() {
       
       // Provide more helpful error messages
       let userMessage = errorMessage;
+      let alertTitle = 'Sign In Failed';
+      
       if (errorMessage.includes('Invalid login credentials')) {
         userMessage = 'Invalid email or password. Please check your credentials and try again.';
       } else if (errorMessage.includes('Email not confirmed')) {
+        alertTitle = 'Email Not Verified';
         userMessage = 'Please verify your email address before signing in. Check your inbox for the verification link.';
       } else if (errorMessage.includes('User not found')) {
         userMessage = 'No account found with this email. Please register first.';
+      } else if (errorMessage.includes('account setup is incomplete')) {
+        alertTitle = 'Account Setup Incomplete';
+        userMessage = errorMessage;
       }
       
-      Alert.alert('Sign In Failed', userMessage);
+      Alert.alert(alertTitle, userMessage);
     } finally {
       setIsLoading(false);
     }

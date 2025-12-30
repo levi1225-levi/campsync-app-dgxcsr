@@ -147,12 +147,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (profileError) {
         console.error('Error fetching user profile:', profileError);
+        
+        // Check if profile doesn't exist
+        if (profileError.code === 'PGRST116') {
+          throw new Error('Your account setup is incomplete. Please contact support or try registering again with your authorization code.');
+        }
+        
         throw new Error('Failed to fetch user profile. Please contact support.');
       }
 
       if (!profile) {
         console.error('No profile found for user');
-        throw new Error('User profile not found. Please contact support.');
+        throw new Error('Your account setup is incomplete. Please contact support or try registering again with your authorization code.');
       }
 
       const authenticatedUser: User = {
@@ -182,6 +188,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(authenticatedUser);
 
       console.log('Sign in successful, state updated');
+      
+      // Small delay to ensure state is updated before navigation
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Navigate after state update
       redirectAfterLogin(authenticatedUser);
