@@ -38,7 +38,15 @@ export default function SignInScreen() {
     try {
       console.log('Calling signIn...');
       await signIn(email.toLowerCase().trim(), password);
-      console.log('Sign in successful! Navigation should happen automatically.');
+      console.log('Sign in successful!');
+      
+      // Show success message
+      Alert.alert(
+        'Welcome Back! ✓',
+        'You have successfully signed in.',
+        [{ text: 'OK' }]
+      );
+      
       // Navigation is handled by AuthContext
     } catch (error) {
       console.error('Sign in error:', error);

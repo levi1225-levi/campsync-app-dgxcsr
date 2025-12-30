@@ -98,6 +98,7 @@ function HomeScreenContent() {
             </View>
             <TouchableOpacity 
               onPress={async () => {
+                console.log('Sign out button pressed');
                 try {
                   await signOut();
                 } catch (error) {
@@ -116,9 +117,16 @@ function HomeScreenContent() {
           </View>
         </LinearGradient>
 
-        {/* Stats Overview */}
+        {/* Stats Overview - Now Clickable */}
         <View style={styles.statsContainer}>
-          <View style={[styles.statCard, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity 
+            style={[styles.statCard, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              console.log('Checked in today card pressed, navigating to campers');
+              router.push('/(tabs)/campers' as any);
+            }}
+            activeOpacity={0.7}
+          >
             <View style={styles.statIconContainer}>
               <IconSymbol
                 ios_icon_name="person.2.fill"
@@ -129,9 +137,16 @@ function HomeScreenContent() {
             </View>
             <Text style={styles.statNumber}>{checkedInCount}/{totalCampers}</Text>
             <Text style={styles.statLabel}>Checked In Today</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={[styles.statCard, { backgroundColor: colors.accent }]}>
+          <TouchableOpacity 
+            style={[styles.statCard, { backgroundColor: colors.accent }]}
+            onPress={() => {
+              console.log('Total campers card pressed, navigating to campers');
+              router.push('/(tabs)/campers' as any);
+            }}
+            activeOpacity={0.7}
+          >
             <View style={styles.statIconContainer}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
@@ -142,7 +157,7 @@ function HomeScreenContent() {
             </View>
             <Text style={styles.statNumber}>{totalCampers}</Text>
             <Text style={styles.statLabel}>Total Campers</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Quick Actions */}
@@ -153,7 +168,10 @@ function HomeScreenContent() {
               <React.Fragment key={index}>
                 <TouchableOpacity
                   style={commonStyles.card}
-                  onPress={() => router.push(action.route as any)}
+                  onPress={() => {
+                    console.log('Quick action pressed:', action.title, 'Route:', action.route);
+                    router.push(action.route as any);
+                  }}
                   activeOpacity={0.7}
                 >
                   <View style={styles.actionCard}>
@@ -228,7 +246,10 @@ function HomeScreenContent() {
             
             <TouchableOpacity
               style={commonStyles.card}
-              onPress={() => router.push('/manage-authorization-codes' as any)}
+              onPress={() => {
+                console.log('Authorization codes button pressed');
+                router.push('/manage-authorization-codes' as any);
+              }}
               activeOpacity={0.7}
             >
               <View style={styles.actionCard}>
@@ -254,6 +275,41 @@ function HomeScreenContent() {
                 />
               </View>
             </TouchableOpacity>
+
+            {/* Super Admin Only: User Management */}
+            {user?.role === 'super-admin' && (
+              <TouchableOpacity
+                style={commonStyles.card}
+                onPress={() => {
+                  console.log('User management button pressed');
+                  router.push('/user-management' as any);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.actionCard}>
+                  <View style={[styles.actionIconContainer, { backgroundColor: colors.error }]}>
+                    <IconSymbol
+                      ios_icon_name="person.3.fill"
+                      android_material_icon_name="group"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                  <View style={styles.actionContent}>
+                    <Text style={commonStyles.cardTitle}>User Management</Text>
+                    <Text style={commonStyles.textSecondary}>
+                      Manage all system users and permissions
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name="chevron.right"
+                    android_material_icon_name="chevron-right"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

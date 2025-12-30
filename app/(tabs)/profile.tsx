@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -16,25 +17,21 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 
 function ProfileScreenContent() {
+  const router = useRouter();
   const { user, signOut } = useAuth();
 
   const handleEditProfile = () => {
-    Alert.alert(
-      'Edit Profile',
-      'Profile editing will be available in the admin dashboard.',
-      [{ text: 'OK' }]
-    );
+    console.log('Edit profile button pressed');
+    router.push('/edit-profile' as any);
   };
 
   const handleChangePassword = () => {
-    Alert.alert(
-      'Change Password',
-      'Password change functionality will be implemented soon.',
-      [{ text: 'OK' }]
-    );
+    console.log('Change password button pressed');
+    router.push('/forgot-password' as any);
   };
 
   const handleSignOut = () => {
+    console.log('Sign out button pressed from profile');
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
@@ -44,8 +41,10 @@ function ProfileScreenContent() {
           text: 'Sign Out', 
           style: 'destructive', 
           onPress: async () => {
+            console.log('User confirmed sign out');
             try {
               await signOut();
+              console.log('Sign out successful');
             } catch (error) {
               console.error('Error signing out:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');

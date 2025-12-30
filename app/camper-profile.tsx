@@ -1,0 +1,568 @@
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
+import { IconSymbol } from '@/components/IconSymbol';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { LinearGradient } from 'expo-linear-gradient';
+import { supabase } from '@/app/integrations/supabase/client';
+
+interface CamperProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  registration_status: string;
+  wristband_id: string | null;
+  check_in_status: string;
+  last_check_in: string | null;
+  last_check_out: string | null;
+  session_name: string | null;
+  medical_info: {
+    allergies: string[];
+    medications: string[];
+    dietary_restrictions: string[];
+    medical_conditions: string[];
+    special_care_instructions: string | null;
+  } | null;
+  emergency_contacts: Array<{
+    full_name: string;
+    phone: string;
+    relationship: string;
+    priority_order: number;
+  }>;
+}
+
+function CamperProfileContent() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const { hasPermission } = useAuth();
+  const [camper, setCamper] = useState<CamperProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const camperId = params.id as string;
+  const canEdit = hasPermission(['super-admin', 'camp-admin']);
+  const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
+
+  useEffect(() => {
+    if (camperId) {
+      loadCamperProfile();
+    }
+  }, [camperId]);
+
+  const loadCamperProfile = async () => {
+    try {
+      console.log('Loading camper profile:', camperId);
+      setIsLoading(true);
+
+      // Load camper basic info
+      const { data: camperData, error: camperError } = await supabase
+        .from('campers')
+        .select(`
+          *,
+          sessions(name)
+        `)
+        .eq('id', camperId)
+        .single();
+
+      if (camperError) {
+        console.error('Error loading camper:', camperError);
+        Alert.alert('Error', 'Failed to load camper profile');
+        return;
+      }
+
+      // Load medical info if permitted
+      let medicalInfo = null;
+      if (canViewMedical) {
+        const { data: medicalData } = await supabase
+          .from('camper_medical_info')
+          .select('*')
+          .eq('camper_id', camperId)
+          .single();
+        
+        medicalInfo = medicalData;
+      }
+
+      // Load emergency contacts
+      const { data: contactsData } = await supabase
+        .from('emergency_contacts')
+        .select('*')
+        .eq('camper_id', camperId)
+        .order('priority_order');
+
+      const profile: CamperProfile = {
+        id: camperData.id,
+        first_name: camperData.first_name,
+        last_name: camperData.last_name,
+        date_of_birth: camperData.date_of_birth,
+        registration_status: camperData.registration_status,
+        wristband_id: camperData.wristband_id,
+        check_in_status: camperData.check_in_status,
+        last_check_in: camperData.last_check_in,
+        last_check_out: camperData.last_check_out,
+        session_name: camperData.sessions?.name || null,
+        medical_info: medicalInfo,
+        emergency_contacts: contactsData || [],
+      };
+
+      setCamper(profile);
+    } catch (error) {
+      console.error('Error loading camper profile:', error);
+      Alert.alert('Error', 'Failed to load camper profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'checked-in':
+        return colors.success;
+      case 'checked-out':
+        return colors.warning;
+      default:
+        return colors.textSecondary;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[commonStyles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
+          Loading camper profile...
+        </Text>
+      </View>
+    );
+  }
+
+  if (!camper) {
+    return (
+      <View style={[commonStyles.container, styles.loadingContainer]}>
+        <IconSymbol
+          ios_icon_name="exclamationmark.triangle.fill"
+          android_material_icon_name="warning"
+          size={64}
+          color={colors.error}
+        />
+        <Text style={[commonStyles.text, { marginTop: 16 }]}>
+          Camper not found
+        </Text>
+        <TouchableOpacity
+          style={[commonStyles.card, { marginTop: 24 }]}
+          onPress={() => router.back()}
+        >
+          <Text style={[commonStyles.text, { textAlign: 'center' }]}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[commonStyles.container, styles.container]}>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={[colors.primary, colors.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          {canEdit && (
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => {
+                console.log('Edit camper:', camper.id);
+                Alert.alert('Edit Camper', 'Edit functionality will be available in the admin dashboard.');
+              }}
+            >
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={24}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+        <View style={styles.headerAvatar}>
+          <IconSymbol
+            ios_icon_name="person.fill"
+            android_material_icon_name="person"
+            size={48}
+            color="#FFFFFF"
+          />
+        </View>
+        <Text style={styles.headerTitle}>
+          {camper.first_name} {camper.last_name}
+        </Text>
+        <Text style={styles.headerSubtitle}>
+          Age {calculateAge(camper.date_of_birth)}
+          {camper.session_name && ` • ${camper.session_name}`}
+        </Text>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.check_in_status) }]}>
+          <Text style={styles.statusText}>
+            {camper.check_in_status === 'checked-in' ? 'Checked In' : 
+             camper.check_in_status === 'checked-out' ? 'Checked Out' : 'Not Arrived'}
+          </Text>
+        </View>
+      </LinearGradient>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Basic Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+          <View style={commonStyles.card}>
+            <View style={styles.infoRow}>
+              <IconSymbol
+                ios_icon_name="calendar.fill"
+                android_material_icon_name="calendar-today"
+                size={20}
+                color={colors.info}
+              />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Date of Birth</Text>
+                <Text style={styles.infoValue}>
+                  {new Date(camper.date_of_birth).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+
+            {camper.wristband_id && (
+              <>
+                <View style={commonStyles.divider} />
+                <View style={styles.infoRow}>
+                  <IconSymbol
+                    ios_icon_name="wave.3.right"
+                    android_material_icon_name="nfc"
+                    size={20}
+                    color={colors.accent}
+                  />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>NFC Wristband ID</Text>
+                    <Text style={styles.infoValue}>{camper.wristband_id}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {camper.last_check_in && (
+              <>
+                <View style={commonStyles.divider} />
+                <View style={styles.infoRow}>
+                  <IconSymbol
+                    ios_icon_name="clock.fill"
+                    android_material_icon_name="schedule"
+                    size={20}
+                    color={colors.success}
+                  />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Last Check-In</Text>
+                    <Text style={styles.infoValue}>
+                      {new Date(camper.last_check_in).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Medical Information */}
+        {canViewMedical && camper.medical_info && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Medical Information</Text>
+            
+            {camper.medical_info.allergies && camper.medical_info.allergies.length > 0 && (
+              <View style={[commonStyles.card, { backgroundColor: colors.error + '15' }]}>
+                <View style={styles.medicalHeader}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="warning"
+                    size={24}
+                    color={colors.error}
+                  />
+                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Allergies</Text>
+                </View>
+                <Text style={commonStyles.text}>
+                  {camper.medical_info.allergies.join(', ')}
+                </Text>
+              </View>
+            )}
+
+            {camper.medical_info.medications && camper.medical_info.medications.length > 0 && (
+              <View style={commonStyles.card}>
+                <View style={styles.medicalHeader}>
+                  <IconSymbol
+                    ios_icon_name="pills.fill"
+                    android_material_icon_name="medication"
+                    size={24}
+                    color={colors.secondary}
+                  />
+                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Medications</Text>
+                </View>
+                <Text style={commonStyles.text}>
+                  {camper.medical_info.medications.join(', ')}
+                </Text>
+              </View>
+            )}
+
+            {camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0 && (
+              <View style={commonStyles.card}>
+                <View style={styles.medicalHeader}>
+                  <IconSymbol
+                    ios_icon_name="fork.knife"
+                    android_material_icon_name="restaurant"
+                    size={24}
+                    color={colors.accent}
+                  />
+                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Dietary Restrictions</Text>
+                </View>
+                <Text style={commonStyles.text}>
+                  {camper.medical_info.dietary_restrictions.join(', ')}
+                </Text>
+              </View>
+            )}
+
+            {camper.medical_info.special_care_instructions && (
+              <View style={commonStyles.card}>
+                <View style={styles.medicalHeader}>
+                  <IconSymbol
+                    ios_icon_name="heart.text.square.fill"
+                    android_material_icon_name="favorite"
+                    size={24}
+                    color={colors.info}
+                  />
+                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Special Care Instructions</Text>
+                </View>
+                <Text style={commonStyles.text}>
+                  {camper.medical_info.special_care_instructions}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Emergency Contacts */}
+        {camper.emergency_contacts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Emergency Contacts</Text>
+            {camper.emergency_contacts.map((contact, index) => (
+              <View key={index} style={commonStyles.card}>
+                <View style={styles.contactHeader}>
+                  <IconSymbol
+                    ios_icon_name="person.circle.fill"
+                    android_material_icon_name="account-circle"
+                    size={32}
+                    color={colors.primary}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={commonStyles.cardTitle}>{contact.full_name}</Text>
+                    <Text style={commonStyles.textSecondary}>{contact.relationship}</Text>
+                  </View>
+                  <View style={[styles.priorityBadge, { 
+                    backgroundColor: contact.priority_order === 1 ? colors.error : colors.secondary 
+                  }]}>
+                    <Text style={styles.priorityText}>#{contact.priority_order}</Text>
+                  </View>
+                </View>
+                <View style={commonStyles.divider} />
+                <View style={styles.contactInfo}>
+                  <IconSymbol
+                    ios_icon_name="phone.fill"
+                    android_material_icon_name="phone"
+                    size={16}
+                    color={colors.accent}
+                  />
+                  <Text style={commonStyles.text}>{contact.phone}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+export default function CamperProfileScreen() {
+  return (
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff', 'parent']}>
+      <CamperProfileContent />
+    </ProtectedRoute>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: Platform.OS === 'android' ? 48 : 0,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  backButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+  },
+  editButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+  },
+  headerAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    opacity: 0.9,
+    marginBottom: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 120,
+  },
+  section: {
+    paddingHorizontal: 16,
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  infoContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  medicalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  contactHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  priorityBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  priorityText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  contactInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+});

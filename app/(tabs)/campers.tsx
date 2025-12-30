@@ -45,25 +45,8 @@ function CampersScreenContent() {
   };
 
   const handleViewFullProfile = (camper: Camper) => {
-    // Show detailed profile in an alert for now
-    // In a real app, this would navigate to a dedicated profile screen
-    Alert.alert(
-      `${camper.firstName} ${camper.lastName}`,
-      `Age: ${camper.age}\nCabin: ${camper.cabin}\nNFC ID: ${camper.nfcWristbandId}\n\nMedical Info:\n${
-        camper.medicalInfo.allergies.length > 0 
-          ? `Allergies: ${camper.medicalInfo.allergies.join(', ')}\n` 
-          : ''
-      }${
-        camper.medicalInfo.medications.length > 0 
-          ? `Medications: ${camper.medicalInfo.medications.join(', ')}\n` 
-          : ''
-      }${
-        camper.medicalInfo.dietaryRestrictions.length > 0 
-          ? `Dietary: ${camper.medicalInfo.dietaryRestrictions.join(', ')}` 
-          : ''
-      }`,
-      [{ text: 'Close', style: 'cancel' }]
-    );
+    console.log('View full profile for camper:', camper.id);
+    router.push(`/camper-profile?id=${camper.id}` as any);
   };
 
   const handleEditCamper = (camper: Camper) => {
