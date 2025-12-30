@@ -56,10 +56,10 @@ function HomeScreenContent() {
       roles: ['super-admin', 'camp-admin', 'staff'] as const,
     },
     {
-      title: 'Bulk Import',
-      description: 'Import campers from CSV',
-      icon: 'upload' as const,
-      route: '/bulk-import-campers',
+      title: 'Create Camper',
+      description: 'Add a new camper to the system',
+      icon: 'person-add' as const,
+      route: '/create-camper',
       color: colors.secondary,
       roles: ['super-admin', 'camp-admin'] as const,
     },
@@ -96,7 +96,16 @@ function HomeScreenContent() {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
+            <TouchableOpacity 
+              onPress={async () => {
+                try {
+                  await signOut();
+                } catch (error) {
+                  console.error('Error signing out:', error);
+                }
+              }} 
+              style={styles.signOutButton}
+            >
               <IconSymbol
                 ios_icon_name="rectangle.portrait.and.arrow.right"
                 android_material_icon_name="logout"

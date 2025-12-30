@@ -1,75 +1,376 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { IconSymbol } from "@/components/IconSymbol";
-import { GlassView } from "expo-glass-effect";
-import { useTheme } from "@react-navigation/native";
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { IconSymbol } from '@/components/IconSymbol';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { LinearGradient } from 'expo-linear-gradient';
 
-export default function ProfileScreen() {
-  const theme = useTheme();
+function ProfileScreenContent() {
+  const { user, signOut } = useAuth();
+
+  const handleEditProfile = () => {
+    Alert.alert(
+      'Edit Profile',
+      'Profile editing will be available in the admin dashboard.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleChangePassword = () => {
+    Alert.alert(
+      'Change Password',
+      'Password change functionality will be implemented soon.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          }
+        },
+      ]
+    );
+  };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
+    <View style={[commonStyles.container, styles.container]}>
       <ScrollView
-        style={styles.container}
+        style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
       >
-        <GlassView style={styles.profileHeader} glassEffectStyle="regular">
-          <IconSymbol ios_icon_name="person.circle.fill" android_material_icon_name="person" size={24} color={theme.colors.primary} />
-          <Text style={[styles.name, { color: theme.colors.text }]}>John Doe</Text>
-          <Text style={[styles.email, { color: theme.dark ? '#98989D' : '#666' }]}>john.doe@example.com</Text>
-        </GlassView>
+        {/* Header with Gradient */}
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <IconSymbol
+                ios_icon_name="person.fill"
+                android_material_icon_name="person"
+                size={48}
+                color="#FFFFFF"
+              />
+            </View>
+          </View>
+          <Text style={styles.headerName}>{user?.name}</Text>
+          <Text style={styles.headerEmail}>{user?.email}</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleBadgeText}>
+              {user?.role === 'super-admin' && 'Super Administrator'}
+              {user?.role === 'camp-admin' && 'Camp Administrator'}
+              {user?.role === 'staff' && 'Staff Member'}
+              {user?.role === 'parent' && 'Parent/Guardian'}
+            </Text>
+          </View>
+        </LinearGradient>
 
-        <GlassView style={styles.section} glassEffectStyle="regular">
-          <View style={styles.infoRow}>
-            <IconSymbol ios_icon_name="phone.fill" android_material_icon_name="phone" size={24} color={theme.dark ? '#98989D' : '#666'} />
-            <Text style={[styles.infoText, { color: theme.colors.text }]}>+1 (555) 123-4567</Text>
+        {/* Profile Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account Information</Text>
+          
+          <View style={commonStyles.card}>
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconContainer}>
+                <IconSymbol
+                  ios_icon_name="person.fill"
+                  android_material_icon_name="person"
+                  size={20}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Full Name</Text>
+                <Text style={styles.infoValue}>{user?.name}</Text>
+              </View>
+            </View>
+
+            <View style={commonStyles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconContainer}>
+                <IconSymbol
+                  ios_icon_name="envelope.fill"
+                  android_material_icon_name="email"
+                  size={20}
+                  color={colors.accent}
+                />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{user?.email}</Text>
+              </View>
+            </View>
+
+            <View style={commonStyles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconContainer}>
+                <IconSymbol
+                  ios_icon_name="shield.fill"
+                  android_material_icon_name="security"
+                  size={20}
+                  color={colors.secondary}
+                />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Role</Text>
+                <Text style={styles.infoValue}>
+                  {user?.role === 'super-admin' && 'Super Administrator'}
+                  {user?.role === 'camp-admin' && 'Camp Administrator'}
+                  {user?.role === 'staff' && 'Staff Member'}
+                  {user?.role === 'parent' && 'Parent/Guardian'}
+                </Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.infoRow}>
-            <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location-on" size={24} color={theme.dark ? '#98989D' : '#666'} />
-            <Text style={[styles.infoText, { color: theme.colors.text }]}>San Francisco, CA</Text>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Actions</Text>
+
+          <TouchableOpacity
+            style={commonStyles.card}
+            onPress={handleEditProfile}
+            activeOpacity={0.7}
+          >
+            <View style={styles.actionRow}>
+              <View style={[styles.actionIconContainer, { backgroundColor: colors.primary }]}>
+                <IconSymbol
+                  ios_icon_name="pencil"
+                  android_material_icon_name="edit"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <Text style={styles.actionText}>Edit Profile</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={commonStyles.card}
+            onPress={handleChangePassword}
+            activeOpacity={0.7}
+          >
+            <View style={styles.actionRow}>
+              <View style={[styles.actionIconContainer, { backgroundColor: colors.accent }]}>
+                <IconSymbol
+                  ios_icon_name="lock.fill"
+                  android_material_icon_name="lock"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <Text style={styles.actionText}>Change Password</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[commonStyles.card, { backgroundColor: colors.error }]}
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+          >
+            <View style={styles.actionRow}>
+              <View style={[styles.actionIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+                <IconSymbol
+                  ios_icon_name="rectangle.portrait.and.arrow.right"
+                  android_material_icon_name="logout"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <Text style={[styles.actionText, { color: '#FFFFFF' }]}>Sign Out</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color="#FFFFFF"
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* App Info */}
+        <View style={styles.section}>
+          <View style={styles.appInfo}>
+            <Text style={styles.appInfoText}>CampSync v1.0.0</Text>
+            <Text style={[styles.appInfoText, { marginTop: 4 }]}>
+              © 2024 CampSync. All rights reserved.
+            </Text>
           </View>
-        </GlassView>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
+  );
+}
+
+export default function ProfileScreen() {
+  return (
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff', 'parent']}>
+      <ProfileScreenContent />
+    </ProtectedRoute>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
+    paddingTop: 0,
+  },
+  scrollView: {
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    paddingBottom: 120,
   },
-  profileHeader: {
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 32,
     alignItems: 'center',
-    borderRadius: 12,
-    padding: 32,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  avatarContainer: {
     marginBottom: 16,
-    gap: 12,
   },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  email: {
+  headerName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  headerEmail: {
     fontSize: 16,
+    fontWeight: '400',
+    color: '#FFFFFF',
+    opacity: 0.9,
+    marginBottom: 12,
+  },
+  roleBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  roleBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   section: {
-    borderRadius: 12,
-    padding: 20,
-    gap: 12,
+    paddingHorizontal: 16,
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 16,
+    letterSpacing: -0.3,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    paddingVertical: 4,
   },
-  infoText: {
+  infoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  infoValue: {
     fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  actionText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  appInfo: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  appInfoText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

@@ -121,7 +121,7 @@ function CampersScreenContent() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity 
             style={styles.addButton}
-            onPress={() => router.push('/bulk-import-campers' as any)}
+            onPress={() => router.push('/create-camper' as any)}
           >
             <IconSymbol
               ios_icon_name="plus.circle.fill"
@@ -129,7 +129,7 @@ function CampersScreenContent() {
               size={24}
               color="#FFFFFF"
             />
-            <Text style={styles.addButtonText}>Import Campers</Text>
+            <Text style={styles.addButtonText}>Create Camper</Text>
           </TouchableOpacity>
         </View>
       )}

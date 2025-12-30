@@ -215,9 +215,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       
       console.log('Sign out successful, redirecting to sign-in...');
-      router.replace('/sign-in');
+      
+      // Use setTimeout to ensure state is cleared before navigation
+      setTimeout(() => {
+        router.replace('/sign-in');
+      }, 100);
     } catch (error) {
       console.error('Sign out error:', error);
+      // Still try to navigate even if there's an error
+      setTimeout(() => {
+        router.replace('/sign-in');
+      }, 100);
     }
   };
 
