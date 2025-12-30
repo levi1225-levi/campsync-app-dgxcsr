@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,10 +8,32 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
 import { mockIncidents } from '@/data/mockIncidents';
+import * as Network from 'expo-network';
 
 function HomeScreenContent() {
   const router = useRouter();
   const { user, signOut, hasPermission } = useAuth();
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    checkNetworkStatus();
+    
+    // Check network status every 10 seconds
+    const interval = setInterval(checkNetworkStatus, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkNetworkStatus = async () => {
+    try {
+      const networkState = await Network.getNetworkStateAsync();
+      setIsOnline(networkState.isConnected === true && networkState.isInternetReachable !== false);
+    } catch (error) {
+      console.error('Error checking network status:', error);
+      // Assume online if we can't check
+      setIsOnline(true);
+    }
+  };
 
   const checkedInCount = mockCampers.filter(c => c.checkInStatus === 'checked-in').length;
   const totalCampers = mockCampers.length;
@@ -199,9 +221,7 @@ function HomeScreenContent() {
         {/* Admin Tools Section */}
         {(user?.role === 'super-admin' || user?.role === 'camp-admin') && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {user?.role === 'super-admin' ? 'Super Admin Tools' : 'Admin Tools'}
-            </Text>
+            <Text style={styles.sectionTitle}>Admin Tools</Text>
             
             <TouchableOpacity
               style={commonStyles.card}
@@ -232,74 +252,47 @@ function HomeScreenContent() {
               </View>
             </TouchableOpacity>
 
-            {user?.role === 'super-admin' && (
-              <>
-                <View style={commonStyles.card}>
-                  <View style={styles.actionCard}>
-                    <View style={[styles.actionIconContainer, { backgroundColor: colors.highlight }]}>
-                      <IconSymbol
-                        ios_icon_name="building.2.fill"
-                        android_material_icon_name="business"
-                        size={28}
-                        color="#FFFFFF"
-                      />
-                    </View>
-                    <View style={styles.actionContent}>
-                      <Text style={commonStyles.cardTitle}>Manage Camps</Text>
-                      <Text style={commonStyles.textSecondary}>
-                        Create and configure camp settings
-                      </Text>
-                    </View>
-                    <IconSymbol
-                      ios_icon_name="chevron.right"
-                      android_material_icon_name="chevron-right"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
-                  </View>
+            <View style={commonStyles.card}>
+              <View style={styles.actionCard}>
+                <View style={[styles.actionIconContainer, { backgroundColor: colors.success }]}>
+                  <IconSymbol
+                    ios_icon_name="person.badge.key.fill"
+                    android_material_icon_name="admin-panel-settings"
+                    size={28}
+                    color="#FFFFFF"
+                  />
                 </View>
-
-                <View style={commonStyles.card}>
-                  <View style={styles.actionCard}>
-                    <View style={[styles.actionIconContainer, { backgroundColor: colors.success }]}>
-                      <IconSymbol
-                        ios_icon_name="person.badge.key.fill"
-                        android_material_icon_name="admin-panel-settings"
-                        size={28}
-                        color="#FFFFFF"
-                      />
-                    </View>
-                    <View style={styles.actionContent}>
-                      <Text style={commonStyles.cardTitle}>User Management</Text>
-                      <Text style={commonStyles.textSecondary}>
-                        Assign roles and manage access
-                      </Text>
-                    </View>
-                    <IconSymbol
-                      ios_icon_name="chevron.right"
-                      android_material_icon_name="chevron-right"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
-                  </View>
+                <View style={styles.actionContent}>
+                  <Text style={commonStyles.cardTitle}>User Management</Text>
+                  <Text style={commonStyles.textSecondary}>
+                    Assign roles and manage access
+                  </Text>
                 </View>
-              </>
-            )}
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron-right"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </View>
           </View>
         )}
 
-        {/* Offline Notice */}
-        <View style={[styles.offlineNotice, { backgroundColor: colors.accent }]}>
-          <IconSymbol
-            ios_icon_name="wifi.slash"
-            android_material_icon_name="wifi-off"
-            size={20}
-            color="#FFFFFF"
-          />
-          <Text style={styles.offlineText}>
-            Offline mode enabled - Data will sync when connected
-          </Text>
-        </View>
+        {/* Offline Notice - Only show when actually offline */}
+        {!isOnline && (
+          <View style={[styles.offlineNotice, { backgroundColor: colors.warning }]}>
+            <IconSymbol
+              ios_icon_name="wifi.slash"
+              android_material_icon_name="wifi-off"
+              size={20}
+              color="#FFFFFF"
+            />
+            <Text style={styles.offlineText}>
+              Offline mode - Data will sync when connected
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );

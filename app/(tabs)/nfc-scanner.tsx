@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,48 +14,249 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { mockCampers } from '@/data/mockCampers';
 import { Camper } from '@/types/camper';
+import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
+import { supabase } from '@/app/integrations/supabase/client';
 
 function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedCamper, setScannedCamper] = useState<Camper | null>(null);
+  const [nfcSupported, setNfcSupported] = useState(false);
+  const [nfcEnabled, setNfcEnabled] = useState(false);
 
   const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  const handleScan = () => {
+  useEffect(() => {
+    initNFC();
+    
+    return () => {
+      cleanupNFC();
+    };
+  }, []);
+
+  const initNFC = async () => {
+    try {
+      const supported = await NfcManager.isSupported();
+      setNfcSupported(supported);
+      
+      if (supported) {
+        await NfcManager.start();
+        const enabled = await NfcManager.isEnabled();
+        setNfcEnabled(enabled);
+        console.log('NFC initialized:', { supported, enabled });
+      } else {
+        console.log('NFC not supported on this device');
+      }
+    } catch (error) {
+      console.error('Error initializing NFC:', error);
+      Alert.alert('NFC Error', 'Failed to initialize NFC. Please check your device settings.');
+    }
+  };
+
+  const cleanupNFC = async () => {
+    try {
+      await NfcManager.cancelTechnologyRequest();
+    } catch (error) {
+      console.error('Error cleaning up NFC:', error);
+    }
+  };
+
+  const handleScan = async () => {
     if (!canScan) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
       return;
     }
 
+    if (!nfcSupported) {
+      Alert.alert('NFC Not Supported', 'Your device does not support NFC scanning.');
+      return;
+    }
+
+    if (!nfcEnabled) {
+      Alert.alert(
+        'NFC Disabled',
+        'Please enable NFC in your device settings to scan wristbands.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Open Settings', 
+            onPress: () => {
+              if (Platform.OS === 'android') {
+                NfcManager.goToNfcSetting();
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     setIsScanning(true);
     
-    // Simulate NFC scan - In production, use actual NFC library
-    setTimeout(() => {
-      // Mock: randomly select a camper
-      const randomCamper = mockCampers[Math.floor(Math.random() * mockCampers.length)];
-      setScannedCamper(randomCamper);
+    try {
+      // Request NFC technology
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      
+      // Read NFC tag
+      const tag = await NfcManager.getTag();
+      console.log('NFC Tag detected:', tag);
+      
+      if (tag) {
+        let wristbandId = '';
+        
+        // Try to read NDEF message
+        if (tag.ndefMessage && tag.ndefMessage.length > 0) {
+          const ndefRecord = tag.ndefMessage[0];
+          const payload = Ndef.text.decodePayload(ndefRecord.payload);
+          wristbandId = payload;
+          console.log('NDEF payload:', payload);
+        } else if (tag.id) {
+          // Use tag ID as fallback
+          wristbandId = tag.id;
+          console.log('Using tag ID:', tag.id);
+        }
+        
+        if (wristbandId) {
+          await lookupCamper(wristbandId);
+        } else {
+          Alert.alert('Invalid Tag', 'Could not read wristband ID. Please try again.');
+        }
+      }
+    } catch (error: any) {
+      console.error('NFC scan error:', error);
+      if (error.toString().includes('cancelled')) {
+        console.log('NFC scan cancelled by user');
+      } else {
+        Alert.alert('Scan Error', 'Failed to read NFC tag. Please try again.');
+      }
+    } finally {
       setIsScanning(false);
-    }, 1500);
-  };
-
-  const handleCheckIn = () => {
-    if (scannedCamper) {
-      Alert.alert(
-        'Check In Successful',
-        `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked in.`,
-        [{ text: 'OK', onPress: () => setScannedCamper(null) }]
-      );
+      await NfcManager.cancelTechnologyRequest();
     }
   };
 
-  const handleCheckOut = () => {
+  const lookupCamper = async (wristbandId: string) => {
+    try {
+      console.log('Looking up camper with wristband ID:', wristbandId);
+      
+      // Query Supabase for camper with this wristband ID
+      const { data, error } = await supabase
+        .from('campers')
+        .select('*')
+        .eq('wristband_id', wristbandId)
+        .single();
+      
+      if (error) {
+        console.error('Error looking up camper:', error);
+        
+        // Fallback to mock data for testing
+        const mockCamper = mockCampers.find(c => c.wristbandId === wristbandId);
+        if (mockCamper) {
+          setScannedCamper(mockCamper);
+          Alert.alert('Camper Found', `${mockCamper.firstName} ${mockCamper.lastName}`);
+        } else {
+          Alert.alert('Not Found', 'No camper found with this wristband ID.');
+        }
+        return;
+      }
+      
+      if (data) {
+        // Convert database record to Camper type
+        const camper: Camper = {
+          id: data.id,
+          firstName: data.first_name,
+          lastName: data.last_name,
+          age: calculateAge(data.date_of_birth),
+          cabin: 'TBD', // You may need to add cabin info to the database
+          checkInStatus: data.check_in_status as any,
+          wristbandId: data.wristband_id || '',
+          medicalInfo: {
+            allergies: [],
+            medications: [],
+            conditions: [],
+            notes: '',
+          },
+        };
+        
+        setScannedCamper(camper);
+        Alert.alert('Camper Found', `${camper.firstName} ${camper.lastName}`);
+      } else {
+        Alert.alert('Not Found', 'No camper found with this wristband ID.');
+      }
+    } catch (error) {
+      console.error('Error in lookupCamper:', error);
+      Alert.alert('Error', 'Failed to lookup camper information.');
+    }
+  };
+
+  const calculateAge = (dateOfBirth: string): number => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const handleCheckIn = async () => {
     if (scannedCamper) {
-      Alert.alert(
-        'Check Out Successful',
-        `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked out.`,
-        [{ text: 'OK', onPress: () => setScannedCamper(null) }]
-      );
+      try {
+        // Update check-in status in database
+        const { error } = await supabase
+          .from('campers')
+          .update({
+            check_in_status: 'checked-in',
+            last_check_in: new Date().toISOString(),
+          })
+          .eq('id', scannedCamper.id);
+        
+        if (error) {
+          console.error('Error checking in camper:', error);
+          Alert.alert('Error', 'Failed to check in camper. Please try again.');
+          return;
+        }
+        
+        Alert.alert(
+          'Check In Successful',
+          `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked in.`,
+          [{ text: 'OK', onPress: () => setScannedCamper(null) }]
+        );
+      } catch (error) {
+        console.error('Error in handleCheckIn:', error);
+        Alert.alert('Error', 'Failed to check in camper.');
+      }
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (scannedCamper) {
+      try {
+        // Update check-out status in database
+        const { error } = await supabase
+          .from('campers')
+          .update({
+            check_in_status: 'checked-out',
+            last_check_out: new Date().toISOString(),
+          })
+          .eq('id', scannedCamper.id);
+        
+        if (error) {
+          console.error('Error checking out camper:', error);
+          Alert.alert('Error', 'Failed to check out camper. Please try again.');
+          return;
+        }
+        
+        Alert.alert(
+          'Check Out Successful',
+          `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked out.`,
+          [{ text: 'OK', onPress: () => setScannedCamper(null) }]
+        );
+      } catch (error) {
+        console.error('Error in handleCheckOut:', error);
+        Alert.alert('Error', 'Failed to check out camper.');
+      }
     }
   };
 
@@ -66,6 +267,7 @@ function NFCScannerScreenContent() {
         `Opening incident form for ${scannedCamper.firstName} ${scannedCamper.lastName}`,
         [{ text: 'OK' }]
       );
+      // TODO: Navigate to incident logging screen with camper pre-filled
     }
   };
 
@@ -79,6 +281,31 @@ function NFCScannerScreenContent() {
         </Text>
       </View>
 
+      {/* NFC Status */}
+      {!nfcSupported && (
+        <View style={[styles.statusBanner, { backgroundColor: colors.error }]}>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="error"
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.statusText}>NFC not supported on this device</Text>
+        </View>
+      )}
+      
+      {nfcSupported && !nfcEnabled && (
+        <View style={[styles.statusBanner, { backgroundColor: colors.warning }]}>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="warning"
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.statusText}>NFC is disabled - Enable in settings</Text>
+        </View>
+      )}
+
       {/* Scanner Area */}
       <View style={styles.scannerContainer}>
         <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
@@ -91,13 +318,13 @@ function NFCScannerScreenContent() {
         </View>
 
         <Text style={styles.scannerText}>
-          {isScanning ? 'Scanning...' : 'Tap to scan NFC wristband'}
+          {isScanning ? 'Hold wristband near device...' : 'Tap to scan NFC wristband'}
         </Text>
 
         <TouchableOpacity
-          style={[styles.scanButton, isScanning && styles.scanButtonDisabled]}
+          style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled) && styles.scanButtonDisabled]}
           onPress={handleScan}
-          disabled={isScanning || !canScan}
+          disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled}
         >
           <Text style={styles.scanButtonText}>
             {isScanning ? 'Scanning...' : 'Start Scan'}
@@ -139,7 +366,7 @@ function NFCScannerScreenContent() {
                   },
                 ]}
               >
-                <Text style={styles.statusText}>
+                <Text style={styles.statusBadgeText}>
                   {scannedCamper.checkInStatus === 'checked-in'
                     ? 'Checked In'
                     : scannedCamper.checkInStatus === 'checked-out'
@@ -229,13 +456,16 @@ function NFCScannerScreenContent() {
       <View style={styles.instructions}>
         <Text style={styles.instructionsTitle}>How to use:</Text>
         <Text style={commonStyles.textSecondary}>
-          1. Hold the device near the camper&apos;s NFC wristband
+          1. Tap &quot;Start Scan&quot; button
         </Text>
         <Text style={commonStyles.textSecondary}>
-          2. Wait for the scan to complete
+          2. Hold the device near the camper&apos;s NFC wristband
         </Text>
         <Text style={commonStyles.textSecondary}>
-          3. Review camper information and take action
+          3. Wait for the scan to complete
+        </Text>
+        <Text style={commonStyles.textSecondary}>
+          4. Review camper information and take action
         </Text>
       </View>
     </View>
@@ -272,6 +502,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.9,
   },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   scannerContainer: {
     alignItems: 'center',
     paddingVertical: 40,
@@ -296,6 +539,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 24,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
   scanButton: {
     backgroundColor: colors.primary,
@@ -343,7 +588,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
-  statusText: {
+  statusBadgeText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
