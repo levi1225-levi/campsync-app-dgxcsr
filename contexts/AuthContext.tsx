@@ -22,6 +22,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SESSION_KEY = 'campsync_session';
 
+// Google OAuth Web Client ID - Replace with your actual client ID
+const GOOGLE_WEB_CLIENT_ID = '65056947417-1kd5orpjie2c1lvqhltlc277qcldc3hp.apps.googleusercontent.com';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,10 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const configureGoogleSignIn = () => {
     try {
       GoogleSignin.configure({
-        webClientId: 'YOUR_WEB_CLIENT_ID_HERE', // User needs to provide this
+        webClientId: GOOGLE_WEB_CLIENT_ID,
         offlineAccess: true,
       });
-      console.log('Google Sign-In configured successfully');
+      console.log('Google Sign-In configured successfully with client ID:', GOOGLE_WEB_CLIENT_ID);
     } catch (error) {
       console.error('Error configuring Google Sign-In:', error);
     }
@@ -172,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('User profile not found. Please contact support.');
       }
 
-      const user: User = {
+      const authenticatedUser: User = {
         id: data.user.id,
         email: data.user.email!,
         name: profile.full_name,
@@ -181,24 +184,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       console.log('User profile loaded:', {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        registrationComplete: user.registrationComplete
+        id: authenticatedUser.id,
+        email: authenticatedUser.email,
+        role: authenticatedUser.role,
+        registrationComplete: authenticatedUser.registrationComplete
       });
 
       const session: AuthSession = {
-        user,
+        user: authenticatedUser,
         token: data.session.access_token,
         expiresAt: new Date(data.session.expires_at!),
       };
 
       await saveSession(session);
-      setUser(user);
+      setUser(authenticatedUser);
 
       console.log('Sign in successful, redirecting...');
-      // Role-based redirection
-      redirectAfterLogin(user);
+      
+      // Use setTimeout to ensure state is updated before navigation
+      setTimeout(() => {
+        redirectAfterLogin(authenticatedUser);
+      }, 100);
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -238,9 +244,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Google sign in successful, loading profile...');
       await loadUserProfile(data.user.id);
       
-      if (user) {
-        redirectAfterLogin(user);
-      }
+      // Wait for state to update
+      setTimeout(() => {
+        const currentUser = user;
+        if (currentUser) {
+          redirectAfterLogin(currentUser);
+        }
+      }, 100);
     } catch (error: any) {
       console.error('Google sign in error:', error);
       
@@ -299,10 +309,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (existingProfile) {
         console.log('Profile already exists, signing in...');
-        await loadUserProfile(data.user.id);
-        if (user) {
-          redirectAfterLogin(user);
-        }
+        const existingUser: User = {
+          id: existingProfile.id,
+          email: existingProfile.email,
+          name: existingProfile.full_name,
+          role: existingProfile.role as UserRole,
+          registrationComplete: existingProfile.registration_complete,
+        };
+        setUser(existingUser);
+        setTimeout(() => {
+          redirectAfterLogin(existingUser);
+        }, 100);
         return;
       }
 
@@ -342,11 +359,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // Load the new profile and redirect
+      // Load the new profile
       await loadUserProfile(data.user.id);
-      if (user) {
-        redirectAfterLogin(user);
-      }
+      
+      // Wait for state to update and redirect
+      setTimeout(() => {
+        const currentUser = user;
+        if (currentUser) {
+          redirectAfterLogin(currentUser);
+        }
+      }, 100);
     } catch (error: any) {
       console.error('Google sign up error:', error);
       
@@ -416,28 +438,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return requiredRoles.includes(user.role);
   };
 
-  const redirectAfterLogin = (user: User) => {
-    console.log('Redirecting user with role:', user.role);
+  const redirectAfterLogin = (authenticatedUser: User) => {
+    console.log('=== Redirecting After Login ===');
+    console.log('User role:', authenticatedUser.role);
+    console.log('Registration complete:', authenticatedUser.registrationComplete);
     
-    switch (user.role) {
-      case 'parent':
-        if (!user.registrationComplete) {
-          console.log('Parent registration incomplete, redirecting to parent-registration');
-          router.replace('/parent-registration');
-        } else {
-          console.log('Parent registration complete, redirecting to parent-dashboard');
-          router.replace('/parent-dashboard');
-        }
-        break;
-      case 'super-admin':
-      case 'camp-admin':
-      case 'staff':
-        console.log('Admin/Staff user, redirecting to home');
-        router.replace('/(tabs)/(home)/');
-        break;
-      default:
-        console.log('Unknown role, redirecting to home');
-        router.replace('/(tabs)/(home)/');
+    try {
+      switch (authenticatedUser.role) {
+        case 'parent':
+          if (!authenticatedUser.registrationComplete) {
+            console.log('Parent registration incomplete, redirecting to parent-registration');
+            router.replace('/parent-registration');
+          } else {
+            console.log('Parent registration complete, redirecting to parent-dashboard');
+            router.replace('/parent-dashboard');
+          }
+          break;
+        case 'super-admin':
+        case 'camp-admin':
+        case 'staff':
+          console.log('Admin/Staff user, redirecting to home');
+          router.replace('/(tabs)/(home)/');
+          break;
+        default:
+          console.log('Unknown role, redirecting to home');
+          router.replace('/(tabs)/(home)/');
+      }
+      console.log('Navigation command executed successfully');
+    } catch (error) {
+      console.error('Error during navigation:', error);
     }
   };
 

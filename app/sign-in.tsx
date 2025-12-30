@@ -37,7 +37,7 @@ export default function SignInScreen() {
     try {
       console.log('Calling signIn...');
       await signIn(email.toLowerCase().trim(), password);
-      console.log('Sign in successful!');
+      console.log('Sign in successful! Navigation should happen automatically.');
       // Navigation is handled by AuthContext
     } catch (error) {
       console.error('Sign in error:', error);
@@ -64,20 +64,13 @@ export default function SignInScreen() {
     setIsLoading(true);
     try {
       await signInWithGoogle();
-      console.log('Google sign in initiated');
+      console.log('Google sign in initiated successfully');
+      // Navigation is handled by AuthContext
     } catch (error) {
       console.error('Google sign in error:', error);
       const errorMessage = error instanceof Error ? error.message : 'An error occurred during Google sign in';
       
-      // Check if it's a configuration error
-      if (errorMessage.includes('webClientId')) {
-        Alert.alert(
-          'Configuration Required',
-          'Google Sign-In is not configured yet. Please provide your Google OAuth Client ID to enable this feature.'
-        );
-      } else {
-        Alert.alert('Sign In Failed', errorMessage);
-      }
+      Alert.alert('Sign In Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
