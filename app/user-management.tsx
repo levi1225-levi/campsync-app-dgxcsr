@@ -65,6 +65,42 @@ function UserManagementContent() {
     }
   };
 
+  const handleSendPasswordReset = async (user: UserProfile) => {
+    Alert.alert(
+      'Send Password Reset',
+      `Send a password reset link to ${user.email}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: async () => {
+            try {
+              console.log('Sending password reset to:', user.email);
+              
+              const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                redirectTo: 'https://natively.dev/reset-password',
+              });
+
+              if (error) {
+                console.error('Error sending password reset:', error);
+                Alert.alert('Error', 'Failed to send password reset email');
+                return;
+              }
+
+              Alert.alert(
+                'Success',
+                `Password reset link sent to ${user.email}. The user will receive an email with instructions to reset their password.`
+              );
+            } catch (error) {
+              console.error('Error sending password reset:', error);
+              Alert.alert('Error', 'Failed to send password reset email');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleDeleteUser = async (user: UserProfile) => {
     Alert.alert(
       'Delete User',
@@ -141,6 +177,42 @@ function UserManagementContent() {
           },
         })),
         { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleToggleRegistrationComplete = async (user: UserProfile) => {
+    const newStatus = !user.registration_complete;
+    Alert.alert(
+      'Toggle Registration Status',
+      `Mark ${user.full_name}'s registration as ${newStatus ? 'complete' : 'incomplete'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              console.log('Toggling registration status for user:', user.id);
+              
+              const { error } = await supabase
+                .from('user_profiles')
+                .update({ registration_complete: newStatus })
+                .eq('id', user.id);
+
+              if (error) {
+                console.error('Error updating registration status:', error);
+                Alert.alert('Error', 'Failed to update registration status');
+                return;
+              }
+
+              Alert.alert('Success', `Registration marked as ${newStatus ? 'complete' : 'incomplete'}`);
+              loadUsers();
+            } catch (error) {
+              console.error('Error updating registration status:', error);
+              Alert.alert('Error', 'Failed to update registration status');
+            }
+          },
+        },
       ]
     );
   };
@@ -340,7 +412,10 @@ function UserManagementContent() {
                         </Text>
                       </View>
 
-                      <View style={styles.detailRow}>
+                      <TouchableOpacity 
+                        style={styles.detailRow}
+                        onPress={() => handleToggleRegistrationComplete(user)}
+                      >
                         <IconSymbol
                           ios_icon_name={user.registration_complete ? 'checkmark.circle.fill' : 'xmark.circle.fill'}
                           android_material_icon_name={user.registration_complete ? 'check-circle' : 'cancel'}
@@ -350,7 +425,10 @@ function UserManagementContent() {
                         <Text style={commonStyles.textSecondary}>
                           Registration: {user.registration_complete ? 'Complete' : 'Incomplete'}
                         </Text>
-                      </View>
+                        <Text style={[commonStyles.textSecondary, { fontSize: 12, marginLeft: 8 }]}>
+                          (Tap to toggle)
+                        </Text>
+                      </TouchableOpacity>
 
                       {/* Action Buttons */}
                       <View style={styles.actionButtons}>
@@ -368,7 +446,22 @@ function UserManagementContent() {
                         </TouchableOpacity>
 
                         <TouchableOpacity 
-                          style={[styles.actionButton, { backgroundColor: colors.error }]}
+                          style={[styles.actionButton, { backgroundColor: colors.accent }]}
+                          onPress={() => handleSendPasswordReset(user)}
+                        >
+                          <IconSymbol
+                            ios_icon_name="key.fill"
+                            android_material_icon_name="vpn-key"
+                            size={20}
+                            color="#FFFFFF"
+                          />
+                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Reset Password</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity 
+                          style={[styles.actionButton, { backgroundColor: colors.error, flex: 1 }]}
                           onPress={() => handleDeleteUser(user)}
                         >
                           <IconSymbol
@@ -377,7 +470,7 @@ function UserManagementContent() {
                             size={20}
                             color="#FFFFFF"
                           />
-                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Delete</Text>
+                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Delete User</Text>
                         </TouchableOpacity>
                       </View>
                     </>
@@ -519,7 +612,7 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    marginTop: 20,
+    marginTop: 12,
     gap: 12,
   },
   actionButton: {

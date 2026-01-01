@@ -30,6 +30,11 @@ function ProfileScreenContent() {
     router.push('/forgot-password' as any);
   };
 
+  const handleUserManagement = () => {
+    console.log('User management button pressed');
+    router.push('/user-management' as any);
+  };
+
   const handleSignOut = () => {
     console.log('Sign out button pressed from profile');
     Alert.alert(
@@ -203,6 +208,33 @@ function ProfileScreenContent() {
               />
             </View>
           </TouchableOpacity>
+
+          {/* Super Admin Only - User Management */}
+          {user?.role === 'super-admin' && (
+            <TouchableOpacity
+              style={commonStyles.card}
+              onPress={handleUserManagement}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionRow}>
+                <View style={[styles.actionIconContainer, { backgroundColor: colors.error }]}>
+                  <IconSymbol
+                    ios_icon_name="person.3.fill"
+                    android_material_icon_name="group"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </View>
+                <Text style={styles.actionText}>User Management</Text>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron-right"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[commonStyles.card, { backgroundColor: colors.error }]}

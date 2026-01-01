@@ -249,29 +249,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       console.log('=== Sign Out Process Started ===');
+      console.log('Current user:', user?.email);
+      
+      // Clear state first
+      setUser(null);
+      console.log('User state cleared');
       
       // Sign out from Supabase
+      console.log('Signing out from Supabase...');
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Supabase sign out error:', error);
+        // Continue anyway to clear local session
+      } else {
+        console.log('Supabase sign out successful');
       }
       
       // Clear local session
+      console.log('Clearing local session...');
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      setUser(null);
+      console.log('Local session cleared');
       
-      console.log('Sign out successful, redirecting to sign-in...');
+      console.log('Sign out complete, redirecting to sign-in...');
       
-      // Use setTimeout to ensure state is cleared before navigation
-      setTimeout(() => {
-        router.replace('/sign-in');
-      }, 100);
+      // Navigate to sign-in screen
+      router.replace('/sign-in');
+      console.log('Navigation to sign-in completed');
     } catch (error) {
       console.error('Sign out error:', error);
-      // Still try to navigate even if there's an error
-      setTimeout(() => {
-        router.replace('/sign-in');
-      }, 100);
+      // Still clear state and navigate even if there's an error
+      setUser(null);
+      try {
+        await SecureStore.deleteItemAsync(SESSION_KEY);
+      } catch (clearError) {
+        console.error('Error clearing session:', clearError);
+      }
+      router.replace('/sign-in');
     }
   };
 
