@@ -193,6 +193,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registrationComplete: authenticatedUser.registrationComplete
       });
 
+      // Bootstrap first admin if needed (for non-parent users)
+      if (authenticatedUser.role !== 'parent') {
+        console.log('Checking for bootstrap first admin...');
+        try {
+          const { error: bootstrapError } = await supabase.rpc('bootstrap_first_admin');
+          if (bootstrapError) {
+            console.error('Bootstrap error (non-critical):', bootstrapError);
+          } else {
+            console.log('Bootstrap check completed');
+          }
+        } catch (bootstrapError) {
+          console.error('Bootstrap error (non-critical):', bootstrapError);
+          // Don't fail sign-in if bootstrap fails
+        }
+      }
+
       const session: AuthSession = {
         user: authenticatedUser,
         token: data.session.access_token,
