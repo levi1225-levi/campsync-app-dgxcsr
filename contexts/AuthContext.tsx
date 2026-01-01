@@ -138,8 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let profile = null;
       let profileError = null;
       
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        console.log(`Profile fetch attempt ${attempt}/3...`);
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        console.log(`Profile fetch attempt ${attempt}/5...`);
         
         const { data: profileData, error: fetchError } = await supabase
           .from('user_profiles')
@@ -157,8 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log(`Attempt ${attempt} failed:`, fetchError?.message);
         
         // Wait before retry (except on last attempt)
-        if (attempt < 3) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        if (attempt < 5) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
@@ -167,15 +167,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Check if profile doesn't exist
         if (profileError.code === 'PGRST116') {
-          throw new Error('No user profile found. Your account was created but the profile setup failed. Please contact support with your email address.');
+          throw new Error('No user profile found. Please contact support to complete your account setup.');
         }
         
-        throw new Error('Failed to fetch user profile. Please contact support.');
+        throw new Error('Failed to fetch user profile. Please try again or contact support.');
       }
 
       if (!profile) {
         console.error('No profile found for user after retries');
-        throw new Error('No user profile found. Your account was created but the profile setup failed. Please contact support with your email address.');
+        throw new Error('No user profile found. Please contact support to complete your account setup.');
       }
 
       const authenticatedUser: User = {
@@ -193,19 +193,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registrationComplete: authenticatedUser.registrationComplete
       });
 
-      // Bootstrap first admin if needed (for non-parent users)
+      // Auto-assign first admin if needed (for non-parent users)
       if (authenticatedUser.role !== 'parent') {
-        console.log('Checking for bootstrap first admin...');
+        console.log('Checking for auto-admin assignment...');
         try {
-          const { error: bootstrapError } = await supabase.rpc('bootstrap_first_admin');
-          if (bootstrapError) {
-            console.error('Bootstrap error (non-critical):', bootstrapError);
+          const { error: autoAssignError } = await supabase.rpc('auto_assign_first_admin');
+          if (autoAssignError) {
+            console.error('Auto-assign error (non-critical):', autoAssignError);
           } else {
-            console.log('Bootstrap check completed');
+            console.log('Auto-assign check completed');
+            
+            // Reload profile in case role was updated
+            const { data: updatedProfile } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single();
+            
+            if (updatedProfile) {
+              authenticatedUser.role = updatedProfile.role as UserRole;
+              authenticatedUser.registrationComplete = updatedProfile.registration_complete;
+              console.log('Profile updated after auto-assign:', authenticatedUser.role);
+            }
           }
-        } catch (bootstrapError) {
-          console.error('Bootstrap error (non-critical):', bootstrapError);
-          // Don't fail sign-in if bootstrap fails
+        } catch (autoAssignError) {
+          console.error('Auto-assign error (non-critical):', autoAssignError);
+          // Don't fail sign-in if auto-assign fails
         }
       }
 

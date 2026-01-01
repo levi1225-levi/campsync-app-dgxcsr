@@ -110,6 +110,7 @@ export default function RegisterScreen() {
       }
 
       // Create user account with Supabase Auth
+      // The database trigger will automatically create the user profile
       console.log('Step 2: Creating Supabase auth user...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
@@ -119,6 +120,7 @@ export default function RegisterScreen() {
           data: {
             full_name: fullName,
             phone: phone || null,
+            role: revalidation.role,
           }
         }
       });
@@ -153,37 +155,49 @@ export default function RegisterScreen() {
 
       console.log('User created successfully! User ID:', authData.user.id);
 
-      // Create user profile with role from authorization code
-      console.log('Step 3: Creating user profile...');
-      const profileData = {
-        id: authData.user.id,
-        email: email.toLowerCase().trim(),
-        full_name: fullName,
-        phone: phone || null,
-        role: revalidation.role,
-        registration_complete: revalidation.role !== 'parent',
-      };
-      console.log('Profile data:', profileData);
+      // Wait for trigger to create profile
+      console.log('Step 3: Waiting for profile creation...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      const { error: profileError } = await supabase
+      // Verify profile was created
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
-        .insert(profileData);
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
 
-      if (profileError) {
-        console.error('Error creating user profile:', profileError);
+      if (profileError || !profile) {
+        console.error('Profile not found after trigger:', profileError);
         Alert.alert(
-          'Profile Creation Failed', 
-          `Failed to create user profile: ${profileError.message}\n\nPlease contact support with this error.`
+          'Profile Creation Issue',
+          'Your account was created but there was an issue setting up your profile. Please contact support.'
         );
         setIsLoading(false);
         return;
       }
 
-      console.log('User profile created successfully!');
+      console.log('Profile verified:', profile);
+
+      // Update profile with correct role and registration status
+      console.log('Step 4: Updating profile with role and details...');
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: fullName,
+          phone: phone || null,
+          role: revalidation.role,
+          registration_complete: revalidation.role !== 'parent',
+        })
+        .eq('id', authData.user.id);
+
+      if (updateError) {
+        console.error('Error updating profile:', updateError);
+        // Don't fail registration for this
+      }
 
       // Handle parent-specific linking
       if (revalidation.role === 'parent') {
-        console.log('Step 4: Handling parent linking...');
+        console.log('Step 5: Handling parent linking...');
         try {
           await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
           console.log('Parent linking completed successfully!');
@@ -199,7 +213,7 @@ export default function RegisterScreen() {
 
       // Increment code usage atomically
       if (revalidation.code_id) {
-        console.log('Step 5: Incrementing code usage...');
+        console.log('Step 6: Incrementing code usage...');
         try {
           await incrementCodeUsage(revalidation.code_id);
           console.log('Code usage incremented successfully!');
