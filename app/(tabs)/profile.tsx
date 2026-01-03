@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,22 +20,37 @@ function ProfileScreenContent() {
   const router = useRouter();
   const { user, signOut } = useAuth();
 
-  const handleEditProfile = () => {
-    console.log('Edit profile button pressed');
-    router.push('/edit-profile' as any);
-  };
+  const handleEditProfile = useCallback(() => {
+    try {
+      console.log('Navigating to edit profile');
+      router.push('/edit-profile');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open edit profile screen');
+    }
+  }, [router]);
 
-  const handleChangePassword = () => {
-    console.log('Change password button pressed');
-    router.push('/forgot-password' as any);
-  };
+  const handleChangePassword = useCallback(() => {
+    try {
+      console.log('Navigating to change password');
+      router.push('/forgot-password');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open change password screen');
+    }
+  }, [router]);
 
-  const handleUserManagement = () => {
-    console.log('User management button pressed');
-    router.push('/user-management' as any);
-  };
+  const handleUserManagement = useCallback(() => {
+    try {
+      console.log('Navigating to user management');
+      router.push('/user-management');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open user management screen');
+    }
+  }, [router]);
 
-  const handleSignOut = () => {
+  const handleSignOut = useCallback(() => {
     console.log('Sign out button pressed from profile');
     Alert.alert(
       'Sign Out',
@@ -58,7 +73,7 @@ function ProfileScreenContent() {
         },
       ]
     );
-  };
+  }, [signOut]);
 
   return (
     <View style={[commonStyles.container, styles.container]}>

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -147,6 +147,22 @@ function CamperProfileContent() {
     }
   };
 
+  const handleBack = useCallback(() => {
+    try {
+      console.log('Navigating back from camper profile');
+      router.back();
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }, [router]);
+
+  const handleEdit = useCallback(() => {
+    if (camper) {
+      console.log('Edit camper:', camper.id);
+      Alert.alert('Edit Camper', 'Edit functionality will be available in the admin dashboard.');
+    }
+  }, [camper]);
+
   if (isLoading) {
     return (
       <View style={[commonStyles.container, styles.loadingContainer]}>
@@ -172,7 +188,8 @@ function CamperProfileContent() {
         </Text>
         <TouchableOpacity
           style={[commonStyles.card, { marginTop: 24 }]}
-          onPress={() => router.back()}
+          onPress={handleBack}
+          activeOpacity={0.7}
         >
           <Text style={[commonStyles.text, { textAlign: 'center' }]}>Go Back</Text>
         </TouchableOpacity>
@@ -192,7 +209,9 @@ function CamperProfileContent() {
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -204,10 +223,9 @@ function CamperProfileContent() {
           {canEdit && (
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => {
-                console.log('Edit camper:', camper.id);
-                Alert.alert('Edit Camper', 'Edit functionality will be available in the admin dashboard.');
-              }}
+              onPress={handleEdit}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <IconSymbol
                 ios_icon_name="pencil"

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -44,18 +44,41 @@ function CampersScreenContent() {
     }
   };
 
-  const handleViewFullProfile = (camper: Camper) => {
-    console.log('View full profile for camper:', camper.id);
-    router.push(`/camper-profile?id=${camper.id}` as any);
-  };
+  const handleViewFullProfile = useCallback((camper: Camper) => {
+    try {
+      console.log('Navigating to camper profile:', camper.id);
+      router.push(`/camper-profile?id=${camper.id}`);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open camper profile');
+    }
+  }, [router]);
 
-  const handleEditCamper = (camper: Camper) => {
+  const handleEditCamper = useCallback((camper: Camper) => {
     Alert.alert(
       'Edit Camper',
       `Editing functionality for ${camper.firstName} ${camper.lastName} will be implemented in the admin dashboard.`,
       [{ text: 'OK' }]
     );
-  };
+  }, []);
+
+  const handleCreateCamper = useCallback(() => {
+    try {
+      console.log('Navigating to create camper');
+      router.push('/create-camper');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open create camper screen');
+    }
+  }, [router]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+  }, []);
+
+  const handleToggleCamper = useCallback((camper: Camper) => {
+    setSelectedCamper(prev => prev?.id === camper.id ? null : camper);
+  }, []);
 
   return (
     <View style={[commonStyles.container, styles.container]}>
@@ -88,7 +111,11 @@ function CampersScreenContent() {
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
+          <TouchableOpacity 
+            onPress={handleClearSearch}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <IconSymbol
               ios_icon_name="xmark.circle.fill"
               android_material_icon_name="cancel"
@@ -104,7 +131,8 @@ function CampersScreenContent() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity 
             style={styles.addButton}
-            onPress={() => router.push('/create-camper' as any)}
+            onPress={handleCreateCamper}
+            activeOpacity={0.8}
           >
             <IconSymbol
               ios_icon_name="plus.circle.fill"
@@ -141,7 +169,7 @@ function CampersScreenContent() {
             <React.Fragment key={index}>
               <TouchableOpacity
                 style={commonStyles.card}
-                onPress={() => setSelectedCamper(selectedCamper?.id === camper.id ? null : camper)}
+                onPress={() => handleToggleCamper(camper)}
                 activeOpacity={0.7}
               >
                 <View style={styles.camperHeader}>
@@ -254,6 +282,7 @@ function CampersScreenContent() {
                       <TouchableOpacity 
                         style={[styles.actionButton, { backgroundColor: colors.primary }]}
                         onPress={() => handleViewFullProfile(camper)}
+                        activeOpacity={0.8}
                       >
                         <IconSymbol
                           ios_icon_name="doc.text.fill"
@@ -268,6 +297,7 @@ function CampersScreenContent() {
                         <TouchableOpacity 
                           style={[styles.actionButton, { backgroundColor: colors.secondary }]}
                           onPress={() => handleEditCamper(camper)}
+                          activeOpacity={0.8}
                         >
                           <IconSymbol
                             ios_icon_name="pencil"

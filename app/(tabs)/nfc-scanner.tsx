@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -36,14 +36,17 @@ function NFCScannerScreenContent() {
 
   const initNFC = async () => {
     try {
+      console.log('Initializing NFC...');
       const supported = await NfcManager.isSupported();
+      console.log('NFC supported:', supported);
       setNfcSupported(supported);
       
       if (supported) {
         await NfcManager.start();
         const enabled = await NfcManager.isEnabled();
+        console.log('NFC enabled:', enabled);
         setNfcEnabled(enabled);
-        console.log('NFC initialized:', { supported, enabled });
+        console.log('NFC initialized successfully');
       } else {
         console.log('NFC not supported on this device');
       }
@@ -56,12 +59,13 @@ function NFCScannerScreenContent() {
   const cleanupNFC = async () => {
     try {
       await NfcManager.cancelTechnologyRequest();
+      console.log('NFC cleanup complete');
     } catch (error) {
       console.error('Error cleaning up NFC:', error);
     }
   };
 
-  const handleScan = async () => {
+  const handleScan = useCallback(async () => {
     if (!canScan) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
       return;
@@ -91,27 +95,35 @@ function NFCScannerScreenContent() {
       return;
     }
 
+    console.log('Starting NFC scan...');
     setIsScanning(true);
     
     try {
       // Request NFC technology
       await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log('NFC technology requested');
       
       // Read NFC tag
       const tag = await NfcManager.getTag();
-      console.log('NFC Tag detected:', tag);
+      console.log('NFC Tag detected:', JSON.stringify(tag, null, 2));
       
       if (tag) {
         let wristbandId = '';
         
         // Try to read NDEF message
         if (tag.ndefMessage && tag.ndefMessage.length > 0) {
-          const ndefRecord = tag.ndefMessage[0];
-          const payload = Ndef.text.decodePayload(ndefRecord.payload);
-          wristbandId = payload;
-          console.log('NDEF payload:', payload);
-        } else if (tag.id) {
-          // Use tag ID as fallback
+          try {
+            const ndefRecord = tag.ndefMessage[0];
+            const payload = Ndef.text.decodePayload(ndefRecord.payload);
+            wristbandId = payload;
+            console.log('NDEF payload:', payload);
+          } catch (ndefError) {
+            console.error('Error decoding NDEF:', ndefError);
+          }
+        }
+        
+        // Use tag ID as fallback
+        if (!wristbandId && tag.id) {
           wristbandId = tag.id;
           console.log('Using tag ID:', tag.id);
         }
@@ -124,16 +136,21 @@ function NFCScannerScreenContent() {
       }
     } catch (error: any) {
       console.error('NFC scan error:', error);
-      if (error.toString().includes('cancelled')) {
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
         console.log('NFC scan cancelled by user');
       } else {
         Alert.alert('Scan Error', 'Failed to read NFC tag. Please try again.');
       }
     } finally {
       setIsScanning(false);
-      await NfcManager.cancelTechnologyRequest();
+      try {
+        await NfcManager.cancelTechnologyRequest();
+      } catch (cancelError) {
+        console.error('Error cancelling NFC request:', cancelError);
+      }
     }
-  };
+  }, [canScan, nfcSupported, nfcEnabled]);
 
   const lookupCamper = async (wristbandId: string) => {
     try {
@@ -200,9 +217,10 @@ function NFCScannerScreenContent() {
     return age;
   };
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = useCallback(async () => {
     if (scannedCamper) {
       try {
+        console.log('Checking in camper:', scannedCamper.id);
         // Update check-in status in database
         const { error } = await supabase
           .from('campers')
@@ -228,11 +246,12 @@ function NFCScannerScreenContent() {
         Alert.alert('Error', 'Failed to check in camper.');
       }
     }
-  };
+  }, [scannedCamper]);
 
-  const handleCheckOut = async () => {
+  const handleCheckOut = useCallback(async () => {
     if (scannedCamper) {
       try {
+        console.log('Checking out camper:', scannedCamper.id);
         // Update check-out status in database
         const { error } = await supabase
           .from('campers')
@@ -258,9 +277,9 @@ function NFCScannerScreenContent() {
         Alert.alert('Error', 'Failed to check out camper.');
       }
     }
-  };
+  }, [scannedCamper]);
 
-  const handleLogIncident = () => {
+  const handleLogIncident = useCallback(() => {
     if (scannedCamper) {
       Alert.alert(
         'Log Incident',
@@ -269,7 +288,7 @@ function NFCScannerScreenContent() {
       );
       // TODO: Navigate to incident logging screen with camper pre-filled
     }
-  };
+  }, [scannedCamper]);
 
   return (
     <View style={[commonStyles.container, styles.container]}>
@@ -325,6 +344,7 @@ function NFCScannerScreenContent() {
           style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled) && styles.scanButtonDisabled]}
           onPress={handleScan}
           disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled}
+          activeOpacity={0.8}
         >
           <Text style={styles.scanButtonText}>
             {isScanning ? 'Scanning...' : 'Start Scan'}
@@ -412,6 +432,7 @@ function NFCScannerScreenContent() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.success }]}
                 onPress={handleCheckIn}
+                activeOpacity={0.8}
               >
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
@@ -425,6 +446,7 @@ function NFCScannerScreenContent() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.warning }]}
                 onPress={handleCheckOut}
+                activeOpacity={0.8}
               >
                 <IconSymbol
                   ios_icon_name="arrow.right.circle.fill"
@@ -439,6 +461,7 @@ function NFCScannerScreenContent() {
             <TouchableOpacity
               style={[styles.actionButton, styles.incidentButton]}
               onPress={handleLogIncident}
+              activeOpacity={0.8}
             >
               <IconSymbol
                 ios_icon_name="exclamationmark.triangle.fill"

@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "CampSync",
@@ -14,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.Natively",
+      "bundleIdentifier": "com.campsync.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NFCReaderUsageDescription": "CampSync needs access to NFC to scan camper wristbands for check-in, check-out, and quick access to camper information."
+        "NFCReaderUsageDescription": "This app uses NFC to scan camper wristbands for check-in and identification."
       }
     },
     "android": {
@@ -26,9 +27,11 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively",
+      "package": "com.campsync.app",
       "permissions": [
-        "android.permission.NFC"
+        "android.permission.NFC",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
@@ -38,15 +41,15 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-document-picker"
     ],
-    "scheme": "natively",
+    "scheme": "campsync",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "CampSync"
+  }
 }
