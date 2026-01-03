@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "CampSync",
-    "slug": "CampSync",
+    "slug": "campsync-app-dgxcsr",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -27,7 +26,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.campsync.app",
+      "package": "com.campsync.campsync",
       "permissions": [
         "android.permission.NFC",
         "android.permission.INTERNET",
@@ -51,5 +50,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "CampSync"
 }
