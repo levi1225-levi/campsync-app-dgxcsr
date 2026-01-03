@@ -1,10 +1,12 @@
+
 {
   "expo": {
-    "name": "CampSync",
-    "slug": "campsync-app-dgxcsr",
+    "name": "Natively",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
+    "scheme": "natively",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,10 +16,9 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.campsync.app",
+      "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NFCReaderUsageDescription": "This app uses NFC to scan camper wristbands for check-in and identification."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -26,12 +27,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.campsync.campsync",
-      "permissions": [
-        "android.permission.NFC",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
-      ]
+      "package": "com.anonymous.Natively"
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -40,16 +36,13 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser",
-      "expo-document-picker"
+      "expo-web-browser"
     ],
-    "scheme": "campsync",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "CampSync"
+  }
 }
