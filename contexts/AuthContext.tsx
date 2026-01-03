@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, AuthSession, UserRole } from '@/types/user';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
@@ -23,11 +23,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadSession();
+  const loadUserProfile = useCallback(async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error loading user profile:', error);
+        return;
+      }
+
+      if (profile) {
+        const user: User = {
+          id: profile.id,
+          email: profile.email,
+          name: profile.full_name,
+          role: profile.role as UserRole,
+          registrationComplete: profile.registration_complete,
+        };
+        setUser(user);
+        console.log('User profile loaded:', user.email, user.role);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
   }, []);
 
-  const loadSession = async () => {
+  const loadSession = useCallback(async () => {
     try {
       console.log('Loading session from secure storage...');
       
@@ -64,36 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [loadUserProfile]);
 
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error loading user profile:', error);
-        return;
-      }
-
-      if (profile) {
-        const user: User = {
-          id: profile.id,
-          email: profile.email,
-          name: profile.full_name,
-          role: profile.role as UserRole,
-          registrationComplete: profile.registration_complete,
-        };
-        setUser(user);
-        console.log('User profile loaded:', user.email, user.role);
-      }
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-    }
-  };
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
 
   const saveSession = async (session: AuthSession) => {
     try {

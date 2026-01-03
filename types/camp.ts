@@ -1,4 +1,6 @@
 
+import { Session } from './session';
+
 export type CampStatus = 'Planning' | 'Active' | 'Completed' | 'Cancelled';
 
 export interface Camp {
@@ -39,6 +41,3 @@ export interface CampStaffWithUser extends CampStaff {
     phone?: string;
   };
 }
-
-// Import types from other files
-import { Session } from './session';

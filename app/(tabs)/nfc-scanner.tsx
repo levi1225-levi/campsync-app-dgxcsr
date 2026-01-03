@@ -26,15 +26,72 @@ function NFCScannerScreenContent() {
 
   const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  useEffect(() => {
-    initNFC();
-    
-    return () => {
-      cleanupNFC();
-    };
+  const calculateAge = (dateOfBirth: string): number => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const lookupCamper = useCallback(async (wristbandId: string) => {
+    try {
+      console.log('Looking up camper with wristband ID:', wristbandId);
+      
+      // Query Supabase for camper with this wristband ID
+      const { data, error } = await supabase
+        .from('campers')
+        .select('*')
+        .eq('wristband_id', wristbandId)
+        .single();
+      
+      if (error) {
+        console.error('Error looking up camper:', error);
+        
+        // Fallback to mock data for testing
+        const mockCamper = mockCampers.find(c => c.wristbandId === wristbandId);
+        if (mockCamper) {
+          setScannedCamper(mockCamper);
+          Alert.alert('Camper Found', `${mockCamper.firstName} ${mockCamper.lastName}`);
+        } else {
+          Alert.alert('Not Found', 'No camper found with this wristband ID.');
+        }
+        return;
+      }
+      
+      if (data) {
+        // Convert database record to Camper type
+        const camper: Camper = {
+          id: data.id,
+          firstName: data.first_name,
+          lastName: data.last_name,
+          age: calculateAge(data.date_of_birth),
+          cabin: 'TBD', // You may need to add cabin info to the database
+          checkInStatus: data.check_in_status as any,
+          wristbandId: data.wristband_id || '',
+          medicalInfo: {
+            allergies: [],
+            medications: [],
+            conditions: [],
+            notes: '',
+          },
+        };
+        
+        setScannedCamper(camper);
+        Alert.alert('Camper Found', `${camper.firstName} ${camper.lastName}`);
+      } else {
+        Alert.alert('Not Found', 'No camper found with this wristband ID.');
+      }
+    } catch (error) {
+      console.error('Error in lookupCamper:', error);
+      Alert.alert('Error', 'Failed to lookup camper information.');
+    }
   }, []);
 
-  const initNFC = async () => {
+  const initNFC = useCallback(async () => {
     try {
       console.log('Initializing NFC...');
       const supported = await NfcManager.isSupported();
@@ -54,16 +111,24 @@ function NFCScannerScreenContent() {
       console.error('Error initializing NFC:', error);
       Alert.alert('NFC Error', 'Failed to initialize NFC. Please check your device settings.');
     }
-  };
+  }, []);
 
-  const cleanupNFC = async () => {
+  const cleanupNFC = useCallback(async () => {
     try {
       await NfcManager.cancelTechnologyRequest();
       console.log('NFC cleanup complete');
     } catch (error) {
       console.error('Error cleaning up NFC:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    initNFC();
+    
+    return () => {
+      cleanupNFC();
+    };
+  }, [initNFC, cleanupNFC]);
 
   const handleScan = useCallback(async () => {
     if (!canScan) {
@@ -150,72 +215,7 @@ function NFCScannerScreenContent() {
         console.error('Error cancelling NFC request:', cancelError);
       }
     }
-  }, [canScan, nfcSupported, nfcEnabled]);
-
-  const lookupCamper = async (wristbandId: string) => {
-    try {
-      console.log('Looking up camper with wristband ID:', wristbandId);
-      
-      // Query Supabase for camper with this wristband ID
-      const { data, error } = await supabase
-        .from('campers')
-        .select('*')
-        .eq('wristband_id', wristbandId)
-        .single();
-      
-      if (error) {
-        console.error('Error looking up camper:', error);
-        
-        // Fallback to mock data for testing
-        const mockCamper = mockCampers.find(c => c.wristbandId === wristbandId);
-        if (mockCamper) {
-          setScannedCamper(mockCamper);
-          Alert.alert('Camper Found', `${mockCamper.firstName} ${mockCamper.lastName}`);
-        } else {
-          Alert.alert('Not Found', 'No camper found with this wristband ID.');
-        }
-        return;
-      }
-      
-      if (data) {
-        // Convert database record to Camper type
-        const camper: Camper = {
-          id: data.id,
-          firstName: data.first_name,
-          lastName: data.last_name,
-          age: calculateAge(data.date_of_birth),
-          cabin: 'TBD', // You may need to add cabin info to the database
-          checkInStatus: data.check_in_status as any,
-          wristbandId: data.wristband_id || '',
-          medicalInfo: {
-            allergies: [],
-            medications: [],
-            conditions: [],
-            notes: '',
-          },
-        };
-        
-        setScannedCamper(camper);
-        Alert.alert('Camper Found', `${camper.firstName} ${camper.lastName}`);
-      } else {
-        Alert.alert('Not Found', 'No camper found with this wristband ID.');
-      }
-    } catch (error) {
-      console.error('Error in lookupCamper:', error);
-      Alert.alert('Error', 'Failed to lookup camper information.');
-    }
-  };
-
-  const calculateAge = (dateOfBirth: string): number => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
+  }, [canScan, nfcSupported, nfcEnabled, lookupCamper]);
 
   const handleCheckIn = useCallback(async () => {
     if (scannedCamper) {

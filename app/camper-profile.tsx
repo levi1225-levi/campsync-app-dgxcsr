@@ -36,12 +36,12 @@ interface CamperProfile {
     medical_conditions: string[];
     special_care_instructions: string | null;
   } | null;
-  emergency_contacts: Array<{
+  emergency_contacts: {
     full_name: string;
     phone: string;
     relationship: string;
     priority_order: number;
-  }>;
+  }[];
 }
 
 function CamperProfileContent() {
@@ -55,13 +55,29 @@ function CamperProfileContent() {
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  useEffect(() => {
-    if (camperId) {
-      loadCamperProfile();
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
     }
-  }, [camperId]);
+    return age;
+  };
 
-  const loadCamperProfile = async () => {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'checked-in':
+        return colors.success;
+      case 'checked-out':
+        return colors.warning;
+      default:
+        return colors.textSecondary;
+    }
+  };
+
+  const loadCamperProfile = useCallback(async () => {
     try {
       console.log('Loading camper profile:', camperId);
       setIsLoading(true);
@@ -123,29 +139,13 @@ function CamperProfileContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [camperId, canViewMedical]);
 
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+  useEffect(() => {
+    if (camperId) {
+      loadCamperProfile();
     }
-    return age;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'checked-in':
-        return colors.success;
-      case 'checked-out':
-        return colors.warning;
-      default:
-        return colors.textSecondary;
-    }
-  };
+  }, [camperId, loadCamperProfile]);
 
   const handleBack = useCallback(() => {
     try {

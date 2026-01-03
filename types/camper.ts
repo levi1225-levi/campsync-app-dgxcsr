@@ -1,4 +1,8 @@
 
+import { ParentGuardian } from './parent';
+import { Session } from './session';
+import { Camp } from './camp';
+
 export interface Camper {
   id: string;
   campId: string;
@@ -53,8 +57,3 @@ export interface CamperWithDetails extends Camper {
   session?: Session;
   camp?: Camp;
 }
-
-// Import types from other files
-import { ParentGuardian } from './parent';
-import { Session } from './session';
-import { Camp } from './camp';

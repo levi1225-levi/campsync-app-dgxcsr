@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { parentService } from '@/services/database.service';
 import { ParentGuardian } from '@/types/parent';
 import { supabase } from '@/app/integrations/supabase/client';
@@ -10,7 +10,7 @@ export function useParent(id: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchParentDetails = async () => {
+  const fetchParentDetails = useCallback(async () => {
     try {
       setLoading(true);
       const [parentData, childrenData] = await Promise.all([
@@ -26,13 +26,13 @@ export function useParent(id: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     if (id) {
       fetchParentDetails();
     }
-  }, [id]);
+  }, [id, fetchParentDetails]);
 
   const updateParent = async (updates: Partial<ParentGuardian>) => {
     try {

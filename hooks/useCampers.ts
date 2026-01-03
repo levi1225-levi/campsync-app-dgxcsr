@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { camperService } from '@/services/database.service';
 import { Camper, CamperMedicalInfo, EmergencyContact } from '@/types/camper';
 
@@ -8,7 +8,7 @@ export function useCampers(campId?: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchCampers = async () => {
+  const fetchCampers = useCallback(async () => {
     try {
       setLoading(true);
       const data = await camperService.getAll(campId);
@@ -20,11 +20,11 @@ export function useCampers(campId?: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [campId]);
 
   useEffect(() => {
     fetchCampers();
-  }, [campId]);
+  }, [fetchCampers]);
 
   const createCamper = async (camper: Omit<Camper, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -76,7 +76,7 @@ export function useCamper(id: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchCamperDetails = async () => {
+  const fetchCamperDetails = useCallback(async () => {
     try {
       setLoading(true);
       const [camperData, medicalData, contactsData] = await Promise.all([
@@ -94,13 +94,13 @@ export function useCamper(id: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     if (id) {
       fetchCamperDetails();
     }
-  }, [id]);
+  }, [id, fetchCamperDetails]);
 
   const updateMedicalInfo = async (info: Omit<CamperMedicalInfo, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {

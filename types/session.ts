@@ -1,4 +1,7 @@
 
+import { Camp } from './camp';
+import { Camper } from './camper';
+
 export interface Session {
   id: string;
   campId: string;
@@ -16,7 +19,3 @@ export interface SessionWithDetails extends Session {
   camperCount: number;
   campers: Camper[];
 }
-
-// Import types from other files
-import { Camp } from './camp';
-import { Camper } from './camper';

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,13 +21,7 @@ export default function AcceptInvitationScreen() {
   const [invitation, setInvitation] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (token) {
-      loadInvitation();
-    }
-  }, [token]);
-
-  const loadInvitation = async () => {
+  const loadInvitation = useCallback(async () => {
     try {
       setLoading(true);
       const invitationData = await parentService.getInvitationByToken(token);
@@ -50,7 +44,13 @@ export default function AcceptInvitationScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      loadInvitation();
+    }
+  }, [token, loadInvitation]);
 
   const handleAccept = async () => {
     try {
@@ -182,7 +182,7 @@ export default function AcceptInvitationScreen() {
             <React.Fragment>
               <IconSymbol
                 ios_icon_name="checkmark.circle"
-                android_material_icon_name="check_circle"
+                android_material_icon_name="check-circle"
                 size={24}
                 color="#fff"
               />

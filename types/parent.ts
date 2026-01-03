@@ -1,4 +1,6 @@
 
+import { Camper } from './camper';
+
 export interface ParentGuardian {
   id: string;
   email: string;
@@ -39,6 +41,3 @@ export interface ParentGuardianWithChildren extends ParentGuardian {
 export interface ParentCamperLinkWithCamper extends ParentCamperLink {
   camper: Camper;
 }
-
-// Import types from other files
-import { Camper } from './camper';
