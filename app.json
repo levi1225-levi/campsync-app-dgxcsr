@@ -1,8 +1,7 @@
-
 {
   "expo": {
-    "name": "Natively",
-    "slug": "Natively",
+    "name": "CampSync",
+    "slug": "CampSync",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -44,5 +43,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "CampSync"
 }
