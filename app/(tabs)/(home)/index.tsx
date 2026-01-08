@@ -1,340 +1,91 @@
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { IconSymbol } from '@/components/IconSymbol';
-import { colors, commonStyles } from '@/styles/commonStyles';
-import { mockCampers } from '@/data/mockCampers';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import * as Network from 'expo-network';
+import { mockCampers } from '@/data/mockCampers';
+import { IconSymbol } from '@/components/IconSymbol';
 import { LinearGradient } from 'expo-linear-gradient';
+import { colors, commonStyles } from '@/styles/commonStyles';
 
 function HomeScreenContent() {
+  const { user } = useAuth();
   const router = useRouter();
-  const { user, signOut, hasPermission } = useAuth();
   const [isOnline, setIsOnline] = useState(true);
+
+  const checkNetworkStatus = useCallback(async () => {
+    try {
+      const networkState = await Network.getNetworkStateAsync();
+      setIsOnline(networkState.isConnected ?? false);
+    } catch (error) {
+      console.error('Error checking network status:', error);
+    }
+  }, []);
 
   useEffect(() => {
     checkNetworkStatus();
-    
-    // Check network status every 10 seconds
-    const interval = setInterval(checkNetworkStatus, 10000);
-    
+    const interval = setInterval(checkNetworkStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [checkNetworkStatus]);
 
-  const checkNetworkStatus = async () => {
-    try {
-      const networkState = await Network.getNetworkStateAsync();
-      setIsOnline(networkState.isConnected === true && networkState.isInternetReachable !== false);
-    } catch (error) {
-      console.error('Error checking network status:', error);
-      // Assume online if we can't check
-      setIsOnline(true);
-    }
-  };
+  const handleNavigation = useCallback((route: string) => {
+    router.push(route as any);
+  }, [router]);
 
-  const checkedInCount = mockCampers.filter(c => c.checkInStatus === 'checked-in').length;
+  const checkedInCount = mockCampers.filter(c => c.check_in_status === 'checked_in').length;
   const totalCampers = mockCampers.length;
 
-  const quickActions = [
-    {
-      title: 'Camper Management',
-      description: 'View and manage camper profiles',
-      icon: 'people' as const,
-      route: '/(tabs)/campers',
-      color: colors.primary,
-      roles: ['super-admin', 'camp-admin', 'staff'] as const,
-    },
-    {
-      title: 'NFC Scanner',
-      description: 'Scan wristbands for quick access',
-      icon: 'nfc' as const,
-      route: '/(tabs)/nfc-scanner',
-      color: colors.accent,
-      roles: ['super-admin', 'camp-admin', 'staff'] as const,
-    },
-    {
-      title: 'Create Camper',
-      description: 'Add a new camper to the system',
-      icon: 'person-add' as const,
-      route: '/create-camper',
-      color: colors.secondary,
-      roles: ['super-admin', 'camp-admin'] as const,
-    },
-  ];
-
-  // Filter actions based on user role
-  const availableActions = quickActions.filter(action => 
-    hasPermission(action.roles as any)
-  );
-
   return (
-    <View style={[commonStyles.container, styles.container]}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header with Gradient */}
-        <LinearGradient
-          colors={[colors.primary, colors.primaryDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
+    <ScrollView style={styles.container}>
+      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.header}>
+        <Text style={styles.headerTitle}>Welcome, {user?.full_name || 'User'}</Text>
+        <Text style={styles.headerSubtitle}>{user?.role || 'Staff'}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: isOnline ? colors.success : colors.error }]}>
+          <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
+        </View>
+      </LinearGradient>
+
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{checkedInCount}</Text>
+          <Text style={styles.statLabel}>Checked In</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{totalCampers}</Text>
+          <Text style={styles.statLabel}>Total Campers</Text>
+        </View>
+      </View>
+
+      <View style={styles.quickActions}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        
+        <TouchableOpacity 
+          style={[commonStyles.button, styles.actionButton]}
+          onPress={() => handleNavigation('/nfc-scanner')}
+          activeOpacity={0.7}
         >
-          <View style={styles.headerContent}>
-            <View>
-              <Text style={styles.headerGreeting}>Welcome back,</Text>
-              <Text style={styles.headerTitle}>{user?.name}</Text>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>
-                  {user?.role === 'super-admin' && 'Super Admin'}
-                  {user?.role === 'camp-admin' && 'Camp Admin'}
-                  {user?.role === 'staff' && 'Staff Member'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity 
-              onPress={async () => {
-                console.log('Sign out button pressed');
-                try {
-                  await signOut();
-                } catch (error) {
-                  console.error('Error signing out:', error);
-                }
-              }} 
-              style={styles.signOutButton}
-            >
-              <IconSymbol
-                ios_icon_name="rectangle.portrait.and.arrow.right"
-                android_material_icon_name="logout"
-                size={24}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
+          <IconSymbol name="wave.3.right" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>NFC Scanner</Text>
+        </TouchableOpacity>
 
-        {/* Stats Overview - Now Clickable */}
-        <View style={styles.statsContainer}>
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              console.log('Checked in today card pressed, navigating to campers');
-              router.push('/(tabs)/campers' as any);
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.statIconContainer}>
-              <IconSymbol
-                ios_icon_name="person.2.fill"
-                android_material_icon_name="people"
-                size={28}
-                color="#FFFFFF"
-              />
-            </View>
-            <Text style={styles.statNumber}>{checkedInCount}/{totalCampers}</Text>
-            <Text style={styles.statLabel}>Checked In Today</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: colors.accent }]}
-            onPress={() => {
-              console.log('Total campers card pressed, navigating to campers');
-              router.push('/(tabs)/campers' as any);
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.statIconContainer}>
-              <IconSymbol
-                ios_icon_name="checkmark.circle.fill"
-                android_material_icon_name="check-circle"
-                size={28}
-                color="#FFFFFF"
-              />
-            </View>
-            <Text style={styles.statNumber}>{totalCampers}</Text>
-            <Text style={styles.statLabel}>Total Campers</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Actions */}
-        {availableActions.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            {availableActions.map((action, index) => (
-              <React.Fragment key={index}>
-                <TouchableOpacity
-                  style={commonStyles.card}
-                  onPress={() => {
-                    console.log('Quick action pressed:', action.title, 'Route:', action.route);
-                    router.push(action.route as any);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.actionCard}>
-                    <View style={[styles.actionIconContainer, { backgroundColor: action.color }]}>
-                      <IconSymbol
-                        ios_icon_name={action.icon}
-                        android_material_icon_name={action.icon}
-                        size={24}
-                        color="#FFFFFF"
-                      />
-                    </View>
-                    <View style={styles.actionContent}>
-                      <Text style={commonStyles.cardTitle}>{action.title}</Text>
-                      <Text style={commonStyles.textSecondary}>{action.description}</Text>
-                    </View>
-                    <IconSymbol
-                      ios_icon_name="chevron.right"
-                      android_material_icon_name="chevron-right"
-                      size={24}
-                      color={colors.textSecondary}
-                    />
-                  </View>
-                </TouchableOpacity>
-              </React.Fragment>
-            ))}
-          </View>
-        )}
-
-        {/* Today's Activity */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today&apos;s Activity</Text>
-          <View style={commonStyles.card}>
-            <View style={styles.activityHeader}>
-              <IconSymbol
-                ios_icon_name="clock.fill"
-                android_material_icon_name="schedule"
-                size={24}
-                color={colors.info}
-              />
-              <Text style={styles.activityTitle}>Recent Check-ins</Text>
-            </View>
-            <Text style={commonStyles.textSecondary}>
-              {checkedInCount} campers checked in today. All systems operational.
-            </Text>
-            <View style={styles.activityTime}>
-              <Text style={[commonStyles.textSecondary, { fontSize: 12 }]}>
-                Last updated: {new Date().toLocaleTimeString()}
-              </Text>
-            </View>
-          </View>
-
-          <View style={commonStyles.card}>
-            <View style={styles.activityHeader}>
-              <IconSymbol
-                ios_icon_name="sun.max.fill"
-                android_material_icon_name="wb-sunny"
-                size={24}
-                color={colors.warning}
-              />
-              <Text style={styles.activityTitle}>Camp Status</Text>
-            </View>
-            <Text style={commonStyles.textSecondary}>
-              All activities running smoothly. Weather is perfect for outdoor activities!
-            </Text>
-          </View>
-        </View>
-
-        {/* Admin Tools Section */}
-        {(user?.role === 'super-admin' || user?.role === 'camp-admin') && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Admin Tools</Text>
-            
-            <TouchableOpacity
-              style={commonStyles.card}
-              onPress={() => {
-                console.log('Authorization codes button pressed');
-                router.push('/manage-authorization-codes' as any);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionCard}>
-                <View style={[styles.actionIconContainer, { backgroundColor: colors.warning }]}>
-                  <IconSymbol
-                    ios_icon_name="key.fill"
-                    android_material_icon_name="vpn-key"
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <View style={styles.actionContent}>
-                  <Text style={commonStyles.cardTitle}>Authorization Codes</Text>
-                  <Text style={commonStyles.textSecondary}>
-                    Manage registration codes and invitations
-                  </Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron-right"
-                  size={24}
-                  color={colors.textSecondary}
-                />
-              </View>
-            </TouchableOpacity>
-
-            {/* Super Admin Only: User Management */}
-            {user?.role === 'super-admin' && (
-              <TouchableOpacity
-                style={commonStyles.card}
-                onPress={() => {
-                  console.log('User management button pressed');
-                  router.push('/user-management' as any);
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.actionCard}>
-                  <View style={[styles.actionIconContainer, { backgroundColor: colors.error }]}>
-                    <IconSymbol
-                      ios_icon_name="person.3.fill"
-                      android_material_icon_name="group"
-                      size={24}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                  <View style={styles.actionContent}>
-                    <Text style={commonStyles.cardTitle}>User Management</Text>
-                    <Text style={commonStyles.textSecondary}>
-                      Manage all system users and permissions
-                    </Text>
-                  </View>
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="chevron-right"
-                    size={24}
-                    color={colors.textSecondary}
-                  />
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Offline Notice - Only show when actually offline */}
-        {!isOnline && (
-          <View style={[styles.offlineNotice, { backgroundColor: colors.warning }]}>
-            <IconSymbol
-              ios_icon_name="wifi.slash"
-              android_material_icon_name="wifi-off"
-              size={20}
-              color="#FFFFFF"
-            />
-            <Text style={styles.offlineText}>
-              Offline mode - Data will sync when connected
-            </Text>
-          </View>
-        )}
-      </ScrollView>
-    </View>
+        <TouchableOpacity 
+          style={[commonStyles.button, styles.actionButton]}
+          onPress={() => handleNavigation('/campers')}
+          activeOpacity={0.7}
+        >
+          <IconSymbol name="person.3" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>View Campers</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
-export default function HomeScreen() {
+function HomeScreen() {
   return (
-    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff']}>
+    <ProtectedRoute allowedRoles={['camp_admin', 'counselor', 'parent']}>
       <HomeScreenContent />
     </ProtectedRoute>
   );
@@ -342,146 +93,79 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: Platform.OS === 'android' ? 48 : 0,
-  },
-  scrollView: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 120,
+    backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerGreeting: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 4,
+    padding: 24,
+    paddingTop: Platform.OS === 'ios' ? 60 : 24,
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 12,
-    letterSpacing: -0.5,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
   },
-  roleBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  roleBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  signOutButton: {
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
+    marginTop: 12,
+  },
+  statusText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginTop: -20,
-    marginBottom: 24,
-    gap: 12,
+    padding: 16,
+    gap: 16,
   },
   statCard: {
     flex: 1,
-    borderRadius: 16,
+    backgroundColor: '#fff',
     padding: 20,
+    borderRadius: 12,
     alignItems: 'center',
-    boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.12)',
-    elevation: 4,
-  },
-  statIconContainer: {
-    marginBottom: 12,
+    ...commonStyles.shadow,
   },
   statNumber: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: -0.5,
+    fontWeight: 'bold',
+    color: colors.primary,
   },
   statLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    opacity: 0.9,
-    textAlign: 'center',
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 24,
+  quickActions: {
+    padding: 16,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: 16,
-    letterSpacing: -0.3,
   },
-  activityHeader: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     marginBottom: 12,
-    gap: 12,
   },
-  activityTitle: {
-    fontSize: 17,
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
-  },
-  activityTime: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  actionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionContent: {
-    flex: 1,
-  },
-  offlineNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 16,
-    marginBottom: 24,
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
-  },
-  offlineText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
   },
 });
+
+export default HomeScreen;
