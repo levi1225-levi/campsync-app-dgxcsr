@@ -1,5 +1,9 @@
 
-import React from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useRouter } from 'expo-router';
+import { IconSymbol } from '@/components/IconSymbol';
 import {
   View,
   Text,
@@ -9,401 +13,271 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { IconSymbol } from '@/components/IconSymbol';
-import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback } from 'react';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    marginBottom: 24,
+  },
+  avatarContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarText: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  email: {
+    fontSize: 16,
+    color: colors.grey,
+    marginBottom: 8,
+  },
+  roleBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.accent,
+  },
+  roleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 12,
+    marginBottom: 10,
+    minHeight: 65,
+  },
+  menuItemContent: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  menuItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  menuItemSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  signOutButton: {
+    padding: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});
 
 function ProfileScreenContent() {
   const router = useRouter();
   const { user, signOut } = useAuth();
 
-  const handleEditProfile = () => {
-    console.log('Edit profile button pressed');
-    router.push('/edit-profile' as any);
-  };
+  const handleEditProfile = useCallback(() => {
+    try {
+      router.push('/edit-profile');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }, [router]);
 
-  const handleChangePassword = () => {
-    console.log('Change password button pressed');
-    router.push('/forgot-password' as any);
-  };
+  const handleChangePassword = useCallback(() => {
+    try {
+      router.push('/change-password');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }, [router]);
 
-  const handleUserManagement = () => {
-    console.log('User management button pressed');
-    router.push('/user-management' as any);
-  };
+  const handleUserManagement = useCallback(() => {
+    try {
+      router.push('/user-management');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }, [router]);
 
-  const handleSignOut = () => {
-    console.log('Sign out button pressed from profile');
+  const handleSignOut = useCallback(async () => {
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive', 
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
           onPress: async () => {
-            console.log('User confirmed sign out');
             try {
               await signOut();
-              console.log('Sign out successful');
             } catch (error) {
-              console.error('Error signing out:', error);
+              console.error('Sign out error:', error);
               Alert.alert('Error', 'Failed to sign out. Please try again.');
             }
-          }
+          },
         },
       ]
     );
+  }, [signOut]);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return 'Super Admin';
+      case 'camp_admin':
+        return 'Camp Admin';
+      case 'counselor':
+        return 'Counselor';
+      case 'parent':
+        return 'Parent';
+      default:
+        return role;
+    }
   };
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header with Gradient */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.profileHeader}>
+        <View style={styles.avatarContainer}>
+          <Text style={styles.avatarText}>{getInitials(user?.full_name || 'U')}</Text>
+        </View>
+        <Text style={styles.name}>{user?.full_name || 'User'}</Text>
+        <Text style={styles.email}>{user?.email || ''}</Text>
+        <View style={styles.roleBadge}>
+          <Text style={styles.roleText}>{getRoleLabel(user?.role || '')}</Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Account Settings</Text>
+
+        <TouchableOpacity onPress={handleEditProfile} activeOpacity={0.7}>
+          <LinearGradient
+            colors={['#2196F3', '#1976D2']}
+            style={styles.menuItem}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={24} color="#fff" />
+            <View style={styles.menuItemContent}>
+              <Text style={styles.menuItemTitle}>Edit Profile</Text>
+              <Text style={styles.menuItemSubtitle}>Update your personal information</Text>
+            </View>
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleChangePassword} activeOpacity={0.7}>
+          <LinearGradient
+            colors={['#4CAF50', '#45a049']}
+            style={styles.menuItem}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <IconSymbol ios_icon_name="lock.fill" android_material_icon_name="lock" size={24} color="#fff" />
+            <View style={styles.menuItemContent}>
+              <Text style={styles.menuItemTitle}>Change Password</Text>
+              <Text style={styles.menuItemSubtitle}>Update your account password</Text>
+            </View>
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
+      {user?.role === 'super_admin' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Administration</Text>
+
+          <TouchableOpacity onPress={handleUserManagement} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#9C27B0', '#7B1FA2']}
+              style={styles.menuItem}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <IconSymbol ios_icon_name="person.badge.key.fill" android_material_icon_name="admin-panel-settings" size={24} color="#fff" />
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemTitle}>User Management</Text>
+                <Text style={styles.menuItemSubtitle}>Manage staff and permissions</Text>
+              </View>
+              <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <TouchableOpacity onPress={handleSignOut} activeOpacity={0.7}>
         <LinearGradient
-          colors={[colors.primary, colors.primaryDark]}
+          colors={['#F44336', '#D32F2F']}
+          style={styles.signOutButton}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
         >
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <IconSymbol
-                ios_icon_name="person.fill"
-                android_material_icon_name="person"
-                size={48}
-                color="#FFFFFF"
-              />
-            </View>
-          </View>
-          <Text style={styles.headerName}>{user?.name}</Text>
-          <Text style={styles.headerEmail}>{user?.email}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>
-              {user?.role === 'super-admin' && 'Super Administrator'}
-              {user?.role === 'camp-admin' && 'Camp Administrator'}
-              {user?.role === 'staff' && 'Staff Member'}
-              {user?.role === 'parent' && 'Parent/Guardian'}
-            </Text>
-          </View>
+          <Text style={styles.signOutText}>Sign Out</Text>
         </LinearGradient>
-
-        {/* Profile Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Information</Text>
-          
-          <View style={commonStyles.card}>
-            <View style={styles.infoRow}>
-              <View style={styles.infoIconContainer}>
-                <IconSymbol
-                  ios_icon_name="person.fill"
-                  android_material_icon_name="person"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Full Name</Text>
-                <Text style={styles.infoValue}>{user?.name}</Text>
-              </View>
-            </View>
-
-            <View style={commonStyles.divider} />
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoIconContainer}>
-                <IconSymbol
-                  ios_icon_name="envelope.fill"
-                  android_material_icon_name="email"
-                  size={20}
-                  color={colors.accent}
-                />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{user?.email}</Text>
-              </View>
-            </View>
-
-            <View style={commonStyles.divider} />
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoIconContainer}>
-                <IconSymbol
-                  ios_icon_name="shield.fill"
-                  android_material_icon_name="security"
-                  size={20}
-                  color={colors.secondary}
-                />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Role</Text>
-                <Text style={styles.infoValue}>
-                  {user?.role === 'super-admin' && 'Super Administrator'}
-                  {user?.role === 'camp-admin' && 'Camp Administrator'}
-                  {user?.role === 'staff' && 'Staff Member'}
-                  {user?.role === 'parent' && 'Parent/Guardian'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
-
-          <TouchableOpacity
-            style={commonStyles.card}
-            onPress={handleEditProfile}
-            activeOpacity={0.7}
-          >
-            <View style={styles.actionRow}>
-              <View style={[styles.actionIconContainer, { backgroundColor: colors.primary }]}>
-                <IconSymbol
-                  ios_icon_name="pencil"
-                  android_material_icon_name="edit"
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </View>
-              <Text style={styles.actionText}>Edit Profile</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={commonStyles.card}
-            onPress={handleChangePassword}
-            activeOpacity={0.7}
-          >
-            <View style={styles.actionRow}>
-              <View style={[styles.actionIconContainer, { backgroundColor: colors.accent }]}>
-                <IconSymbol
-                  ios_icon_name="lock.fill"
-                  android_material_icon_name="lock"
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </View>
-              <Text style={styles.actionText}>Change Password</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </View>
-          </TouchableOpacity>
-
-          {/* Super Admin Only - User Management */}
-          {user?.role === 'super-admin' && (
-            <TouchableOpacity
-              style={commonStyles.card}
-              onPress={handleUserManagement}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionRow}>
-                <View style={[styles.actionIconContainer, { backgroundColor: colors.error }]}>
-                  <IconSymbol
-                    ios_icon_name="person.3.fill"
-                    android_material_icon_name="group"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <Text style={styles.actionText}>User Management</Text>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="chevron-right"
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </View>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[commonStyles.card, { backgroundColor: colors.error }]}
-            onPress={handleSignOut}
-            activeOpacity={0.7}
-          >
-            <View style={styles.actionRow}>
-              <View style={[styles.actionIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                <IconSymbol
-                  ios_icon_name="rectangle.portrait.and.arrow.right"
-                  android_material_icon_name="logout"
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </View>
-              <Text style={[styles.actionText, { color: '#FFFFFF' }]}>Sign Out</Text>
-              <IconSymbol
-                ios_icon_name="chevron.right"
-                android_material_icon_name="chevron-right"
-                size={20}
-                color="#FFFFFF"
-              />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* App Info */}
-        <View style={styles.section}>
-          <View style={styles.appInfo}>
-            <Text style={styles.appInfoText}>CampSync v1.0.0</Text>
-            <Text style={[styles.appInfoText, { marginTop: 4 }]}>
-              © 2024 CampSync. All rights reserved.
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </View>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
-export default function ProfileScreen() {
+function ProfileScreen() {
   return (
-    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff', 'parent']}>
+    <ProtectedRoute allowedRoles={['super_admin', 'camp_admin', 'counselor', 'parent']}>
       <ProfileScreenContent />
     </ProtectedRoute>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingTop: 0,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 120,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 32,
-    paddingBottom: 32,
-    alignItems: 'center',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  avatarContainer: {
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  headerName: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  headerEmail: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 12,
-  },
-  roleBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  roleBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16,
-    letterSpacing: -0.3,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  infoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  actionText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  appInfo: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  appInfoText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-});
+export default ProfileScreen;
