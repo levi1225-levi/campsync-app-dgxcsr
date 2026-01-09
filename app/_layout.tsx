@@ -6,7 +6,8 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme } from "react-native";
+import { useColorScheme, Alert } from "react-native";
+import { useNetworkState } from "expo-network";
 import {
   DarkTheme,
   DefaultTheme,
@@ -15,17 +16,17 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { colors } from "@/styles/commonStyles";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  initialRouteName: "sign-in",
+  initialRouteName: "(tabs)",
 };
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const networkState = useNetworkState();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -36,6 +37,18 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  React.useEffect(() => {
+    if (
+      !networkState.isConnected &&
+      networkState.isInternetReachable === false
+    ) {
+      Alert.alert(
+        "🔌 You are offline",
+        "You can keep using the app! Your changes will be saved locally and synced when you are back online."
+      );
+    }
+  }, [networkState.isConnected, networkState.isInternetReachable]);
+
   if (!loaded) {
     return null;
   }
@@ -44,159 +57,78 @@ export default function RootLayout() {
     ...DefaultTheme,
     dark: false,
     colors: {
-      primary: colors.primary,
-      background: colors.background,
-      card: colors.card,
-      text: colors.text,
-      border: colors.border,
-      notification: colors.secondary,
+      primary: "rgb(0, 122, 255)",
+      background: "rgb(242, 242, 247)",
+      card: "rgb(255, 255, 255)",
+      text: "rgb(0, 0, 0)",
+      border: "rgb(216, 216, 220)",
+      notification: "rgb(255, 59, 48)",
     },
   };
 
   const CustomDarkTheme: Theme = {
     ...DarkTheme,
     colors: {
-      primary: colors.primary,
-      background: '#1A1A1A',
-      card: '#2A2A2A',
-      text: '#FFFFFF',
-      border: '#3A3A3A',
-      notification: colors.secondary,
+      primary: "rgb(10, 132, 255)",
+      background: "rgb(1, 1, 1)",
+      card: "rgb(28, 28, 30)",
+      text: "rgb(255, 255, 255)",
+      border: "rgb(44, 44, 46)",
+      notification: "rgb(255, 69, 58)",
     },
   };
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="auto" animated />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
         <AuthProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <Stack>
-              {/* Authentication Screens */}
-              <Stack.Screen 
-                name="sign-in" 
-                options={{ headerShown: false }} 
-              />
-              <Stack.Screen 
-                name="register" 
-                options={{ headerShown: false }} 
-              />
-              <Stack.Screen 
-                name="forgot-password" 
-                options={{ headerShown: false }} 
-              />
-              
-              {/* Parent Screens */}
-              <Stack.Screen 
-                name="parent-dashboard" 
-                options={{ headerShown: false }} 
-              />
-              <Stack.Screen 
-                name="parent-registration" 
-                options={{ headerShown: false }} 
-              />
-
-              {/* Main app with tabs */}
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-              {/* Other Screens */}
-              <Stack.Screen 
-                name="camper-profile" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Camper Profile',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="user-management" 
-                options={{ 
-                  headerShown: true,
-                  title: 'User Management',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="manage-authorization-codes" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Authorization Codes',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="create-camper" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Create Camper',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="bulk-import-campers" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Bulk Import',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="accept-invitation" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Accept Invitation',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="edit-profile" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Edit Profile',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-              <Stack.Screen 
-                name="request-access" 
-                options={{ 
-                  headerShown: true,
-                  title: 'Request Access',
-                  headerBackTitle: 'Back'
-                }} 
-              />
-
-              {/* Modal Demo Screens */}
-              <Stack.Screen
-                name="modal"
-                options={{
-                  presentation: "modal",
-                  title: "Standard Modal",
-                }}
-              />
-              <Stack.Screen
-                name="formsheet"
-                options={{
-                  presentation: "formSheet",
-                  title: "Form Sheet Modal",
-                  sheetGrabberVisible: true,
-                  sheetAllowedDetents: [0.5, 0.8, 1.0],
-                  sheetCornerRadius: 20,
-                }}
-              />
-              <Stack.Screen
-                name="transparent-modal"
-                options={{
-                  presentation: "transparentModal",
-                  headerShown: false,
-                }}
-              />
-            </Stack>
-            <SystemBars style={"auto"} />
-          </GestureHandlerRootView>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+            <Stack.Screen name="register" options={{ headerShown: false }} />
+            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+            <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+            <Stack.Screen name="camper-profile" options={{ headerShown: false }} />
+            <Stack.Screen name="create-camper" options={{ headerShown: false }} />
+            <Stack.Screen name="user-management" options={{ headerShown: false }} />
+            <Stack.Screen name="manage-authorization-codes" options={{ headerShown: false }} />
+            <Stack.Screen name="bulk-import-campers" options={{ headerShown: false }} />
+            <Stack.Screen name="parent-dashboard" options={{ headerShown: false }} />
+            <Stack.Screen name="parent-registration" options={{ headerShown: false }} />
+            <Stack.Screen name="accept-invitation" options={{ headerShown: false }} />
+            <Stack.Screen name="request-access" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="modal"
+              options={{
+                presentation: "modal",
+                title: "Standard Modal",
+              }}
+            />
+            <Stack.Screen
+              name="formsheet"
+              options={{
+                presentation: "formSheet",
+                title: "Form Sheet Modal",
+                sheetGrabberVisible: true,
+                sheetAllowedDetents: [0.5, 0.8, 1.0],
+                sheetCornerRadius: 20,
+              }}
+            />
+            <Stack.Screen
+              name="transparent-modal"
+              options={{
+                presentation: "transparentModal",
+                headerShown: false,
+              }}
+            />
+          </Stack>
+          <SystemBars style={"auto"} />
         </AuthProvider>
       </ThemeProvider>
-    </>
+    </GestureHandlerRootView>
   );
 }
