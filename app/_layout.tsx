@@ -79,56 +79,44 @@ export default function RootLayout() {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <>
       <StatusBar style="auto" animated />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
         <AuthProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-            <Stack.Screen name="register" options={{ headerShown: false }} />
-            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-            <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-            <Stack.Screen name="camper-profile" options={{ headerShown: false }} />
-            <Stack.Screen name="create-camper" options={{ headerShown: false }} />
-            <Stack.Screen name="user-management" options={{ headerShown: false }} />
-            <Stack.Screen name="manage-authorization-codes" options={{ headerShown: false }} />
-            <Stack.Screen name="bulk-import-campers" options={{ headerShown: false }} />
-            <Stack.Screen name="parent-dashboard" options={{ headerShown: false }} />
-            <Stack.Screen name="parent-registration" options={{ headerShown: false }} />
-            <Stack.Screen name="accept-invitation" options={{ headerShown: false }} />
-            <Stack.Screen name="request-access" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options={{
-                presentation: "modal",
-                title: "Standard Modal",
-              }}
-            />
-            <Stack.Screen
-              name="formsheet"
-              options={{
-                presentation: "formSheet",
-                title: "Form Sheet Modal",
-                sheetGrabberVisible: true,
-                sheetAllowedDetents: [0.5, 0.8, 1.0],
-                sheetCornerRadius: 20,
-              }}
-            />
-            <Stack.Screen
-              name="transparent-modal"
-              options={{
-                presentation: "transparentModal",
-                headerShown: false,
-              }}
-            />
-          </Stack>
-          <SystemBars style={"auto"} />
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="modal"
+                options={{
+                  presentation: "modal",
+                  title: "Standard Modal",
+                }}
+              />
+              <Stack.Screen
+                name="formsheet"
+                options={{
+                  presentation: "formSheet",
+                  title: "Form Sheet Modal",
+                  sheetGrabberVisible: true,
+                  sheetAllowedDetents: [0.5, 0.8, 1.0],
+                  sheetCornerRadius: 20,
+                }}
+              />
+              <Stack.Screen
+                name="transparent-modal"
+                options={{
+                  presentation: "transparentModal",
+                  headerShown: false,
+                }}
+              />
+            </Stack>
+            <SystemBars style="auto" />
+          </GestureHandlerRootView>
         </AuthProvider>
       </ThemeProvider>
-    </GestureHandlerRootView>
+    </>
   );
 }

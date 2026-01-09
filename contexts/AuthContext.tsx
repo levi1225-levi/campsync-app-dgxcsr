@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName: profile.full_name || '',
         phone: profile.phone || '',
         role: profile.role as UserRole,
-        registrationComplete: profile.registration_complete,
+        registrationComplete: profile.registration_complete || false,
       };
 
       const session: AuthSession = {
