@@ -29,11 +29,14 @@ export const unstable_settings = {
 // Error Fallback Component
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   console.error("App Error:", error);
+  console.error("Error stack:", error.stack);
   
   return (
     <View style={errorStyles.container}>
       <Text style={errorStyles.title}>Something went wrong</Text>
-      <Text style={errorStyles.message}>{error.message}</Text>
+      <Text style={errorStyles.message}>
+        {error.message || 'An unexpected error occurred'}
+      </Text>
       <TouchableOpacity style={errorStyles.button} onPress={resetErrorBoundary}>
         <Text style={errorStyles.buttonText}>Try Again</Text>
       </TouchableOpacity>
@@ -60,6 +63,7 @@ const errorStyles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginBottom: 24,
+    paddingHorizontal: 20,
   },
   button: {
     backgroundColor: colors.primary,
@@ -129,7 +133,13 @@ export default function RootLayout() {
   };
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
+    <ErrorBoundary 
+      FallbackComponent={ErrorFallback}
+      onError={(error, errorInfo) => {
+        console.error('ErrorBoundary caught error:', error);
+        console.error('Error info:', errorInfo);
+      }}
+    >
       <StatusBar style="auto" animated />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}

@@ -75,6 +75,25 @@ function ProfileScreenContent() {
     );
   }, [signOut]);
 
+  const displayName = user?.fullName || user?.full_name || 'User';
+  const displayEmail = user?.email || '';
+  const displayRole = user?.role || 'staff';
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'super-admin':
+        return 'Super Administrator';
+      case 'camp-admin':
+        return 'Camp Administrator';
+      case 'staff':
+        return 'Staff Member';
+      case 'parent':
+        return 'Parent/Guardian';
+      default:
+        return 'User';
+    }
+  };
+
   return (
     <View style={[commonStyles.container, styles.container]}>
       <ScrollView
@@ -99,14 +118,11 @@ function ProfileScreenContent() {
               />
             </View>
           </View>
-          <Text style={styles.headerName}>{user?.name}</Text>
-          <Text style={styles.headerEmail}>{user?.email}</Text>
+          <Text style={styles.headerName}>{displayName}</Text>
+          <Text style={styles.headerEmail}>{displayEmail}</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>
-              {user?.role === 'super-admin' && 'Super Administrator'}
-              {user?.role === 'camp-admin' && 'Camp Administrator'}
-              {user?.role === 'staff' && 'Staff Member'}
-              {user?.role === 'parent' && 'Parent/Guardian'}
+              {getRoleDisplayName(displayRole)}
             </Text>
           </View>
         </LinearGradient>
@@ -127,7 +143,7 @@ function ProfileScreenContent() {
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Full Name</Text>
-                <Text style={styles.infoValue}>{user?.name}</Text>
+                <Text style={styles.infoValue}>{displayName}</Text>
               </View>
             </View>
 
@@ -144,7 +160,7 @@ function ProfileScreenContent() {
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{user?.email}</Text>
+                <Text style={styles.infoValue}>{displayEmail}</Text>
               </View>
             </View>
 
@@ -162,10 +178,7 @@ function ProfileScreenContent() {
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Role</Text>
                 <Text style={styles.infoValue}>
-                  {user?.role === 'super-admin' && 'Super Administrator'}
-                  {user?.role === 'camp-admin' && 'Camp Administrator'}
-                  {user?.role === 'staff' && 'Staff Member'}
-                  {user?.role === 'parent' && 'Parent/Guardian'}
+                  {getRoleDisplayName(displayRole)}
                 </Text>
               </View>
             </View>
@@ -225,7 +238,7 @@ function ProfileScreenContent() {
           </TouchableOpacity>
 
           {/* Super Admin Only - User Management */}
-          {user?.role === 'super-admin' && (
+          {displayRole === 'super-admin' && (
             <TouchableOpacity
               style={commonStyles.card}
               onPress={handleUserManagement}
