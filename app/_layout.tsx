@@ -6,7 +6,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert } from "react-native";
+import { useColorScheme, Alert, Platform } from "react-native";
 import { useNetworkState } from "expo-network";
 import {
   DarkTheme,
@@ -16,12 +16,63 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ErrorBoundary } from "react-error-boundary";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { colors } from "@/styles/commonStyles";
 
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  initialRouteName: "sign-in",
+  initialRouteName: "index",
 };
+
+// Error Fallback Component
+function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+  console.error("App Error:", error);
+  
+  return (
+    <View style={errorStyles.container}>
+      <Text style={errorStyles.title}>Something went wrong</Text>
+      <Text style={errorStyles.message}>{error.message}</Text>
+      <TouchableOpacity style={errorStyles.button} onPress={resetErrorBoundary}>
+        <Text style={errorStyles.buttonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: colors.background,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: colors.text,
+    marginBottom: 12,
+  },
+  message: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -78,7 +129,7 @@ export default function RootLayout() {
   };
 
   return (
-    <>
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
       <StatusBar style="auto" animated />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
@@ -86,6 +137,7 @@ export default function RootLayout() {
         <AuthProvider>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
               <Stack.Screen name="sign-in" />
               <Stack.Screen name="register" />
               <Stack.Screen name="forgot-password" />
@@ -96,11 +148,15 @@ export default function RootLayout() {
               <Stack.Screen name="user-management" />
               <Stack.Screen name="manage-authorization-codes" />
               <Stack.Screen name="parent-dashboard" />
+              <Stack.Screen name="parent-registration" />
+              <Stack.Screen name="request-access" />
+              <Stack.Screen name="accept-invitation" />
+              <Stack.Screen name="edit-profile" />
             </Stack>
             <SystemBars style="auto" />
           </GestureHandlerRootView>
         </AuthProvider>
       </ThemeProvider>
-    </>
+    </ErrorBoundary>
   );
 }

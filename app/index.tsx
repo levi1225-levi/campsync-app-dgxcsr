@@ -9,23 +9,38 @@ export default function Index() {
   const { user, isLoading } = useAuth();
 
   useEffect(() => {
+    console.log('Index screen - isLoading:', isLoading, 'user:', user?.email);
+    
     if (!isLoading) {
-      if (!user) {
-        // Not authenticated, go to sign-in
-        router.replace('/sign-in');
-      } else {
-        // Authenticated, redirect based on role
-        if (user.role === 'parent') {
-          if (!user.registrationComplete) {
-            router.replace('/parent-registration');
+      // Add a small delay to ensure navigation is ready
+      const timeout = setTimeout(() => {
+        try {
+          if (!user) {
+            console.log('No user, redirecting to sign-in');
+            router.replace('/sign-in');
           } else {
-            router.replace('/parent-dashboard');
+            console.log('User found, role:', user.role);
+            // Authenticated, redirect based on role
+            if (user.role === 'parent') {
+              if (!user.registrationComplete) {
+                console.log('Redirecting to parent-registration');
+                router.replace('/parent-registration');
+              } else {
+                console.log('Redirecting to parent-dashboard');
+                router.replace('/parent-dashboard');
+              }
+            } else {
+              console.log('Redirecting to home tabs');
+              // Admin, Camp Admin, or Staff
+              router.replace('/(tabs)/(home)/');
+            }
           }
-        } else {
-          // Admin, Camp Admin, or Staff
-          router.replace('/(tabs)/(home)/');
+        } catch (error) {
+          console.error('Navigation error in index:', error);
         }
-      }
+      }, 100);
+
+      return () => clearTimeout(timeout);
     }
   }, [user, isLoading]);
 

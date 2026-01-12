@@ -4,6 +4,7 @@ import { User, AuthSession, UserRole } from '@/types/user';
 import { supabase } from '@/app/integrations/supabase/client';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 interface AuthContextType {
   user: User | null;
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const saveSession = useCallback(async (session: AuthSession) => {
     try {
       await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+      console.log('Session saved successfully');
     } catch (error) {
       console.error('Failed to save session:', error);
     }
@@ -64,19 +66,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const redirectAfterLogin = useCallback((authenticatedUser: User) => {
     console.log('Redirecting after login, role:', authenticatedUser.role);
     
-    // Use setTimeout to ensure navigation happens after state updates
+    // Use a longer timeout for iOS to ensure state is fully updated
+    const timeout = Platform.OS === 'ios' ? 300 : 100;
+    
     setTimeout(() => {
-      if (!authenticatedUser.registrationComplete) {
-        console.log('Redirecting to complete-registration');
-        router.replace('/complete-registration');
-      } else if (authenticatedUser.role === 'parent') {
-        console.log('Redirecting to parent-dashboard');
-        router.replace('/parent-dashboard');
-      } else {
-        console.log('Redirecting to home tabs');
-        router.replace('/(tabs)/(home)/');
+      try {
+        if (!authenticatedUser.registrationComplete) {
+          console.log('Redirecting to parent-registration');
+          router.replace('/parent-registration');
+        } else if (authenticatedUser.role === 'parent') {
+          console.log('Redirecting to parent-dashboard');
+          router.replace('/parent-dashboard');
+        } else {
+          console.log('Redirecting to home tabs');
+          router.replace('/(tabs)/(home)/');
+        }
+      } catch (error) {
+        console.error('Navigation error:', error);
       }
-    }, 100);
+    }, timeout);
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -106,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: authData.user.id,
         email: authData.user.email!,
         fullName: profile.full_name || '',
-        full_name: profile.full_name || '', // Add alias for compatibility
+        full_name: profile.full_name || '',
         phone: profile.phone || '',
         role: profile.role as UserRole,
         registrationComplete: profile.registration_complete || false,
@@ -139,10 +147,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await SecureStore.deleteItemAsync(SESSION_KEY);
       setUser(null);
       
-      // Use setTimeout to ensure state updates before navigation
+      // Use a longer timeout for iOS
+      const timeout = Platform.OS === 'ios' ? 300 : 100;
       setTimeout(() => {
-        router.replace('/sign-in');
-      }, 100);
+        try {
+          router.replace('/sign-in');
+        } catch (error) {
+          console.error('Navigation error during sign out:', error);
+        }
+      }, timeout);
     } catch (error) {
       console.error('Sign out error:', error);
       throw error;

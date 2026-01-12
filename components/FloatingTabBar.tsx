@@ -88,7 +88,11 @@ export default function FloatingTabBar({
   }, [activeTabIndex, animatedValue]);
 
   const handleTabPress = (route: Href) => {
-    router.push(route);
+    try {
+      router.push(route);
+    } catch (error) {
+      console.error('Tab navigation error:', error);
+    }
   };
 
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
@@ -164,8 +168,8 @@ export default function FloatingTabBar({
               const isActive = activeTabIndex === index;
 
               return (
-                <React.Fragment key={index}>
                 <TouchableOpacity
+                  key={`tab-${index}-${tab.name}`}
                   style={styles.tab}
                   onPress={() => handleTabPress(tab.route)}
                   activeOpacity={0.7}
@@ -188,7 +192,6 @@ export default function FloatingTabBar({
                     </Text>
                   </View>
                 </TouchableOpacity>
-                </React.Fragment>
               );
             })}
           </View>

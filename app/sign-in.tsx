@@ -15,7 +15,6 @@ import {
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function SignInScreen() {
@@ -88,12 +87,7 @@ export default function SignInScreen() {
           style={styles.header}
         >
           <View style={styles.logoContainer}>
-            <IconSymbol
-              ios_icon_name="tent.fill"
-              android_material_icon_name="camping"
-              size={64}
-              color="#FFFFFF"
-            />
+            <Text style={styles.logoEmoji}>⛺</Text>
           </View>
           <Text style={styles.title}>CampSync</Text>
           <Text style={styles.subtitle}>Summer Camp Management</Text>
@@ -101,12 +95,7 @@ export default function SignInScreen() {
 
         {/* Info Card */}
         <View style={[commonStyles.card, styles.infoCard]}>
-          <IconSymbol
-            ios_icon_name="info.circle.fill"
-            android_material_icon_name="info"
-            size={24}
-            color={colors.info}
-          />
+          <Text style={styles.infoIcon}>ℹ️</Text>
           <Text style={commonStyles.textSecondary}>
             New to CampSync? You&apos;ll need an authorization code from your camp administrator to create an account.
           </Text>
@@ -117,12 +106,7 @@ export default function SignInScreen() {
           <Text style={styles.formTitle}>Sign In</Text>
 
           <View style={styles.inputContainer}>
-            <IconSymbol
-              ios_icon_name="envelope.fill"
-              android_material_icon_name="email"
-              size={20}
-              color={colors.textSecondary}
-            />
+            <Text style={styles.inputIcon}>✉️</Text>
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -137,12 +121,7 @@ export default function SignInScreen() {
           </View>
 
           <View style={styles.inputContainer}>
-            <IconSymbol
-              ios_icon_name="lock.fill"
-              android_material_icon_name="lock"
-              size={20}
-              color={colors.textSecondary}
-            />
+            <Text style={styles.inputIcon}>🔒</Text>
             <TextInput
               style={styles.input}
               placeholder="Password"
@@ -158,12 +137,7 @@ export default function SignInScreen() {
               onPress={() => setShowPassword(!showPassword)}
               disabled={isLoading}
             >
-              <IconSymbol
-                ios_icon_name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
-                android_material_icon_name={showPassword ? 'visibility-off' : 'visibility'}
-                size={20}
-                color={colors.textSecondary}
-              />
+              <Text style={styles.inputIcon}>{showPassword ? '👁️' : '🙈'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -199,12 +173,7 @@ export default function SignInScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <IconSymbol
-            ios_icon_name="lock.shield.fill"
-            android_material_icon_name="security"
-            size={16}
-            color={colors.textSecondary}
-          />
+          <Text style={styles.footerIcon}>🔒</Text>
           <Text style={styles.footerText}>
             Secure authentication with offline support
           </Text>
@@ -239,6 +208,9 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
+  logoEmoji: {
+    fontSize: 64,
+  },
   title: {
     fontSize: 36,
     fontWeight: '800',
@@ -257,6 +229,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+  },
+  infoIcon: {
+    fontSize: 24,
   },
   formContainer: {
     marginBottom: 24,
@@ -279,6 +254,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: 12,
+  },
+  inputIcon: {
+    fontSize: 20,
   },
   input: {
     flex: 1,
@@ -319,6 +297,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 'auto',
+  },
+  footerIcon: {
+    fontSize: 16,
   },
   footerText: {
     fontSize: 12,

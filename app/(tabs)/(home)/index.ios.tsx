@@ -6,7 +6,6 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import * as Network from 'expo-network';
 import { mockCampers } from '@/data/mockCampers';
-import { IconSymbol } from '@/components/IconSymbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, commonStyles } from '@/styles/commonStyles';
 
@@ -71,7 +70,7 @@ function HomeScreenContent() {
           onPress={() => handleNavigation('/(tabs)/nfc-scanner')}
           activeOpacity={0.7}
         >
-          <IconSymbol ios_icon_name="wave.3.right" android_material_icon_name="nfc" size={24} color="#fff" />
+          <Text style={styles.actionIcon}>📱</Text>
           <Text style={styles.actionButtonText}>NFC Scanner</Text>
         </TouchableOpacity>
 
@@ -80,7 +79,7 @@ function HomeScreenContent() {
           onPress={() => handleNavigation('/(tabs)/campers')}
           activeOpacity={0.7}
         >
-          <IconSymbol ios_icon_name="person.3" android_material_icon_name="group" size={24} color="#fff" />
+          <Text style={styles.actionIcon}>👥</Text>
           <Text style={styles.actionButtonText}>View Campers</Text>
         </TouchableOpacity>
       </View>
@@ -172,6 +171,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     padding: 16,
     borderRadius: 12,
+  },
+  actionIcon: {
+    fontSize: 24,
   },
   actionButtonText: {
     color: '#fff',
