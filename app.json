@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "CampSync",
@@ -17,7 +18,18 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NFCReaderUsageDescription": "This app needs access to NFC to scan camper wristbands for check-in and identification.",
+        "com.apple.developer.nfc.readersession.formats": [
+          "NDEF",
+          "TAG"
+        ]
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": [
+          "NDEF",
+          "TAG"
+        ]
       }
     },
     "android": {
@@ -26,7 +38,10 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Natively"
+      "package": "com.anonymous.Natively",
+      "permissions": [
+        "android.permission.NFC"
+      ]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",

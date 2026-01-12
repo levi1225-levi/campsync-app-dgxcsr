@@ -3,16 +3,24 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import * as Network from 'expo-network';
-import { mockCampers } from '@/data/mockCampers';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, commonStyles } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
+import { supabase } from '@/app/integrations/supabase/client';
 
 function HomeScreenContent() {
   const { user } = useAuth();
   const router = useRouter();
   const [isOnline, setIsOnline] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    checkedIn: 0,
+    totalCampers: 0,
+    checkedOut: 0,
+    notArrived: 0,
+  });
 
   const checkNetworkStatus = useCallback(async () => {
     try {
@@ -23,11 +31,50 @@ function HomeScreenContent() {
     }
   }, []);
 
+  const loadStats = useCallback(async () => {
+    try {
+      console.log('Loading camper stats...');
+      
+      const { data: campers, error } = await supabase
+        .from('campers')
+        .select('check_in_status');
+      
+      if (error) {
+        console.error('Error loading camper stats:', error);
+        return;
+      }
+      
+      if (campers) {
+        const checkedIn = campers.filter(c => c.check_in_status === 'checked-in' || c.check_in_status === 'checked_in').length;
+        const checkedOut = campers.filter(c => c.check_in_status === 'checked-out' || c.check_in_status === 'checked_out').length;
+        const notArrived = campers.filter(c => c.check_in_status === 'not-arrived' || c.check_in_status === 'not_arrived').length;
+        
+        setStats({
+          checkedIn,
+          totalCampers: campers.length,
+          checkedOut,
+          notArrived,
+        });
+        
+        console.log('Stats loaded:', { checkedIn, totalCampers: campers.length, checkedOut, notArrived });
+      }
+    } catch (error) {
+      console.error('Error in loadStats:', error);
+    }
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([checkNetworkStatus(), loadStats()]);
+    setRefreshing(false);
+  }, [checkNetworkStatus, loadStats]);
+
   useEffect(() => {
     checkNetworkStatus();
+    loadStats();
     const interval = setInterval(checkNetworkStatus, 30000);
     return () => clearInterval(interval);
-  }, [checkNetworkStatus]);
+  }, [checkNetworkStatus, loadStats]);
 
   const handleNavigation = useCallback((route: string) => {
     try {
@@ -38,49 +85,215 @@ function HomeScreenContent() {
     }
   }, [router]);
 
-  const checkedInCount = mockCampers.filter(c => c.check_in_status === 'checked_in').length;
-  const totalCampers = mockCampers.length;
-
   return (
-    <ScrollView style={styles.container}>
-      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.header}>
-        <Text style={styles.headerTitle}>Welcome, {user?.fullName || user?.full_name || 'User'}</Text>
-        <Text style={styles.headerSubtitle}>{user?.role || 'Staff'}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: isOnline ? colors.success : colors.error }]}>
-          <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+      }
+    >
+      {/* Header with Gradient */}
+      <LinearGradient 
+        colors={[colors.primary, colors.primaryDark]} 
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerGreeting}>Welcome back,</Text>
+            <Text style={styles.headerTitle}>{user?.fullName || user?.full_name || 'User'}</Text>
+            <View style={styles.roleBadge}>
+              <IconSymbol
+                ios_icon_name="person.circle.fill"
+                android_material_icon_name="account-circle"
+                size={16}
+                color="#FFFFFF"
+              />
+              <Text style={styles.roleText}>{user?.role || 'Staff'}</Text>
+            </View>
+          </View>
+          <View style={[styles.statusIndicator, { backgroundColor: isOnline ? colors.success : colors.error }]}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
+          </View>
         </View>
       </LinearGradient>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{checkedInCount}</Text>
-          <Text style={styles.statLabel}>Checked In</Text>
+      {/* Stats Grid */}
+      <View style={styles.statsGrid}>
+        <View style={[styles.statCard, styles.statCardPrimary]}>
+          <LinearGradient
+            colors={[colors.success, colors.success + 'CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statGradient}
+          >
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check-circle"
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={styles.statNumber}>{stats.checkedIn}</Text>
+            <Text style={styles.statLabel}>Checked In</Text>
+          </LinearGradient>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{totalCampers}</Text>
-          <Text style={styles.statLabel}>Total Campers</Text>
+
+        <View style={[styles.statCard, styles.statCardSecondary]}>
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statGradient}
+          >
+            <IconSymbol
+              ios_icon_name="person.3.fill"
+              android_material_icon_name="group"
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={styles.statNumber}>{stats.totalCampers}</Text>
+            <Text style={styles.statLabel}>Total Campers</Text>
+          </LinearGradient>
+        </View>
+
+        <View style={[styles.statCard, styles.statCardWarning]}>
+          <LinearGradient
+            colors={[colors.warning, colors.warning + 'CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statGradient}
+          >
+            <IconSymbol
+              ios_icon_name="arrow.right.circle.fill"
+              android_material_icon_name="exit-to-app"
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={styles.statNumber}>{stats.checkedOut}</Text>
+            <Text style={styles.statLabel}>Checked Out</Text>
+          </LinearGradient>
+        </View>
+
+        <View style={[styles.statCard, styles.statCardInfo]}>
+          <LinearGradient
+            colors={[colors.textSecondary, colors.textSecondary + 'CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statGradient}
+          >
+            <IconSymbol
+              ios_icon_name="clock.fill"
+              android_material_icon_name="schedule"
+              size={32}
+              color="#FFFFFF"
+            />
+            <Text style={styles.statNumber}>{stats.notArrived}</Text>
+            <Text style={styles.statLabel}>Not Arrived</Text>
+          </LinearGradient>
         </View>
       </View>
 
-      <View style={styles.quickActions}>
+      {/* Quick Actions */}
+      <View style={styles.quickActionsSection}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         
         <TouchableOpacity 
-          style={[commonStyles.button, styles.actionButton]}
+          style={styles.actionCard}
           onPress={() => handleNavigation('/(tabs)/nfc-scanner')}
           activeOpacity={0.7}
         >
-          <Text style={styles.actionIcon}>📱</Text>
-          <Text style={styles.actionButtonText}>NFC Scanner</Text>
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.actionCardGradient}
+          >
+            <View style={styles.actionIconContainer}>
+              <IconSymbol
+                ios_icon_name="wave.3.right"
+                android_material_icon_name="nfc"
+                size={28}
+                color="#FFFFFF"
+              />
+            </View>
+            <View style={styles.actionTextContainer}>
+              <Text style={styles.actionTitle}>NFC Scanner</Text>
+              <Text style={styles.actionSubtitle}>Scan camper wristbands</Text>
+            </View>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="arrow-forward"
+              size={24}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[commonStyles.button, styles.actionButton]}
+          style={styles.actionCard}
           onPress={() => handleNavigation('/(tabs)/campers')}
           activeOpacity={0.7}
         >
-          <Text style={styles.actionIcon}>👥</Text>
-          <Text style={styles.actionButtonText}>View Campers</Text>
+          <LinearGradient
+            colors={[colors.secondary, colors.secondary + 'DD']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.actionCardGradient}
+          >
+            <View style={styles.actionIconContainer}>
+              <IconSymbol
+                ios_icon_name="person.3.fill"
+                android_material_icon_name="group"
+                size={28}
+                color="#FFFFFF"
+              />
+            </View>
+            <View style={styles.actionTextContainer}>
+              <Text style={styles.actionTitle}>View Campers</Text>
+              <Text style={styles.actionSubtitle}>Browse all campers</Text>
+            </View>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="arrow-forward"
+              size={24}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.actionCard}
+          onPress={() => handleNavigation('/(tabs)/profile')}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={[colors.accent, colors.accent + 'DD']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.actionCardGradient}
+          >
+            <View style={styles.actionIconContainer}>
+              <IconSymbol
+                ios_icon_name="person.circle.fill"
+                android_material_icon_name="account-circle"
+                size={28}
+                color="#FFFFFF"
+              />
+            </View>
+            <View style={styles.actionTextContainer}>
+              <Text style={styles.actionTitle}>My Profile</Text>
+              <Text style={styles.actionSubtitle}>View and edit profile</Text>
+            </View>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="arrow-forward"
+              size={24}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -100,85 +313,167 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    padding: 24,
-    paddingTop: Platform.OS === 'ios' ? 60 : 48,
+  contentContainer: {
+    paddingBottom: 120,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerGreeting: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    opacity: 0.9,
     marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
-    marginTop: 12,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  roleText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
   },
   statusText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  statsContainer: {
+  statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     padding: 16,
-    gap: 16,
+    gap: 12,
   },
   statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
+    width: '48%',
+    borderRadius: 20,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 2,
+    elevation: 4,
+  },
+  statCardPrimary: {},
+  statCardSecondary: {},
+  statCardWarning: {},
+  statCardInfo: {},
+  statGradient: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
   },
   statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.primary,
+    fontSize: 40,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 12,
+    marginBottom: 4,
+    letterSpacing: -1,
   },
   statLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    opacity: 0.95,
+    textAlign: 'center',
   },
-  quickActions: {
+  quickActionsSection: {
     padding: 16,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     color: colors.text,
     marginBottom: 16,
+    letterSpacing: -0.5,
   },
-  actionButton: {
+  actionCard: {
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  actionCardGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    backgroundColor: colors.primary,
-    padding: 16,
-    borderRadius: 12,
+    padding: 20,
+    gap: 16,
   },
-  actionIcon: {
-    fontSize: 24,
+  actionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  actionTextContainer: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  actionSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    opacity: 0.9,
   },
 });
 
