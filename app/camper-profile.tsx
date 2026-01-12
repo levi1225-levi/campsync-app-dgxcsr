@@ -69,8 +69,10 @@ function CamperProfileContent() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'checked-in':
+      case 'checked_in':
         return colors.success;
       case 'checked-out':
+      case 'checked_out':
         return colors.warning;
       default:
         return colors.textSecondary;
@@ -94,28 +96,42 @@ function CamperProfileContent() {
 
       if (camperError) {
         console.error('Error loading camper:', camperError);
-        Alert.alert('Error', 'Failed to load camper profile');
-        return;
+        throw camperError;
       }
+
+      if (!camperData) {
+        throw new Error('Camper not found');
+      }
+
+      console.log('Camper data loaded:', camperData);
 
       // Load medical info if permitted
       let medicalInfo = null;
       if (canViewMedical) {
-        const { data: medicalData } = await supabase
+        const { data: medicalData, error: medicalError } = await supabase
           .from('camper_medical_info')
           .select('*')
           .eq('camper_id', camperId)
-          .single();
+          .maybeSingle();
         
-        medicalInfo = medicalData;
+        if (medicalError) {
+          console.error('Error loading medical info:', medicalError);
+        } else if (medicalData) {
+          medicalInfo = medicalData;
+          console.log('Medical info loaded');
+        }
       }
 
       // Load emergency contacts
-      const { data: contactsData } = await supabase
+      const { data: contactsData, error: contactsError } = await supabase
         .from('emergency_contacts')
         .select('*')
         .eq('camper_id', camperId)
         .order('priority_order');
+
+      if (contactsError) {
+        console.error('Error loading emergency contacts:', contactsError);
+      }
 
       const profile: CamperProfile = {
         id: camperData.id,
@@ -132,10 +148,14 @@ function CamperProfileContent() {
         emergency_contacts: contactsData || [],
       };
 
+      console.log('Profile assembled successfully');
       setCamper(profile);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading camper profile:', error);
-      Alert.alert('Error', 'Failed to load camper profile');
+      Alert.alert(
+        'Error', 
+        error?.message || 'Failed to load camper profile. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -144,6 +164,9 @@ function CamperProfileContent() {
   useEffect(() => {
     if (camperId) {
       loadCamperProfile();
+    } else {
+      console.error('No camper ID provided');
+      setIsLoading(false);
     }
   }, [camperId, loadCamperProfile]);
 
@@ -183,15 +206,15 @@ function CamperProfileContent() {
           size={64}
           color={colors.error}
         />
-        <Text style={[commonStyles.text, { marginTop: 16 }]}>
+        <Text style={[commonStyles.text, { marginTop: 16, fontSize: 18, fontWeight: '600' }]}>
           Camper not found
         </Text>
         <TouchableOpacity
-          style={[commonStyles.card, { marginTop: 24 }]}
+          style={[commonStyles.button, { marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 }]}
           onPress={handleBack}
           activeOpacity={0.7}
         >
-          <Text style={[commonStyles.text, { textAlign: 'center' }]}>Go Back</Text>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -253,8 +276,8 @@ function CamperProfileContent() {
         </Text>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.check_in_status) }]}>
           <Text style={styles.statusText}>
-            {camper.check_in_status === 'checked-in' ? 'Checked In' : 
-             camper.check_in_status === 'checked-out' ? 'Checked Out' : 'Not Arrived'}
+            {camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? 'Checked In' : 
+             camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Checked Out' : 'Not Arrived'}
           </Text>
         </View>
       </LinearGradient>

@@ -23,6 +23,7 @@ function NFCScannerScreenContent() {
   const [scannedCamper, setScannedCamper] = useState<Camper | null>(null);
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcEnabled, setNfcEnabled] = useState(false);
+  const [nfcInitialized, setNfcInitialized] = useState(false);
 
   const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
@@ -41,7 +42,6 @@ function NFCScannerScreenContent() {
     try {
       console.log('Looking up camper with wristband ID:', wristbandId);
       
-      // Query Supabase for camper with this wristband ID
       const { data, error } = await supabase
         .from('campers')
         .select('*')
@@ -51,7 +51,6 @@ function NFCScannerScreenContent() {
       if (error) {
         console.error('Error looking up camper:', error);
         
-        // Fallback to mock data for testing
         const mockCamper = mockCampers.find(c => c.wristbandId === wristbandId);
         if (mockCamper) {
           setScannedCamper(mockCamper);
@@ -63,7 +62,6 @@ function NFCScannerScreenContent() {
       }
       
       if (data) {
-        // Convert database record to Camper type
         const camper: Camper = {
           id: data.id,
           firstName: data.first_name,
@@ -94,22 +92,32 @@ function NFCScannerScreenContent() {
   const initNFC = useCallback(async () => {
     try {
       console.log('Initializing NFC...');
+      
+      // Check if NFC is supported
       const supported = await NfcManager.isSupported();
       console.log('NFC supported:', supported);
       setNfcSupported(supported);
       
       if (supported) {
+        // Start NFC manager
         await NfcManager.start();
-        const enabled = await NfcManager.isEnabled();
+        console.log('NFC manager started');
+        
+        // Check if NFC is enabled (iOS always returns true if supported)
+        const enabled = Platform.OS === 'ios' ? true : await NfcManager.isEnabled();
         console.log('NFC enabled:', enabled);
         setNfcEnabled(enabled);
+        setNfcInitialized(true);
+        
         console.log('NFC initialized successfully');
       } else {
         console.log('NFC not supported on this device');
+        setNfcInitialized(true);
       }
     } catch (error) {
       console.error('Error initializing NFC:', error);
-      Alert.alert('NFC Error', 'Failed to initialize NFC. Please check your device settings.');
+      setNfcInitialized(true);
+      // Don't show alert here, just log the error
     }
   }, []);
 
@@ -133,6 +141,11 @@ function NFCScannerScreenContent() {
   const handleScan = useCallback(async () => {
     if (!canScan) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
+      return;
+    }
+
+    if (!nfcInitialized) {
+      Alert.alert('NFC Initializing', 'Please wait for NFC to initialize.');
       return;
     }
 
@@ -211,7 +224,7 @@ function NFCScannerScreenContent() {
         console.error('Error cancelling NFC request:', cancelError);
       }
     }
-  }, [canScan, nfcSupported, nfcEnabled, lookupCamper]);
+  }, [canScan, nfcSupported, nfcEnabled, nfcInitialized, lookupCamper]);
 
   const handleCheckIn = useCallback(async () => {
     if (scannedCamper) {
@@ -294,7 +307,7 @@ function NFCScannerScreenContent() {
       </View>
 
       {/* NFC Status */}
-      {!nfcSupported && (
+      {nfcInitialized && !nfcSupported && (
         <View style={[styles.statusBanner, { backgroundColor: colors.error }]}>
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
@@ -306,7 +319,7 @@ function NFCScannerScreenContent() {
         </View>
       )}
       
-      {nfcSupported && !nfcEnabled && (
+      {nfcInitialized && nfcSupported && !nfcEnabled && (
         <View style={[styles.statusBanner, { backgroundColor: colors.warning }]}>
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
@@ -334,13 +347,13 @@ function NFCScannerScreenContent() {
         </Text>
 
         <TouchableOpacity
-          style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled) && styles.scanButtonDisabled]}
+          style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
           onPress={handleScan}
-          disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled}
+          disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
           activeOpacity={0.7}
         >
           <Text style={styles.scanButtonText}>
-            {isScanning ? 'Scanning...' : 'Start Scan'}
+            {!nfcInitialized ? 'Initializing...' : isScanning ? 'Scanning...' : 'Start Scan'}
           </Text>
         </TouchableOpacity>
       </View>

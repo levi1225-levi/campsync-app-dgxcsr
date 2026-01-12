@@ -90,7 +90,7 @@ function HomeScreenContent() {
 
 function HomeScreen() {
   return (
-    <ProtectedRoute allowedRoles={['camp_admin', 'counselor', 'parent']}>
+    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff', 'parent']}>
       <HomeScreenContent />
     </ProtectedRoute>
   );
