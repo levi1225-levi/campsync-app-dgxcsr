@@ -31,7 +31,12 @@ function HomeScreenContent() {
   }, [checkNetworkStatus]);
 
   const handleNavigation = useCallback((route: string) => {
-    router.push(route as any);
+    try {
+      console.log('Navigating to:', route);
+      router.push(route as any);
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   }, [router]);
 
   const checkedInCount = mockCampers.filter(c => c.check_in_status === 'checked_in').length;
@@ -40,7 +45,7 @@ function HomeScreenContent() {
   return (
     <ScrollView style={styles.container}>
       <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.header}>
-        <Text style={styles.headerTitle}>Welcome, {user?.fullName || 'User'}</Text>
+        <Text style={styles.headerTitle}>Welcome, {user?.fullName || user?.full_name || 'User'}</Text>
         <Text style={styles.headerSubtitle}>{user?.role || 'Staff'}</Text>
         <View style={[styles.statusBadge, { backgroundColor: isOnline ? colors.success : colors.error }]}>
           <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
@@ -134,7 +139,11 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
-    ...commonStyles.shadow,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
   },
   statNumber: {
     fontSize: 32,
@@ -160,6 +169,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
+    backgroundColor: colors.primary,
+    padding: 16,
+    borderRadius: 12,
   },
   actionButtonText: {
     color: '#fff',

@@ -40,14 +40,7 @@ export default function SignInScreen() {
       await signIn(email.toLowerCase().trim(), password);
       console.log('Sign in successful!');
       
-      // Show success message
-      Alert.alert(
-        'Welcome Back! ✓',
-        'You have successfully signed in.',
-        [{ text: 'OK' }]
-      );
-      
-      // Navigation is handled by AuthContext
+      // Navigation is handled by AuthContext - don't show alert or navigate here
     } catch (error) {
       console.error('Sign in error:', error);
       const errorMessage = error instanceof Error ? error.message : 'An error occurred during sign in';

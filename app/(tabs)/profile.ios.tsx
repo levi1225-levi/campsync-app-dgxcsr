@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 16,
-    color: colors.grey,
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   roleBadge: {
@@ -124,7 +124,7 @@ function ProfileScreenContent() {
 
   const handleChangePassword = useCallback(() => {
     try {
-      router.push('/change-password');
+      router.push('/forgot-password');
     } catch (error) {
       console.error('Navigation error:', error);
     }
@@ -175,8 +175,10 @@ function ProfileScreenContent() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'super_admin':
+      case 'super-admin':
         return 'Super Admin';
       case 'camp_admin':
+      case 'camp-admin':
         return 'Camp Admin';
       case 'counselor':
         return 'Counselor';
@@ -187,13 +189,15 @@ function ProfileScreenContent() {
     }
   };
 
+  const userName = user?.fullName || user?.full_name || 'User';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>{getInitials(user?.full_name || 'U')}</Text>
+          <Text style={styles.avatarText}>{getInitials(userName)}</Text>
         </View>
-        <Text style={styles.name}>{user?.full_name || 'User'}</Text>
+        <Text style={styles.name}>{userName}</Text>
         <Text style={styles.email}>{user?.email || ''}</Text>
         <View style={styles.roleBadge}>
           <Text style={styles.roleText}>{getRoleLabel(user?.role || '')}</Text>
@@ -236,7 +240,7 @@ function ProfileScreenContent() {
         </TouchableOpacity>
       </View>
 
-      {user?.role === 'super_admin' && (
+      {(user?.role === 'super_admin' || user?.role === 'super-admin') && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Administration</Text>
 
@@ -274,7 +278,7 @@ function ProfileScreenContent() {
 
 function ProfileScreen() {
   return (
-    <ProtectedRoute allowedRoles={['super_admin', 'camp_admin', 'counselor', 'parent']}>
+    <ProtectedRoute allowedRoles={['super_admin', 'super-admin', 'camp_admin', 'camp-admin', 'counselor', 'parent']}>
       <ProfileScreenContent />
     </ProtectedRoute>
   );

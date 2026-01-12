@@ -62,13 +62,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadSession]);
 
   const redirectAfterLogin = useCallback((authenticatedUser: User) => {
-    if (!authenticatedUser.registrationComplete) {
-      router.replace('/complete-registration');
-    } else if (authenticatedUser.role === 'parent') {
-      router.replace('/parent-dashboard');
-    } else {
-      router.replace('/(tabs)/(home)');
-    }
+    console.log('Redirecting after login, role:', authenticatedUser.role);
+    
+    // Use setTimeout to ensure navigation happens after state updates
+    setTimeout(() => {
+      if (!authenticatedUser.registrationComplete) {
+        console.log('Redirecting to complete-registration');
+        router.replace('/complete-registration');
+      } else if (authenticatedUser.role === 'parent') {
+        console.log('Redirecting to parent-dashboard');
+        router.replace('/parent-dashboard');
+      } else {
+        console.log('Redirecting to home tabs');
+        router.replace('/(tabs)/(home)/');
+      }
+    }, 100);
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -82,6 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authError) throw authError;
       if (!authData.user) throw new Error('No user data returned');
 
+      console.log('Auth successful, fetching profile...');
+
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -90,10 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (profileError) throw profileError;
 
+      console.log('Profile fetched:', profile);
+
       const authenticatedUser: User = {
         id: authData.user.id,
         email: authData.user.email!,
         fullName: profile.full_name || '',
+        full_name: profile.full_name || '', // Add alias for compatibility
         phone: profile.phone || '',
         role: profile.role as UserRole,
         registrationComplete: profile.registration_complete || false,
@@ -105,9 +118,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshToken: authData.session.refresh_token,
       };
 
+      console.log('Saving session...');
       await saveSession(session);
+      
+      console.log('Setting user state...');
       setUser(authenticatedUser);
 
+      console.log('Sign in complete, redirecting...');
       redirectAfterLogin(authenticatedUser);
     } catch (error) {
       console.error('Sign in error:', error);
@@ -121,7 +138,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       await SecureStore.deleteItemAsync(SESSION_KEY);
       setUser(null);
-      router.replace('/');
+      
+      // Use setTimeout to ensure state updates before navigation
+      setTimeout(() => {
+        router.replace('/sign-in');
+      }, 100);
     } catch (error) {
       console.error('Sign out error:', error);
       throw error;
