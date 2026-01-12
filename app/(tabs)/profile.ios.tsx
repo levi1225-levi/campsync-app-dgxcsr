@@ -108,6 +108,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginTop: 20,
+  },
+  footerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
 });
 
 function ProfileScreenContent() {
@@ -272,6 +282,13 @@ function ProfileScreenContent() {
           <Text style={styles.signOutText}>Sign Out</Text>
         </LinearGradient>
       </TouchableOpacity>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>CampSync v1.0.0</Text>
+        <Text style={[styles.footerText, { marginTop: 4 }]}>
+          © 2026 CampSync. All rights reserved.
+        </Text>
+      </View>
     </ScrollView>
   );
 }

@@ -5,30 +5,30 @@ import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 
 export default function TabLayout() {
-  // Define the tabs configuration (removed incidents)
+  // Define the tabs configuration with VALID Material icon names
   const tabs: TabBarItem[] = [
     {
       name: '(home)',
       route: '/(tabs)/(home)/',
-      icon: 'home',
+      icon: 'home', // Valid Material icon
       label: 'Home',
     },
     {
       name: 'campers',
       route: '/(tabs)/campers',
-      icon: 'people',
+      icon: 'group', // Valid Material icon (was "people")
       label: 'Campers',
     },
     {
       name: 'nfc-scanner',
       route: '/(tabs)/nfc-scanner',
-      icon: 'nfc',
+      icon: 'contactless', // Valid Material icon (was "nfc")
       label: 'NFC',
     },
     {
       name: 'profile',
       route: '/(tabs)/profile',
-      icon: 'person',
+      icon: 'person', // Valid Material icon
       label: 'Profile',
     },
   ];

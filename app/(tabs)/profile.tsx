@@ -281,7 +281,7 @@ function ProfileScreenContent() {
           <View style={styles.appInfo}>
             <Text style={styles.appInfoText}>CampSync v1.0.0</Text>
             <Text style={[styles.appInfoText, { marginTop: 4 }]}>
-              © 2024 CampSync. All rights reserved.
+              © 2026 CampSync. All rights reserved.
             </Text>
           </View>
         </View>
