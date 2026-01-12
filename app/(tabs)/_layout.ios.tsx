@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, Text } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 
 export default function TabLayout() {
@@ -26,8 +26,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => {
-            // Use a simple text icon as fallback
-            return <span style={{ fontSize: 24 }}>🏠</span>;
+            return <Text style={{ fontSize: 24 }}>🏠</Text>;
           },
         }}
       />
@@ -36,7 +35,7 @@ export default function TabLayout() {
         options={{
           title: 'Campers',
           tabBarIcon: ({ color }) => {
-            return <span style={{ fontSize: 24 }}>👥</span>;
+            return <Text style={{ fontSize: 24 }}>👥</Text>;
           },
         }}
       />
@@ -45,7 +44,7 @@ export default function TabLayout() {
         options={{
           title: 'NFC',
           tabBarIcon: ({ color }) => {
-            return <span style={{ fontSize: 24 }}>📱</span>;
+            return <Text style={{ fontSize: 24 }}>📱</Text>;
           },
         }}
       />
@@ -54,7 +53,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => {
-            return <span style={{ fontSize: 24 }}>👤</span>;
+            return <Text style={{ fontSize: 24 }}>👤</Text>;
           },
         }}
       />
