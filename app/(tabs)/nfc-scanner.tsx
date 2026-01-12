@@ -101,7 +101,9 @@ function NFCScannerScreenContent() {
         await NfcManager.start();
         console.log('NFC manager started');
         
-        const enabled = await NfcManager.isEnabled();
+        // On iOS, if NFC is supported, it's always enabled
+        // On Android, we need to check if it's enabled
+        const enabled = Platform.OS === 'ios' ? true : await NfcManager.isEnabled();
         console.log('NFC enabled:', enabled);
         setNfcEnabled(enabled);
         setNfcInitialized(true);
@@ -296,6 +298,12 @@ function NFCScannerScreenContent() {
     <View style={[commonStyles.container, styles.container]}>
       {/* Header */}
       <View style={styles.header}>
+        <IconSymbol
+          ios_icon_name="wave.3.right"
+          android_material_icon_name="nfc"
+          size={32}
+          color="#FFFFFF"
+        />
         <Text style={styles.headerTitle}>NFC Scanner</Text>
         <Text style={styles.headerSubtitle}>
           Scan camper wristbands for quick access
@@ -327,6 +335,18 @@ function NFCScannerScreenContent() {
         </View>
       )}
 
+      {nfcInitialized && nfcSupported && nfcEnabled && (
+        <View style={[styles.statusBanner, { backgroundColor: colors.success }]}>
+          <IconSymbol
+            ios_icon_name="checkmark.circle.fill"
+            android_material_icon_name="check-circle"
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.statusText}>NFC Ready</Text>
+        </View>
+      )}
+
       {/* Scanner Area */}
       <View style={styles.scannerContainer}>
         <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
@@ -346,7 +366,7 @@ function NFCScannerScreenContent() {
           style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
           onPress={handleScan}
           disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           <Text style={styles.scanButtonText}>
             {!nfcInitialized ? 'Initializing...' : isScanning ? 'Scanning...' : 'Start Scan'}
@@ -409,7 +429,7 @@ function NFCScannerScreenContent() {
                   size={20}
                   color={colors.error}
                 />
-                <Text style={[commonStyles.textSecondary, { color: colors.error }]}>
+                <Text style={[commonStyles.textSecondary, { color: colors.error, flex: 1 }]}>
                   Allergies: {scannedCamper.medicalInfo.allergies.join(', ')}
                 </Text>
               </View>
@@ -423,7 +443,7 @@ function NFCScannerScreenContent() {
                   size={20}
                   color={colors.secondary}
                 />
-                <Text style={commonStyles.textSecondary}>
+                <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
                   Medications: {scannedCamper.medicalInfo.medications.join(', ')}
                 </Text>
               </View>
@@ -434,7 +454,7 @@ function NFCScannerScreenContent() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.success }]}
                 onPress={handleCheckIn}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
@@ -448,7 +468,7 @@ function NFCScannerScreenContent() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.warning }]}
                 onPress={handleCheckOut}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
                 <IconSymbol
                   ios_icon_name="arrow.right.circle.fill"
@@ -463,7 +483,7 @@ function NFCScannerScreenContent() {
             <TouchableOpacity
               style={[styles.actionButton, styles.incidentButton]}
               onPress={handleLogIncident}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <IconSymbol
                 ios_icon_name="exclamationmark.triangle.fill"
@@ -480,18 +500,38 @@ function NFCScannerScreenContent() {
       {/* Instructions */}
       <View style={styles.instructions}>
         <Text style={styles.instructionsTitle}>How to use:</Text>
-        <Text style={commonStyles.textSecondary}>
-          1. Tap &quot;Start Scan&quot; button
-        </Text>
-        <Text style={commonStyles.textSecondary}>
-          2. Hold the device near the camper&apos;s NFC wristband
-        </Text>
-        <Text style={commonStyles.textSecondary}>
-          3. Wait for the scan to complete
-        </Text>
-        <Text style={commonStyles.textSecondary}>
-          4. Review camper information and take action
-        </Text>
+        <View style={styles.instructionRow}>
+          <View style={styles.instructionNumber}>
+            <Text style={styles.instructionNumberText}>1</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Tap &quot;Start Scan&quot; button
+          </Text>
+        </View>
+        <View style={styles.instructionRow}>
+          <View style={styles.instructionNumber}>
+            <Text style={styles.instructionNumberText}>2</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Hold the device near the camper&apos;s NFC wristband
+          </Text>
+        </View>
+        <View style={styles.instructionRow}>
+          <View style={styles.instructionNumber}>
+            <Text style={styles.instructionNumberText}>3</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Wait for the scan to complete
+          </Text>
+        </View>
+        <View style={styles.instructionRow}>
+          <View style={styles.instructionNumber}>
+            <Text style={styles.instructionNumberText}>4</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Review camper information and take action
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -510,20 +550,25 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 48 : 0,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 24,
-    backgroundColor: colors.accent,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 28,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
     color: '#FFFFFF',
+    marginTop: 12,
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#FFFFFF',
     opacity: 0.9,
   },
@@ -554,10 +599,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderWidth: 4,
     borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   scannerCircleActive: {
     borderColor: colors.primary,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.primaryLight + '20',
   },
   scannerText: {
     fontSize: 18,
@@ -572,6 +622,11 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 48,
     borderRadius: 12,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
   },
   scanButtonDisabled: {
     opacity: 0.5,
@@ -594,7 +649,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.background,
+    backgroundColor: colors.primaryLight + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -634,10 +689,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
   incidentButton: {
     backgroundColor: colors.secondary,
@@ -654,9 +714,28 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   instructionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
+    marginBottom: 16,
+  },
+  instructionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
+    gap: 12,
+  },
+  instructionNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  instructionNumberText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

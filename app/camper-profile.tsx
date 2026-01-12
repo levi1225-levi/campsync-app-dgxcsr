@@ -28,6 +28,7 @@ interface CamperProfile {
   check_in_status: string;
   last_check_in: string | null;
   last_check_out: string | null;
+  session_id: string | null;
   session_name: string | null;
   medical_info: {
     allergies: string[];
@@ -84,13 +85,10 @@ function CamperProfileContent() {
       console.log('Loading camper profile:', camperId);
       setIsLoading(true);
 
-      // Load camper basic info
+      // Load camper basic info WITHOUT joining sessions to avoid RLS recursion
       const { data: camperData, error: camperError } = await supabase
         .from('campers')
-        .select(`
-          *,
-          sessions(name)
-        `)
+        .select('*')
         .eq('id', camperId)
         .single();
 
@@ -104,6 +102,21 @@ function CamperProfileContent() {
       }
 
       console.log('Camper data loaded:', camperData);
+
+      // Load session name separately if session_id exists
+      let sessionName = null;
+      if (camperData.session_id) {
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('sessions')
+          .select('name')
+          .eq('id', camperData.session_id)
+          .single();
+        
+        if (!sessionError && sessionData) {
+          sessionName = sessionData.name;
+          console.log('Session name loaded:', sessionName);
+        }
+      }
 
       // Load medical info if permitted
       let medicalInfo = null;
@@ -143,7 +156,8 @@ function CamperProfileContent() {
         check_in_status: camperData.check_in_status,
         last_check_in: camperData.last_check_in,
         last_check_out: camperData.last_check_out,
-        session_name: camperData.sessions?.name || null,
+        session_id: camperData.session_id,
+        session_name: sessionName,
         medical_info: medicalInfo,
         emergency_contacts: contactsData || [],
       };
@@ -293,7 +307,7 @@ function CamperProfileContent() {
           <View style={commonStyles.card}>
             <View style={styles.infoRow}>
               <IconSymbol
-                ios_icon_name="calendar.fill"
+                ios_icon_name="calendar"
                 android_material_icon_name="calendar-today"
                 size={20}
                 color={colors.info}
@@ -329,7 +343,7 @@ function CamperProfileContent() {
                 <View style={commonStyles.divider} />
                 <View style={styles.infoRow}>
                   <IconSymbol
-                    ios_icon_name="clock.fill"
+                    ios_icon_name="clock"
                     android_material_icon_name="schedule"
                     size={20}
                     color={colors.success}
@@ -352,7 +366,7 @@ function CamperProfileContent() {
             <Text style={styles.sectionTitle}>Medical Information</Text>
             
             {camper.medical_info.allergies && camper.medical_info.allergies.length > 0 && (
-              <View style={[commonStyles.card, { backgroundColor: colors.error + '15' }]}>
+              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error }]}>
                 <View style={styles.medicalHeader}>
                   <IconSymbol
                     ios_icon_name="exclamationmark.triangle.fill"
@@ -360,16 +374,16 @@ function CamperProfileContent() {
                     size={24}
                     color={colors.error}
                   />
-                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Allergies</Text>
+                  <Text style={[styles.medicalTitle, { color: colors.error }]}>Allergies</Text>
                 </View>
-                <Text style={commonStyles.text}>
+                <Text style={styles.medicalText}>
                   {camper.medical_info.allergies.join(', ')}
                 </Text>
               </View>
             )}
 
             {camper.medical_info.medications && camper.medical_info.medications.length > 0 && (
-              <View style={commonStyles.card}>
+              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
                 <View style={styles.medicalHeader}>
                   <IconSymbol
                     ios_icon_name="pills.fill"
@@ -377,16 +391,16 @@ function CamperProfileContent() {
                     size={24}
                     color={colors.secondary}
                   />
-                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Medications</Text>
+                  <Text style={[styles.medicalTitle, { color: colors.secondary }]}>Medications</Text>
                 </View>
-                <Text style={commonStyles.text}>
+                <Text style={styles.medicalText}>
                   {camper.medical_info.medications.join(', ')}
                 </Text>
               </View>
             )}
 
             {camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0 && (
-              <View style={commonStyles.card}>
+              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.accent }]}>
                 <View style={styles.medicalHeader}>
                   <IconSymbol
                     ios_icon_name="fork.knife"
@@ -394,16 +408,16 @@ function CamperProfileContent() {
                     size={24}
                     color={colors.accent}
                   />
-                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Dietary Restrictions</Text>
+                  <Text style={[styles.medicalTitle, { color: colors.accent }]}>Dietary Restrictions</Text>
                 </View>
-                <Text style={commonStyles.text}>
+                <Text style={styles.medicalText}>
                   {camper.medical_info.dietary_restrictions.join(', ')}
                 </Text>
               </View>
             )}
 
             {camper.medical_info.special_care_instructions && (
-              <View style={commonStyles.card}>
+              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.info }]}>
                 <View style={styles.medicalHeader}>
                   <IconSymbol
                     ios_icon_name="heart.text.square.fill"
@@ -411,9 +425,9 @@ function CamperProfileContent() {
                     size={24}
                     color={colors.info}
                   />
-                  <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>Special Care Instructions</Text>
+                  <Text style={[styles.medicalTitle, { color: colors.info }]}>Special Care Instructions</Text>
                 </View>
-                <Text style={commonStyles.text}>
+                <Text style={styles.medicalText}>
                   {camper.medical_info.special_care_instructions}
                 </Text>
               </View>
@@ -428,20 +442,22 @@ function CamperProfileContent() {
             {camper.emergency_contacts.map((contact, index) => (
               <View key={index} style={commonStyles.card}>
                 <View style={styles.contactHeader}>
-                  <IconSymbol
-                    ios_icon_name="person.circle.fill"
-                    android_material_icon_name="account-circle"
-                    size={32}
-                    color={colors.primary}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={commonStyles.cardTitle}>{contact.full_name}</Text>
-                    <Text style={commonStyles.textSecondary}>{contact.relationship}</Text>
+                  <View style={styles.contactAvatarContainer}>
+                    <IconSymbol
+                      ios_icon_name="person.circle.fill"
+                      android_material_icon_name="account-circle"
+                      size={40}
+                      color={colors.primary}
+                    />
+                    <View style={[styles.priorityBadge, { 
+                      backgroundColor: contact.priority_order === 1 ? colors.error : colors.secondary 
+                    }]}>
+                      <Text style={styles.priorityText}>#{contact.priority_order}</Text>
+                    </View>
                   </View>
-                  <View style={[styles.priorityBadge, { 
-                    backgroundColor: contact.priority_order === 1 ? colors.error : colors.secondary 
-                  }]}>
-                    <Text style={styles.priorityText}>#{contact.priority_order}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.contactName}>{contact.full_name}</Text>
+                    <Text style={styles.contactRelationship}>{contact.relationship}</Text>
                   </View>
                 </View>
                 <View style={commonStyles.divider} />
@@ -449,10 +465,10 @@ function CamperProfileContent() {
                   <IconSymbol
                     ios_icon_name="phone.fill"
                     android_material_icon_name="phone"
-                    size={16}
+                    size={18}
                     color={colors.accent}
                   />
-                  <Text style={commonStyles.text}>{contact.phone}</Text>
+                  <Text style={styles.contactPhone}>{contact.phone}</Text>
                 </View>
               </View>
             ))}
@@ -488,34 +504,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   backButton: {
     padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 12,
   },
   editButton: {
     padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 12,
   },
   headerAvatar: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
     borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   headerTitle: {
     fontSize: 28,
@@ -528,7 +549,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#FFFFFF',
-    opacity: 0.9,
+    opacity: 0.95,
     marginBottom: 12,
   },
   statusBadge: {
@@ -579,31 +600,70 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  medicalCard: {
+    borderLeftWidth: 4,
+    marginBottom: 12,
+  },
   medicalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
     gap: 12,
   },
+  medicalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  medicalText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: colors.text,
+    lineHeight: 22,
+  },
   contactHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  contactAvatarContainer: {
+    position: 'relative',
+  },
   priorityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.card,
   },
   priorityText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  contactName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  contactRelationship: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   contactInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginTop: 8,
+  },
+  contactPhone: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
   },
 });
