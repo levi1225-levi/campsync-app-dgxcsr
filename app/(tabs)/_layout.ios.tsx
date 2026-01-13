@@ -40,6 +40,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="check-in"
+        options={{
+          title: 'Check-In',
+          tabBarIcon: ({ color }) => {
+            return <Text style={{ fontSize: 24 }}>✅</Text>;
+          },
+        }}
+      />
+      <Tabs.Screen
         name="nfc-scanner"
         options={{
           title: 'NFC',

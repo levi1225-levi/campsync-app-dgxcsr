@@ -19,6 +19,12 @@ export default function TabLayout() {
       label: 'Campers',
     },
     {
+      name: 'check-in',
+      route: '/(tabs)/check-in',
+      icon: 'check-circle',
+      label: 'Check-In',
+    },
+    {
       name: 'nfc-scanner',
       route: '/(tabs)/nfc-scanner',
       icon: 'contactless',
@@ -42,6 +48,7 @@ export default function TabLayout() {
       >
         <Stack.Screen name="(home)" />
         <Stack.Screen name="campers" />
+        <Stack.Screen name="check-in" />
         <Stack.Screen name="nfc-scanner" />
         <Stack.Screen name="profile" />
       </Stack>
