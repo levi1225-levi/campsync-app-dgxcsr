@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   Alert,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
@@ -101,9 +100,9 @@ function NFCScannerScreenContent() {
       if (supported) {
         // Start NFC manager
         await NfcManager.start();
-        console.log('NFC manager started');
+        console.log('NFC manager started successfully');
         
-        // On iOS, if NFC is supported, it's always enabled
+        // On iOS, if NFC is supported, it's always enabled (no user toggle)
         setNfcEnabled(true);
         setNfcInitialized(true);
         
@@ -114,7 +113,9 @@ function NFCScannerScreenContent() {
       }
     } catch (error) {
       console.error('Error initializing NFC:', error);
+      // Even if initialization fails, mark as initialized to show proper error state
       setNfcInitialized(true);
+      setNfcSupported(false);
     }
   }, []);
 
@@ -147,7 +148,7 @@ function NFCScannerScreenContent() {
     }
 
     if (!nfcSupported) {
-      Alert.alert('NFC Not Supported', 'Your device does not support NFC scanning.');
+      Alert.alert('NFC Not Supported', 'Your device does not support NFC scanning. Please ensure you are using an iPhone 7 or newer with iOS 13 or later.');
       return;
     }
 
@@ -155,29 +156,33 @@ function NFCScannerScreenContent() {
     setIsScanning(true);
     
     try {
+      // Request NFC technology - using NfcTech.Ndef for iOS
       await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('NFC technology requested');
+      console.log('NFC technology requested successfully');
       
+      // Get the tag
       const tag = await NfcManager.getTag();
       console.log('NFC Tag detected:', JSON.stringify(tag, null, 2));
       
       if (tag) {
         let wristbandId = '';
         
+        // Try to read NDEF message first
         if (tag.ndefMessage && tag.ndefMessage.length > 0) {
           try {
             const ndefRecord = tag.ndefMessage[0];
             const payload = Ndef.text.decodePayload(ndefRecord.payload);
             wristbandId = payload;
-            console.log('NDEF payload:', payload);
+            console.log('NDEF payload decoded:', payload);
           } catch (ndefError) {
             console.error('Error decoding NDEF:', ndefError);
           }
         }
         
+        // Fallback to tag ID if NDEF is not available
         if (!wristbandId && tag.id) {
           wristbandId = tag.id;
-          console.log('Using tag ID:', tag.id);
+          console.log('Using tag ID as wristband ID:', tag.id);
         }
         
         if (wristbandId) {
@@ -189,8 +194,11 @@ function NFCScannerScreenContent() {
     } catch (error: any) {
       console.error('NFC scan error:', error);
       const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      
       if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
         console.log('NFC scan cancelled by user');
+      } else if (errorMessage.includes('not supported')) {
+        Alert.alert('NFC Not Available', 'NFC is not available on this device. Please use an iPhone 7 or newer.');
       } else {
         Alert.alert('Scan Error', 'Failed to read NFC tag. Please try again.');
       }

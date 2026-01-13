@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "CampSync",
@@ -16,6 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
+      "deploymentTarget": "15.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan camper wristbands for check-in and identification."
@@ -44,13 +46,24 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "This app needs access to NFC to scan camper wristbands for check-in and identification.",
+          "selectIdentifiers": [],
+          "systemCodes": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "your-project-id"
+      }
     }
   },
   "scheme": "CampSync"
