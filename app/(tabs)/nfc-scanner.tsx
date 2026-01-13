@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -20,6 +21,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
+  const [isWriting, setIsWriting] = useState(false);
   const [scannedCamper, setScannedCamper] = useState<Camper | null>(null);
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcEnabled, setNfcEnabled] = useState(false);
@@ -101,8 +103,6 @@ function NFCScannerScreenContent() {
         await NfcManager.start();
         console.log('NFC manager started');
         
-        // On iOS, if NFC is supported, it's always enabled
-        // On Android, we need to check if it's enabled
         const enabled = Platform.OS === 'ios' ? true : await NfcManager.isEnabled();
         console.log('NFC enabled:', enabled);
         setNfcEnabled(enabled);
@@ -224,6 +224,62 @@ function NFCScannerScreenContent() {
     }
   }, [canScan, nfcSupported, nfcEnabled, nfcInitialized, lookupCamper]);
 
+  const writeToWristband = useCallback(async (camperId: string, camperName: string) => {
+    if (!canScan) {
+      Alert.alert('Access Denied', 'You do not have permission to write to NFC wristbands.');
+      return;
+    }
+
+    if (!nfcSupported) {
+      Alert.alert('NFC Not Supported', 'Your device does not support NFC writing.');
+      return;
+    }
+
+    if (!nfcEnabled) {
+      Alert.alert('NFC Disabled', 'Please enable NFC in your device settings.');
+      return;
+    }
+
+    console.log('Starting NFC write for camper:', camperId);
+    setIsWriting(true);
+
+    try {
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log('NFC technology requested for writing');
+
+      const bytes = Ndef.encodeMessage([Ndef.textRecord(camperId)]);
+      
+      if (bytes) {
+        await NfcManager.ndefHandler.writeNdefMessage(bytes);
+        console.log('Successfully wrote to NFC tag');
+        
+        Alert.alert(
+          'Write Successful',
+          `Wristband has been programmed for ${camperName}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('NFC write error:', error);
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      
+      if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
+        console.log('NFC write cancelled by user');
+      } else if (errorMessage.includes('read-only') || errorMessage.includes('readonly')) {
+        Alert.alert('Write Error', 'This wristband is read-only and cannot be written to.');
+      } else {
+        Alert.alert('Write Error', 'Failed to write to NFC tag. Please try again.');
+      }
+    } finally {
+      setIsWriting(false);
+      try {
+        await NfcManager.cancelTechnologyRequest();
+      } catch (cancelError) {
+        console.error('Error cancelling NFC request:', cancelError);
+      }
+    }
+  }, [canScan, nfcSupported, nfcEnabled]);
+
   const handleCheckIn = useCallback(async () => {
     if (scannedCamper) {
       try {
@@ -244,15 +300,27 @@ function NFCScannerScreenContent() {
         
         Alert.alert(
           'Check In Successful',
-          `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked in.`,
-          [{ text: 'OK', onPress: () => setScannedCamper(null) }]
+          `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked in.\n\nWould you like to write the check-in status to the wristband?`,
+          [
+            { text: 'Skip', style: 'cancel', onPress: () => setScannedCamper(null) },
+            { 
+              text: 'Write to Wristband', 
+              onPress: async () => {
+                await writeToWristband(
+                  scannedCamper.id, 
+                  `${scannedCamper.firstName} ${scannedCamper.lastName}`
+                );
+                setScannedCamper(null);
+              }
+            }
+          ]
         );
       } catch (error) {
         console.error('Error in handleCheckIn:', error);
         Alert.alert('Error', 'Failed to check in camper.');
       }
     }
-  }, [scannedCamper]);
+  }, [scannedCamper, writeToWristband]);
 
   const handleCheckOut = useCallback(async () => {
     if (scannedCamper) {
@@ -295,7 +363,7 @@ function NFCScannerScreenContent() {
   }, [scannedCamper]);
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
+    <ScrollView style={[commonStyles.container, styles.container]}>
       {/* Header */}
       <View style={styles.header}>
         <IconSymbol
@@ -306,7 +374,7 @@ function NFCScannerScreenContent() {
         />
         <Text style={styles.headerTitle}>NFC Scanner</Text>
         <Text style={styles.headerSubtitle}>
-          Scan camper wristbands for quick access
+          Scan and write to camper wristbands
         </Text>
       </View>
 
@@ -343,33 +411,37 @@ function NFCScannerScreenContent() {
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>NFC Ready</Text>
+          <Text style={styles.statusText}>NFC Ready - Read & Write Enabled</Text>
         </View>
       )}
 
       {/* Scanner Area */}
       <View style={styles.scannerContainer}>
-        <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
+        <View style={[styles.scannerCircle, (isScanning || isWriting) && styles.scannerCircleActive]}>
           <IconSymbol
             ios_icon_name="wave.3.right"
             android_material_icon_name="nfc"
             size={80}
-            color={isScanning ? colors.primary : colors.textSecondary}
+            color={(isScanning || isWriting) ? colors.primary : colors.textSecondary}
           />
         </View>
 
         <Text style={styles.scannerText}>
-          {isScanning ? 'Hold wristband near device...' : 'Tap to scan NFC wristband'}
+          {isWriting 
+            ? 'Writing to wristband...' 
+            : isScanning 
+            ? 'Hold wristband near device...' 
+            : 'Tap to scan NFC wristband'}
         </Text>
 
         <TouchableOpacity
-          style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
+          style={[styles.scanButton, (isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
           onPress={handleScan}
-          disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
+          disabled={isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
           activeOpacity={0.7}
         >
           <Text style={styles.scanButtonText}>
-            {!nfcInitialized ? 'Initializing...' : isScanning ? 'Scanning...' : 'Start Scan'}
+            {!nfcInitialized ? 'Initializing...' : isWriting ? 'Writing...' : isScanning ? 'Scanning...' : 'Start Scan'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -532,8 +604,16 @@ function NFCScannerScreenContent() {
             Review camper information and take action
           </Text>
         </View>
+        <View style={styles.instructionRow}>
+          <View style={styles.instructionNumber}>
+            <Text style={styles.instructionNumberText}>5</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Check in will offer to write status to wristband
+          </Text>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 

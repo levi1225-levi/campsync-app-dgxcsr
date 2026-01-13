@@ -17,10 +17,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "deploymentTarget": "15.0",
+      "deploymentTarget": "16.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NFCReaderUsageDescription": "This app needs access to NFC to scan camper wristbands for check-in and identification."
+        "NFCReaderUsageDescription": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
       }
     },
     "android": {
@@ -45,9 +45,7 @@
       [
         "react-native-nfc-manager",
         {
-          "nfcPermission": "This app needs access to NFC to scan camper wristbands for check-in and identification.",
-          "selectIdentifiers": [],
-          "systemCodes": []
+          "nfcPermission": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
         }
       ]
     ],
