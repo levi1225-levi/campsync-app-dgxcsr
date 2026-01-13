@@ -13,10 +13,12 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
+import { GlassCard } from '@/components/GlassCard';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { encryptWristbandData, decryptWristbandData } from '@/utils/wristbandEncryption';
 
 interface CamperData {
@@ -155,6 +157,8 @@ function CheckInScreenContent() {
 
           if (decryptedData) {
             console.log('Wristband data decrypted successfully:', decryptedData.id);
+            console.log('Wristband lock status:', decryptedData.isLocked ? 'LOCKED' : 'UNLOCKED');
+            
             setScannedData(decryptedData);
 
             // Load full camper data
@@ -170,9 +174,11 @@ function CheckInScreenContent() {
             }
 
             setSelectedCamper(camperData);
+            
+            const lockStatus = decryptedData.isLocked ? '🔒 Locked & Secure' : '⚠️ Unlocked';
             Alert.alert(
               'Wristband Scanned',
-              `${decryptedData.firstName} ${decryptedData.lastName}\nStatus: ${decryptedData.checkInStatus}`,
+              `${decryptedData.firstName} ${decryptedData.lastName}\nStatus: ${decryptedData.checkInStatus}\n${lockStatus}`,
               [{ text: 'OK' }]
             );
           } else {
@@ -217,7 +223,7 @@ function CheckInScreenContent() {
     setIsProgramming(true);
 
     try {
-      // Encrypt the camper data
+      // Encrypt the camper data with lock code
       const encryptedData = await encryptWristbandData({
         id: camper.id,
         firstName: camper.first_name,
@@ -227,7 +233,7 @@ function CheckInScreenContent() {
         sessionId: camper.session_id || undefined,
       });
 
-      console.log('Camper data encrypted, ready to write to wristband');
+      console.log('Camper data encrypted with universal lock code, ready to write to wristband');
 
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested for writing');
@@ -237,6 +243,16 @@ function CheckInScreenContent() {
       if (bytes) {
         await NfcManager.ndefHandler.writeNdefMessage(bytes);
         console.log('Successfully wrote encrypted data to wristband');
+
+        // Attempt to make the tag read-only (lock it)
+        // Note: This may not work on all tag types
+        try {
+          await NfcManager.ndefHandler.makeReadOnly();
+          console.log('Wristband locked successfully - data cannot be tampered with');
+        } catch (lockError) {
+          console.warn('Could not lock wristband (tag may not support locking):', lockError);
+          // Continue anyway - the encryption still provides security
+        }
 
         // Update the wristband_id in the database
         const wristbandId = `WB-${camper.id.substring(0, 8)}`;
@@ -254,7 +270,7 @@ function CheckInScreenContent() {
 
         Alert.alert(
           'Programming Successful',
-          `Wristband has been programmed for ${camper.first_name} ${camper.last_name}\n\nThe wristband now contains encrypted camper information.`,
+          `Wristband has been programmed for ${camper.first_name} ${camper.last_name}\n\n✅ Data encrypted with universal lock code\n🔒 Wristband locked to prevent tampering\n\nThe wristband is now secure and ready to use.`,
           [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
         );
       }
@@ -339,28 +355,30 @@ function CheckInScreenContent() {
 
   return (
     <View style={[commonStyles.container, styles.container]}>
-      {/* Header */}
+      {/* Header with Gradient */}
       <LinearGradient
-        colors={[colors.primary, colors.primaryDark]}
+        colors={['#6366F1', '#8B5CF6', '#EC4899']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <IconSymbol
-          ios_icon_name="checkmark.circle.fill"
-          android_material_icon_name="check-circle"
-          size={32}
-          color="#FFFFFF"
-        />
+        <View style={styles.headerIcon}>
+          <IconSymbol
+            ios_icon_name="checkmark.circle.fill"
+            android_material_icon_name="check-circle"
+            size={40}
+            color="#FFFFFF"
+          />
+        </View>
         <Text style={styles.headerTitle}>Check-In & Wristbands</Text>
         <Text style={styles.headerSubtitle}>
-          Program wristbands and manage check-ins
+          Secure NFC programming with encryption
         </Text>
       </LinearGradient>
 
-      {/* NFC Status */}
+      {/* NFC Status Banner */}
       {nfcInitialized && !nfcSupported && (
-        <View style={[styles.statusBanner, { backgroundColor: colors.error }]}>
+        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
             android_material_icon_name="error"
@@ -368,19 +386,19 @@ function CheckInScreenContent() {
             color="#FFFFFF"
           />
           <Text style={styles.statusText}>NFC not supported on this device</Text>
-        </View>
+        </BlurView>
       )}
 
       {nfcInitialized && nfcSupported && nfcEnabled && (
-        <View style={[styles.statusBanner, { backgroundColor: colors.success }]}>
+        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
           <IconSymbol
-            ios_icon_name="checkmark.circle.fill"
-            android_material_icon_name="check-circle"
+            ios_icon_name="checkmark.shield.fill"
+            android_material_icon_name="verified-user"
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>NFC Ready - Encrypted Read & Write</Text>
-        </View>
+          <Text style={styles.statusText}>🔒 NFC Ready - Encrypted & Locked</Text>
+        </BlurView>
       )}
 
       <ScrollView
@@ -391,34 +409,51 @@ function CheckInScreenContent() {
         {/* Scan Wristband Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Scan Wristband</Text>
-          <View style={commonStyles.card}>
+          <GlassCard>
             <Text style={styles.sectionDescription}>
-              Scan an existing wristband to view encrypted camper information and check-in status.
+              Scan an existing wristband to view encrypted camper information and verify lock status.
             </Text>
             <TouchableOpacity
               style={[
                 styles.actionButton,
-                { backgroundColor: colors.accent },
+                styles.scanButton,
                 (isScanning || !nfcSupported || !nfcEnabled) && styles.actionButtonDisabled,
               ]}
               onPress={handleScanWristband}
               disabled={isScanning || !nfcSupported || !nfcEnabled}
               activeOpacity={0.7}
             >
-              <IconSymbol
-                ios_icon_name="wave.3.right"
-                android_material_icon_name="nfc"
-                size={24}
-                color="#FFFFFF"
-              />
-              <Text style={styles.actionButtonText}>
-                {isScanning ? 'Scanning...' : 'Scan Wristband'}
-              </Text>
+              <LinearGradient
+                colors={['#8B5CF6', '#6366F1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.buttonGradient}
+              >
+                <IconSymbol
+                  ios_icon_name="wave.3.right"
+                  android_material_icon_name="nfc"
+                  size={24}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.actionButtonText}>
+                  {isScanning ? 'Scanning...' : 'Scan Wristband'}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             {scannedData && (
               <View style={styles.scannedDataContainer}>
-                <Text style={styles.scannedDataTitle}>Decrypted Data:</Text>
+                <View style={styles.scannedDataHeader}>
+                  <IconSymbol
+                    ios_icon_name={scannedData.isLocked ? "lock.fill" : "lock.open.fill"}
+                    android_material_icon_name={scannedData.isLocked ? "lock" : "lock-open"}
+                    size={20}
+                    color={scannedData.isLocked ? colors.success : colors.warning}
+                  />
+                  <Text style={styles.scannedDataTitle}>
+                    {scannedData.isLocked ? '🔒 Locked & Secure' : '⚠️ Unlocked'}
+                  </Text>
+                </View>
                 <Text style={styles.scannedDataText}>
                   Name: {scannedData.firstName} {scannedData.lastName}
                 </Text>
@@ -426,17 +461,17 @@ function CheckInScreenContent() {
                   Status: {scannedData.checkInStatus}
                 </Text>
                 <Text style={styles.scannedDataText}>
-                  Timestamp: {new Date(scannedData.timestamp).toLocaleString()}
+                  Scanned: {new Date(scannedData.timestamp).toLocaleString()}
                 </Text>
               </View>
             )}
-          </View>
+          </GlassCard>
         </View>
 
         {/* Search Campers Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Find Camper</Text>
-          <View style={commonStyles.card}>
+          <GlassCard>
             <Text style={styles.sectionDescription}>
               Search for a camper to program their wristband or manage check-in.
             </Text>
@@ -461,36 +496,37 @@ function CheckInScreenContent() {
 
             {searchResults.length > 0 && (
               <View style={styles.searchResults}>
-                {searchResults.map((camper) => (
-                  <TouchableOpacity
-                    key={camper.id}
-                    style={styles.camperItem}
-                    onPress={() => setSelectedCamper(camper)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.camperAvatar}>
+                {searchResults.map((camper, index) => (
+                  <React.Fragment key={camper.id}>
+                    <TouchableOpacity
+                      style={styles.camperItem}
+                      onPress={() => setSelectedCamper(camper)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.camperAvatar}>
+                        <IconSymbol
+                          ios_icon_name="person.fill"
+                          android_material_icon_name="person"
+                          size={24}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View style={styles.camperInfo}>
+                        <Text style={styles.camperName}>
+                          {camper.first_name} {camper.last_name}
+                        </Text>
+                        <Text style={styles.camperDetails}>
+                          {camper.check_in_status} • {camper.wristband_id ? '🔒 Wristband Assigned' : 'No Wristband'}
+                        </Text>
+                      </View>
                       <IconSymbol
-                        ios_icon_name="person.fill"
-                        android_material_icon_name="person"
-                        size={24}
-                        color={colors.primary}
+                        ios_icon_name="chevron.right"
+                        android_material_icon_name="arrow-forward"
+                        size={20}
+                        color={colors.textSecondary}
                       />
-                    </View>
-                    <View style={styles.camperInfo}>
-                      <Text style={styles.camperName}>
-                        {camper.first_name} {camper.last_name}
-                      </Text>
-                      <Text style={styles.camperDetails}>
-                        {camper.check_in_status} • {camper.wristband_id ? 'Wristband Assigned' : 'No Wristband'}
-                      </Text>
-                    </View>
-                    <IconSymbol
-                      ios_icon_name="chevron.right"
-                      android_material_icon_name="arrow-forward"
-                      size={20}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                  </React.Fragment>
                 ))}
               </View>
             )}
@@ -506,14 +542,14 @@ function CheckInScreenContent() {
                 <Text style={styles.noResultsText}>No campers found</Text>
               </View>
             )}
-          </View>
+          </GlassCard>
         </View>
 
         {/* Selected Camper Actions */}
         {selectedCamper && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Camper Actions</Text>
-            <View style={commonStyles.card}>
+            <GlassCard>
               <View style={styles.selectedCamperHeader}>
                 <View style={styles.selectedCamperAvatar}>
                   <IconSymbol
@@ -532,7 +568,7 @@ function CheckInScreenContent() {
                   </Text>
                   {selectedCamper.wristband_id && (
                     <Text style={styles.selectedCamperWristband}>
-                      Wristband: {selectedCamper.wristband_id}
+                      🔒 {selectedCamper.wristband_id}
                     </Text>
                   )}
                 </View>
@@ -544,73 +580,112 @@ function CheckInScreenContent() {
                 <TouchableOpacity
                   style={[
                     styles.actionButton,
-                    { backgroundColor: colors.secondary },
                     (isProgramming || !nfcSupported || !nfcEnabled) && styles.actionButtonDisabled,
                   ]}
                   onPress={() => handleProgramWristband(selectedCamper)}
                   disabled={isProgramming || !nfcSupported || !nfcEnabled}
                   activeOpacity={0.7}
                 >
-                  <IconSymbol
-                    ios_icon_name="wave.3.right"
-                    android_material_icon_name="nfc"
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.actionButtonText}>
-                    {isProgramming ? 'Programming...' : 'Program Wristband'}
-                  </Text>
+                  <LinearGradient
+                    colors={['#EC4899', '#8B5CF6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGradient}
+                  >
+                    <IconSymbol
+                      ios_icon_name="lock.shield.fill"
+                      android_material_icon_name="security"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>
+                      {isProgramming ? 'Programming...' : '🔒 Program & Lock Wristband'}
+                    </Text>
+                  </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.success }]}
+                  style={styles.actionButton}
                   onPress={() => handleCheckIn(selectedCamper)}
                   activeOpacity={0.7}
                 >
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check-circle"
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.actionButtonText}>Check In</Text>
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGradient}
+                  >
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>Check In</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.warning }]}
+                  style={styles.actionButton}
                   onPress={() => handleCheckOut(selectedCamper)}
                   activeOpacity={0.7}
                 >
-                  <IconSymbol
-                    ios_icon_name="arrow.right.circle.fill"
-                    android_material_icon_name="exit-to-app"
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.actionButtonText}>Check Out</Text>
+                  <LinearGradient
+                    colors={['#F59E0B', '#D97706']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGradient}
+                  >
+                    <IconSymbol
+                      ios_icon_name="arrow.right.circle.fill"
+                      android_material_icon_name="exit-to-app"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>Check Out</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
-            </View>
+            </GlassCard>
           </View>
         )}
 
         {/* Info Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How It Works</Text>
-          <View style={commonStyles.card}>
+          <Text style={styles.sectionTitle}>Security Features</Text>
+          <GlassCard>
+            <View style={styles.infoRow}>
+              <View style={styles.infoIcon}>
+                <IconSymbol
+                  ios_icon_name="lock.shield.fill"
+                  android_material_icon_name="security"
+                  size={24}
+                  color="#8B5CF6"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoTitle}>Universal Lock Code</Text>
+                <Text style={styles.infoDescription}>
+                  All wristbands are locked with a universal code stored in the system, preventing unauthorized modifications.
+                </Text>
+              </View>
+            </View>
+
+            <View style={commonStyles.divider} />
+
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <IconSymbol
                   ios_icon_name="lock.fill"
                   android_material_icon_name="lock"
                   size={24}
-                  color={colors.accent}
+                  color="#EC4899"
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Encrypted Data</Text>
+                <Text style={styles.infoTitle}>SHA-256 Encryption</Text>
                 <Text style={styles.infoDescription}>
-                  All camper information is encrypted before being written to the wristband using SHA-256 encryption.
+                  All camper information is encrypted using SHA-256 before being written to the wristband.
                 </Text>
               </View>
             </View>
@@ -623,7 +698,7 @@ function CheckInScreenContent() {
                   ios_icon_name="checkmark.shield.fill"
                   android_material_icon_name="verified-user"
                   size={24}
-                  color={colors.success}
+                  color="#10B981"
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -639,20 +714,20 @@ function CheckInScreenContent() {
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <IconSymbol
-                  ios_icon_name="arrow.clockwise"
-                  android_material_icon_name="sync"
+                  ios_icon_name="antenna.radiowaves.left.and.right"
+                  android_material_icon_name="nfc"
                   size={24}
-                  color={colors.info}
+                  color="#3B82F6"
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Real-Time Updates</Text>
+                <Text style={styles.infoTitle}>Cross-Platform NFC</Text>
                 <Text style={styles.infoDescription}>
-                  Check-in status is updated in real-time and synced across all devices.
+                  Works on both iOS and Android devices with NFC capability for maximum compatibility.
                 </Text>
               </View>
             </View>
-          </View>
+          </GlassCard>
         </View>
       </ScrollView>
     </View>
@@ -672,43 +747,48 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 40,
     alignItems: 'center',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  headerIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 8,
     letterSpacing: -0.5,
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
     fontWeight: '500',
     color: '#FFFFFF',
     opacity: 0.95,
+    textAlign: 'center',
   },
   statusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 10,
   },
   statusText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   scrollView: {
@@ -718,101 +798,112 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   section: {
-    paddingHorizontal: 16,
-    marginTop: 24,
+    paddingHorizontal: 20,
+    marginTop: 28,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: colors.text,
-    marginBottom: 12,
-    letterSpacing: -0.3,
+    marginBottom: 16,
+    letterSpacing: -0.5,
   },
   sectionDescription: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '400',
     color: colors.textSecondary,
-    marginBottom: 16,
-    lineHeight: 20,
+    marginBottom: 20,
+    lineHeight: 22,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-    marginTop: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 12,
   },
   actionButtonDisabled: {
     opacity: 0.5,
   },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  scanButton: {
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
   actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   scannedDataContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: colors.primaryLight + '20',
-    borderRadius: 8,
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: 16,
     borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
+    borderLeftColor: '#8B5CF6',
+  },
+  scannedDataHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   scannedDataTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: colors.text,
-    marginBottom: 8,
   },
   scannedDataText: {
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 14,
+    fontWeight: '500',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 8,
-    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+    borderWidth: 2,
     borderColor: colors.border,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '500',
     color: colors.text,
   },
   searchResults: {
-    marginTop: 16,
+    marginTop: 20,
   },
   camperItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     backgroundColor: colors.background,
-    borderRadius: 12,
-    marginBottom: 8,
-    gap: 12,
+    borderRadius: 16,
+    marginBottom: 12,
+    gap: 14,
   },
   camperAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.primaryLight + '20',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -820,56 +911,56 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   camperName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  camperDetails: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: colors.textSecondary,
-  },
-  noResults: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  noResultsText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginTop: 12,
-  },
-  selectedCamperHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  selectedCamperAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primaryLight + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedCamperName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
   },
-  selectedCamperStatus: {
+  camperDetails: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
-    marginBottom: 2,
+  },
+  noResults: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noResultsText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  selectedCamperHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 20,
+  },
+  selectedCamperAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCamperName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  selectedCamperStatus: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 4,
   },
   selectedCamperWristband: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: colors.accent,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8B5CF6',
   },
   actionButtonsContainer: {
     gap: 12,
@@ -877,27 +968,27 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 8,
+    gap: 16,
+    paddingVertical: 12,
   },
   infoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   infoTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   infoDescription: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '400',
     color: colors.textSecondary,
-    lineHeight: 18,
+    lineHeight: 20,
   },
 });

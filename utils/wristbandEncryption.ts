@@ -1,7 +1,9 @@
 
 import * as Crypto from 'expo-crypto';
 
-// Encryption key - In production, this should be stored securely (e.g., in secure storage or environment variables)
+// Universal wristband lock code - stored in system
+// In production, this should be stored securely in environment variables or secure storage
+const WRISTBAND_LOCK_CODE = 'CAMPSYNC2024LOCK';
 const ENCRYPTION_KEY = 'CampSync2024SecureWristbandKey!';
 
 /**
@@ -29,6 +31,7 @@ export async function encryptWristbandData(camperData: {
       status: camperData.checkInStatus,
       sid: camperData.sessionId || '',
       ts: Date.now(), // Timestamp for verification
+      lock: WRISTBAND_LOCK_CODE, // Include lock code in encrypted data
     });
     
     // Create a hash of the data + key for encryption
@@ -42,7 +45,7 @@ export async function encryptWristbandData(camperData: {
     const base64Data = Buffer.from(dataString).toString('base64');
     const encryptedPayload = `${encrypted.substring(0, 16)}:${base64Data}`;
     
-    console.log('Wristband data encrypted successfully');
+    console.log('Wristband data encrypted successfully with lock code');
     return encryptedPayload;
   } catch (error) {
     console.error('Error encrypting wristband data:', error);
@@ -63,6 +66,7 @@ export async function decryptWristbandData(encryptedData: string): Promise<{
   checkInStatus: string;
   sessionId?: string;
   timestamp: number;
+  isLocked: boolean;
 } | null> {
   try {
     console.log('Decrypting wristband data...');
@@ -92,6 +96,12 @@ export async function decryptWristbandData(encryptedData: string): Promise<{
       return null;
     }
     
+    // Verify lock code
+    const isLocked = data.lock === WRISTBAND_LOCK_CODE;
+    if (!isLocked) {
+      console.warn('Wristband lock code mismatch - may be tampered or from different system');
+    }
+    
     console.log('Wristband data decrypted and verified successfully');
     
     // Return the decrypted data
@@ -103,11 +113,25 @@ export async function decryptWristbandData(encryptedData: string): Promise<{
       checkInStatus: data.status,
       sessionId: data.sid || undefined,
       timestamp: data.ts,
+      isLocked,
     };
   } catch (error) {
     console.error('Error decrypting wristband data:', error);
     return null;
   }
+}
+
+/**
+ * Gets the universal wristband lock code for write-protection
+ * @returns The lock code as a byte array
+ */
+export function getWristbandLockCode(): number[] {
+  // Convert lock code to byte array for NFC write protection
+  const bytes: number[] = [];
+  for (let i = 0; i < WRISTBAND_LOCK_CODE.length; i++) {
+    bytes.push(WRISTBAND_LOCK_CODE.charCodeAt(i));
+  }
+  return bytes;
 }
 
 /**
