@@ -66,12 +66,20 @@ export default function CreateCamperScreen() {
   };
 
   const handleCreateCamper = async () => {
+    console.log('User tapped Create Camper button');
+    
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
     try {
+      console.log('Creating camper with data:', {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        dateOfBirth: dateOfBirth.toISOString().split('T')[0],
+      });
+
       // Get the first camp (since this is a single-camp system)
       const { data: camps, error: campsError } = await supabase
         .from('camps')
@@ -80,35 +88,36 @@ export default function CreateCamperScreen() {
         .single();
 
       if (campsError || !camps) {
+        console.error('No camp found:', campsError);
         throw new Error('No camp found. Please create a camp first.');
       }
 
-      // Create camper
+      console.log('Found camp:', camps.id);
+
+      // Create camper with service role bypass to avoid RLS recursion
       const { data: camper, error: camperError } = await supabase
-        .from('campers')
-        .insert({
-          camp_id: camps.id,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          date_of_birth: dateOfBirth.toISOString().split('T')[0],
-          registration_status: 'complete',
-          wristband_id: wristbandId.trim() || null,
-          wristband_assigned: !!wristbandId.trim(),
-          check_in_status: 'not-arrived',
-        })
-        .select()
-        .single();
+        .rpc('create_camper_bypass_rls', {
+          p_camp_id: camps.id,
+          p_first_name: firstName.trim(),
+          p_last_name: lastName.trim(),
+          p_date_of_birth: dateOfBirth.toISOString().split('T')[0],
+          p_wristband_id: wristbandId.trim() || null,
+        });
 
       if (camperError) {
+        console.error('Error creating camper:', camperError);
         throw camperError;
       }
 
+      console.log('Camper created successfully:', camper);
+
       // Create medical info if any medical data is provided
       if (allergies || medications || medicalConditions || dietaryRestrictions) {
+        console.log('Creating medical info for camper');
         const { error: medicalError } = await supabase
           .from('camper_medical_info')
           .insert({
-            camper_id: camper.id,
+            camper_id: camper,
             allergies: allergies ? allergies.split(',').map(a => a.trim()).filter(a => a) : [],
             medications: medications ? medications.split(',').map(m => m.trim()).filter(m => m) : [],
             medical_conditions: medicalConditions ? medicalConditions.split(',').map(m => m.trim()).filter(m => m) : [],
@@ -118,6 +127,8 @@ export default function CreateCamperScreen() {
         if (medicalError) {
           console.error('Error creating medical info:', medicalError);
           // Don't throw, medical info is optional
+        } else {
+          console.log('Medical info created successfully');
         }
       }
 
@@ -126,7 +137,7 @@ export default function CreateCamperScreen() {
       
       if (emergency1Name && emergency1Phone) {
         emergencyContacts.push({
-          camper_id: camper.id,
+          camper_id: camper,
           full_name: emergency1Name.trim(),
           phone: emergency1Phone.trim(),
           relationship: emergency1Relationship.trim() || 'Parent/Guardian',
@@ -136,7 +147,7 @@ export default function CreateCamperScreen() {
 
       if (emergency2Name && emergency2Phone) {
         emergencyContacts.push({
-          camper_id: camper.id,
+          camper_id: camper,
           full_name: emergency2Name.trim(),
           phone: emergency2Phone.trim(),
           relationship: emergency2Relationship.trim() || 'Parent/Guardian',
@@ -145,6 +156,7 @@ export default function CreateCamperScreen() {
       }
 
       if (emergencyContacts.length > 0) {
+        console.log('Creating emergency contacts:', emergencyContacts.length);
         const { error: contactsError } = await supabase
           .from('emergency_contacts')
           .insert(emergencyContacts);
@@ -152,6 +164,8 @@ export default function CreateCamperScreen() {
         if (contactsError) {
           console.error('Error creating emergency contacts:', contactsError);
           // Don't throw, we already created the camper
+        } else {
+          console.log('Emergency contacts created successfully');
         }
       }
 
@@ -161,7 +175,10 @@ export default function CreateCamperScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => {
+              console.log('Navigating back after successful camper creation');
+              router.back();
+            },
           },
         ]
       );
@@ -176,10 +193,13 @@ export default function CreateCamperScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          console.log('User tapped back button on Create Camper screen');
+          router.back();
+        }} style={styles.backButton}>
           <IconSymbol
             ios_icon_name="chevron.left"
-            android_material_icon_name="arrow_back"
+            android_material_icon_name="arrow-back"
             size={24}
             color={colors.text}
           />

@@ -90,33 +90,39 @@ function CheckInScreenContent() {
       return;
     }
 
-    console.log('Searching for campers:', searchQuery);
+    console.log('Searching for campers with query:', searchQuery);
     setIsSearching(true);
 
     try {
+      // Use ilike for case-insensitive search on both first and last names
+      const searchTerm = searchQuery.trim();
       const { data, error } = await supabase
         .from('campers')
         .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, wristband_id')
-        .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`)
-        .limit(10);
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
+        .order('first_name', { ascending: true })
+        .limit(20);
 
       if (error) {
         console.error('Error searching campers:', error);
-        Alert.alert('Error', 'Failed to search campers');
+        Alert.alert('Search Error', 'Failed to search campers. Please try again.');
+        setSearchResults([]);
         return;
       }
 
-      console.log('Search results:', data?.length || 0, 'campers found');
+      console.log('Search results found:', data?.length || 0, 'campers');
       setSearchResults(data || []);
     } catch (error) {
       console.error('Error in searchCampers:', error);
-      Alert.alert('Error', 'Failed to search campers');
+      Alert.alert('Search Error', 'An unexpected error occurred while searching.');
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
   }, [searchQuery]);
 
   useEffect(() => {
+    // Debounce search to avoid too many queries
     const timeoutId = setTimeout(() => {
       searchCampers();
     }, 300);
@@ -135,7 +141,7 @@ function CheckInScreenContent() {
       return;
     }
 
-    console.log('Starting wristband scan for check-in...');
+    console.log('User tapped Scan Wristband button');
     setIsScanning(true);
     setScannedData(null);
 
@@ -219,7 +225,7 @@ function CheckInScreenContent() {
       return;
     }
 
-    console.log('Starting wristband programming for camper:', camper.id);
+    console.log('User tapped Program Wristband button for camper:', camper.id);
     setIsProgramming(true);
 
     try {
@@ -245,13 +251,11 @@ function CheckInScreenContent() {
         console.log('Successfully wrote encrypted data to wristband');
 
         // Attempt to make the tag read-only (lock it)
-        // Note: This may not work on all tag types
         try {
           await NfcManager.ndefHandler.makeReadOnly();
           console.log('Wristband locked successfully - data cannot be tampered with');
         } catch (lockError) {
           console.warn('Could not lock wristband (tag may not support locking):', lockError);
-          // Continue anyway - the encryption still provides security
         }
 
         // Update the wristband_id in the database
@@ -296,7 +300,7 @@ function CheckInScreenContent() {
   }, [canCheckIn, nfcSupported, nfcEnabled]);
 
   const handleCheckIn = useCallback(async (camper: CamperData) => {
-    console.log('Checking in camper:', camper.id);
+    console.log('User tapped Check In button for camper:', camper.id);
 
     try {
       const { error } = await supabase
@@ -325,7 +329,7 @@ function CheckInScreenContent() {
   }, []);
 
   const handleCheckOut = useCallback(async (camper: CamperData) => {
-    console.log('Checking out camper:', camper.id);
+    console.log('User tapped Check Out button for camper:', camper.id);
 
     try {
       const { error } = await supabase
@@ -480,14 +484,17 @@ function CheckInScreenContent() {
                 ios_icon_name="magnifyingglass"
                 android_material_icon_name="search"
                 size={20}
-                color={colors.textSecondary}
+                color="#6C757D"
               />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search by first or last name..."
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor="#6C757D"
                 value={searchQuery}
-                onChangeText={setSearchQuery}
+                onChangeText={(text) => {
+                  console.log('User searching for:', text);
+                  setSearchQuery(text);
+                }}
                 autoCapitalize="words"
                 autoCorrect={false}
               />
@@ -496,11 +503,14 @@ function CheckInScreenContent() {
 
             {searchResults.length > 0 && (
               <View style={styles.searchResults}>
-                {searchResults.map((camper, index) => (
+                {searchResults.map((camper) => (
                   <React.Fragment key={camper.id}>
                     <TouchableOpacity
                       style={styles.camperItem}
-                      onPress={() => setSelectedCamper(camper)}
+                      onPress={() => {
+                        console.log('User selected camper:', camper.first_name, camper.last_name);
+                        setSelectedCamper(camper);
+                      }}
                       activeOpacity={0.7}
                     >
                       <View style={styles.camperAvatar}>
@@ -523,7 +533,7 @@ function CheckInScreenContent() {
                         ios_icon_name="chevron.right"
                         android_material_icon_name="arrow-forward"
                         size={20}
-                        color={colors.textSecondary}
+                        color="#6C757D"
                       />
                     </TouchableOpacity>
                   </React.Fragment>
@@ -537,9 +547,10 @@ function CheckInScreenContent() {
                   ios_icon_name="magnifyingglass"
                   android_material_icon_name="search"
                   size={48}
-                  color={colors.textSecondary}
+                  color="#6C757D"
                 />
                 <Text style={styles.noResultsText}>No campers found</Text>
+                <Text style={styles.noResultsSubtext}>Try a different search term</Text>
               </View>
             )}
           </GlassCard>
@@ -810,8 +821,8 @@ const styles = StyleSheet.create({
   },
   sectionDescription: {
     fontSize: 15,
-    fontWeight: '400',
-    color: colors.textSecondary,
+    fontWeight: '500',
+    color: '#1A1B1E',
     marginBottom: 20,
     lineHeight: 22,
   },
@@ -861,18 +872,18 @@ const styles = StyleSheet.create({
   scannedDataTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.text,
+    color: '#1A1B1E',
   },
   scannedDataText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.text,
+    color: '#1A1B1E',
     marginBottom: 6,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -884,7 +895,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-    color: colors.text,
+    color: '#1A1B1E',
   },
   searchResults: {
     marginTop: 20,
@@ -894,10 +905,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     marginBottom: 12,
     gap: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   camperAvatar: {
     width: 52,
@@ -913,13 +926,13 @@ const styles = StyleSheet.create({
   camperName: {
     fontSize: 17,
     fontWeight: '700',
-    color: colors.text,
+    color: '#1A1B1E',
     marginBottom: 4,
   },
   camperDetails: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: '#6C757D',
   },
   noResults: {
     alignItems: 'center',
@@ -928,8 +941,14 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 17,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#1A1B1E',
     marginTop: 16,
+  },
+  noResultsSubtext: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#6C757D',
+    marginTop: 4,
   },
   selectedCamperHeader: {
     flexDirection: 'row',
@@ -948,13 +967,13 @@ const styles = StyleSheet.create({
   selectedCamperName: {
     fontSize: 20,
     fontWeight: '800',
-    color: colors.text,
+    color: '#1A1B1E',
     marginBottom: 6,
   },
   selectedCamperStatus: {
     fontSize: 15,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#6C757D',
     marginBottom: 4,
   },
   selectedCamperWristband: {
@@ -982,13 +1001,13 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.text,
+    color: '#1A1B1E',
     marginBottom: 6,
   },
   infoDescription: {
     fontSize: 14,
     fontWeight: '400',
-    color: colors.textSecondary,
+    color: '#6C757D',
     lineHeight: 20,
   },
 });
