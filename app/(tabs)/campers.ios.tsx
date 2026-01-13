@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,31 +7,88 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Platform,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import { mockCampers } from '@/data/mockCampers';
-import { Camper } from '@/types/camper';
 import { LinearGradient } from 'expo-linear-gradient';
+import { supabase } from '@/app/integrations/supabase/client';
+
+interface Camper {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  check_in_status: string;
+  wristband_id: string | null;
+  camp_id: string;
+}
 
 function CampersScreenContent() {
   const router = useRouter();
   const { user, hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [campers, setCampers] = useState<Camper[]>([]);
+  const [filteredCampers, setFilteredCampers] = useState<Camper[]>([]);
   const [selectedCamper, setSelectedCamper] = useState<Camper | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  const filteredCampers = mockCampers.filter(camper =>
-    `${camper.firstName} ${camper.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    camper.cabin.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const loadCampers = useCallback(async () => {
+    console.log('Loading campers from database...');
+    try {
+      const { data, error } = await supabase
+        .from('campers')
+        .select('id, first_name, last_name, date_of_birth, check_in_status, wristband_id, camp_id')
+        .order('first_name', { ascending: true });
+
+      if (error) {
+        console.error('Error loading campers:', error);
+        Alert.alert('Error', 'Failed to load campers. Please try again.');
+        return;
+      }
+
+      console.log('Loaded campers:', data?.length || 0);
+      setCampers(data || []);
+      setFilteredCampers(data || []);
+    } catch (error: any) {
+      console.error('Error in loadCampers:', error);
+      Alert.alert('Error', `Failed to load campers: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCampers();
+  }, [loadCampers]);
+
+  useEffect(() => {
+    // Filter campers based on search query
+    if (!searchQuery.trim()) {
+      setFilteredCampers(campers);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = campers.filter(camper =>
+        `${camper.first_name} ${camper.last_name}`.toLowerCase().includes(query)
+      );
+      setFilteredCampers(filtered);
+    }
+  }, [searchQuery, campers]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadCampers();
+  }, [loadCampers]);
 
   const getStatusColor = useCallback((status: string) => {
     switch (status) {
@@ -43,6 +100,17 @@ function CampersScreenContent() {
         return colors.textSecondary;
     }
   }, []);
+
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   const handleViewFullProfile = useCallback((camper: Camper) => {
     try {
@@ -57,7 +125,7 @@ function CampersScreenContent() {
   const handleEditCamper = useCallback((camper: Camper) => {
     Alert.alert(
       'Edit Camper',
-      `Editing functionality for ${camper.firstName} ${camper.lastName} will be implemented in the admin dashboard.`,
+      `Editing functionality for ${camper.first_name} ${camper.last_name} will be implemented in the admin dashboard.`,
       [{ text: 'OK' }]
     );
   }, []);
@@ -79,6 +147,15 @@ function CampersScreenContent() {
   const handleToggleCamper = useCallback((camper: Camper) => {
     setSelectedCamper(prev => prev?.id === camper.id ? null : camper);
   }, []);
+
+  if (loading) {
+    return (
+      <View style={[commonStyles.container, styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[commonStyles.text, { marginTop: 16 }]}>Loading campers...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[commonStyles.container, styles.container]}>
@@ -105,7 +182,7 @@ function CampersScreenContent() {
         />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name or cabin..."
+          placeholder="Search by name..."
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -150,6 +227,14 @@ function CampersScreenContent() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {filteredCampers.length === 0 ? (
           <View style={styles.emptyState}>
@@ -161,12 +246,12 @@ function CampersScreenContent() {
             />
             <Text style={styles.emptyText}>No campers found</Text>
             <Text style={commonStyles.textSecondary}>
-              {searchQuery ? 'Try a different search term' : 'Import campers to get started'}
+              {searchQuery ? 'Try a different search term' : 'Create a camper to get started'}
             </Text>
           </View>
         ) : (
-          filteredCampers.map((camper, index) => (
-            <React.Fragment key={index}>
+          filteredCampers.map((camper) => (
+            <React.Fragment key={camper.id}>
               <TouchableOpacity
                 style={commonStyles.card}
                 onPress={() => handleToggleCamper(camper)}
@@ -183,16 +268,16 @@ function CampersScreenContent() {
                   </View>
                   <View style={styles.camperInfo}>
                     <Text style={commonStyles.cardTitle}>
-                      {camper.firstName} {camper.lastName}
+                      {camper.first_name} {camper.last_name}
                     </Text>
                     <Text style={commonStyles.textSecondary}>
-                      Age {camper.age} • Cabin {camper.cabin}
+                      Age {calculateAge(camper.date_of_birth)}
                     </Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.checkInStatus) }]}>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.check_in_status) }]}>
                     <Text style={styles.statusText}>
-                      {camper.checkInStatus === 'checked-in' ? 'In' : 
-                       camper.checkInStatus === 'checked-out' ? 'Out' : 'N/A'}
+                      {camper.check_in_status === 'checked-in' ? 'In' : 
+                       camper.check_in_status === 'checked-out' ? 'Out' : 'N/A'}
                     </Text>
                   </View>
                 </View>
@@ -211,71 +296,9 @@ function CampersScreenContent() {
                         color={colors.accent}
                       />
                       <Text style={commonStyles.textSecondary}>
-                        NFC ID: {camper.nfcWristbandId}
+                        {camper.wristband_id ? `NFC ID: ${camper.wristband_id}` : 'No wristband assigned'}
                       </Text>
                     </View>
-
-                    {/* Medical Info (if permitted) */}
-                    {canViewMedical && (
-                      <>
-                        {camper.medicalInfo.allergies.length > 0 && (
-                          <View style={styles.detailRow}>
-                            <IconSymbol
-                              ios_icon_name="exclamationmark.triangle.fill"
-                              android_material_icon_name="warning"
-                              size={20}
-                              color={colors.error}
-                            />
-                            <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
-                              Allergies: {camper.medicalInfo.allergies.join(', ')}
-                            </Text>
-                          </View>
-                        )}
-
-                        {camper.medicalInfo.medications.length > 0 && (
-                          <View style={styles.detailRow}>
-                            <IconSymbol
-                              ios_icon_name="pills.fill"
-                              android_material_icon_name="medication"
-                              size={20}
-                              color={colors.secondary}
-                            />
-                            <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
-                              Medications: {camper.medicalInfo.medications.join(', ')}
-                            </Text>
-                          </View>
-                        )}
-
-                        {camper.medicalInfo.dietaryRestrictions.length > 0 && (
-                          <View style={styles.detailRow}>
-                            <IconSymbol
-                              ios_icon_name="fork.knife"
-                              android_material_icon_name="restaurant"
-                              size={20}
-                              color={colors.accent}
-                            />
-                            <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
-                              Diet: {camper.medicalInfo.dietaryRestrictions.join(', ')}
-                            </Text>
-                          </View>
-                        )}
-                      </>
-                    )}
-
-                    {/* Check-in/out times */}
-                    {camper.lastCheckIn && (
-                      <View style={styles.detailRow}>
-                        <IconSymbol
-                          ios_icon_name="clock.fill"
-                          android_material_icon_name="schedule"
-                          size={20}
-                          color={colors.info}
-                        />
-                        <Text style={commonStyles.textSecondary}>
-                          Last check-in: {new Date(camper.lastCheckIn).toLocaleString()}
-                        </Text>
-                      </View>
-                    )}
 
                     {/* Action Buttons */}
                     <View style={styles.actionButtons}>

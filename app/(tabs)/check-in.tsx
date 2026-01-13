@@ -506,12 +506,12 @@ function CheckInScreenContent() {
                 ios_icon_name="magnifyingglass"
                 android_material_icon_name="search"
                 size={20}
-                color="#6C757D"
+                color="#1F2937"
               />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search by first or last name..."
-                placeholderTextColor="#6C757D"
+                placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={(text) => {
                   console.log('User searching for:', text);
@@ -555,7 +555,7 @@ function CheckInScreenContent() {
                         ios_icon_name="chevron.right"
                         android_material_icon_name="arrow-forward"
                         size={20}
-                        color="#6C757D"
+                        color="#6B7280"
                       />
                     </TouchableOpacity>
                   </React.Fragment>
@@ -569,7 +569,7 @@ function CheckInScreenContent() {
                   ios_icon_name="magnifyingglass"
                   android_material_icon_name="search"
                   size={48}
-                  color="#6C757D"
+                  color="#9CA3AF"
                 />
                 <Text style={styles.noResultsText}>No campers found</Text>
                 <Text style={styles.noResultsSubtext}>Try a different search term</Text>
@@ -911,13 +911,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 10,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: '#E5E7EB',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-    color: colors.text,
+    color: '#1F2937',
   },
   searchResults: {
     marginTop: 20,
@@ -932,7 +932,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E5E7EB',
   },
   camperAvatar: {
     width: 52,
@@ -948,13 +948,13 @@ const styles = StyleSheet.create({
   camperName: {
     fontSize: 17,
     fontWeight: '700',
-    color: colors.text,
+    color: '#1F2937',
     marginBottom: 4,
   },
   camperDetails: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6C757D',
+    color: '#6B7280',
   },
   noResults: {
     alignItems: 'center',
@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
   noResultsSubtext: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#6C757D',
+    color: '#9CA3AF',
     marginTop: 4,
   },
   selectedCamperHeader: {
@@ -995,7 +995,7 @@ const styles = StyleSheet.create({
   selectedCamperStatus: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#6C757D',
+    color: '#6B7280',
     marginBottom: 4,
   },
   selectedCamperWristband: {
@@ -1029,7 +1029,7 @@ const styles = StyleSheet.create({
   infoDescription: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#6C757D',
+    color: '#6B7280',
     lineHeight: 20,
   },
 });
