@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "deploymentTarget": "13.4",
+      "deploymentTarget": "14.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
@@ -42,16 +42,7 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      [
-        "react-native-nfc-manager",
-        {
-          "nfcPermission": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification.",
-          "selectIdentifiers": [
-            "TAG"
-          ],
-          "systemCodes": []
-        }
-      ]
+      "react-native-nfc-manager"
     ],
     "experiments": {
       "typedRoutes": true
