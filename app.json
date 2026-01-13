@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "deploymentTarget": "15.1",
+      "deploymentTarget": "16.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan camper wristbands for check-in and identification."
