@@ -3,7 +3,7 @@
   "expo": {
     "name": "CampSync",
     "slug": "CampSync",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
     "scheme": "natively",
@@ -18,7 +18,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
       "deploymentTarget": "15.1",
-      "buildNumber": "26",
+      "buildNumber": "28",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
@@ -31,7 +31,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
-      "versionCode": 26,
+      "versionCode": 28,
       "permissions": [
         "android.permission.NFC"
       ]
