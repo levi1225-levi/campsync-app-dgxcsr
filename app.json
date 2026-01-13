@@ -42,7 +42,16 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      "react-native-nfc-manager"
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification.",
+          "selectIdentifiers": [
+            "TAG"
+          ],
+          "systemCodes": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
