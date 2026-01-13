@@ -105,26 +105,26 @@ function CheckInScreenContent() {
 
     try {
       // Use ilike for case-insensitive search on both first and last names
-      const searchTerm = searchQuery.trim();
+      const searchTerm = `%${searchQuery.trim()}%`;
       const { data, error } = await supabase
         .from('campers')
         .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, wristband_id')
-        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
+        .or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
         .order('first_name', { ascending: true })
         .limit(20);
 
       if (error) {
         console.error('Error searching campers:', error);
-        Alert.alert('Search Error', 'Failed to search campers. Please try again.');
+        Alert.alert('Search Error', `Failed to search campers: ${error.message}`);
         setSearchResults([]);
         return;
       }
 
       console.log('Search results found:', data?.length || 0, 'campers');
       setSearchResults(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in searchCampers:', error);
-      Alert.alert('Search Error', 'An unexpected error occurred while searching.');
+      Alert.alert('Search Error', `An unexpected error occurred: ${error?.message || 'Unknown error'}`);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
   sectionDescription: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#1A1B1E',
+    color: colors.text,
     marginBottom: 20,
     lineHeight: 22,
   },
@@ -894,12 +894,12 @@ const styles = StyleSheet.create({
   scannedDataTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#1A1B1E',
+    color: colors.text,
   },
   scannedDataText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1A1B1E',
+    color: colors.text,
     marginBottom: 6,
   },
   searchContainer: {
@@ -917,7 +917,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-    color: '#1A1B1E',
+    color: colors.text,
   },
   searchResults: {
     marginTop: 20,
@@ -948,7 +948,7 @@ const styles = StyleSheet.create({
   camperName: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1A1B1E',
+    color: colors.text,
     marginBottom: 4,
   },
   camperDetails: {
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#1A1B1E',
+    color: colors.text,
     marginTop: 16,
   },
   noResultsSubtext: {
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
   selectedCamperName: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1A1B1E',
+    color: colors.text,
     marginBottom: 6,
   },
   selectedCamperStatus: {
@@ -1023,7 +1023,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A1B1E',
+    color: colors.text,
     marginBottom: 6,
   },
   infoDescription: {
