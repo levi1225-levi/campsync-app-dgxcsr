@@ -9,10 +9,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function HomeScreenContent() {
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isOnline, setIsOnline] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -89,13 +91,12 @@ function HomeScreenContent() {
 
   return (
     <ScrollView 
-      style={styles.container}
+      style={[styles.container, { paddingTop: insets.top }]}
       contentContainerStyle={styles.contentContainer}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
     >
-      {/* Header with Gradient */}
       <LinearGradient 
         colors={[colors.primary, colors.primaryDark]} 
         start={{ x: 0, y: 0 }}
@@ -123,7 +124,6 @@ function HomeScreenContent() {
         </View>
       </LinearGradient>
 
-      {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={[styles.statCard, styles.statCardPrimary]}>
           <LinearGradient
@@ -198,7 +198,6 @@ function HomeScreenContent() {
         </View>
       </View>
 
-      {/* Quick Actions */}
       <View style={styles.quickActionsSection}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         
@@ -299,7 +298,6 @@ function HomeScreenContent() {
         </TouchableOpacity>
       </View>
 
-      {/* Admin Actions - Super Admin Only */}
       {isSuperAdmin && (
         <View style={styles.quickActionsSection}>
           <Text style={styles.sectionTitle}>Admin Actions</Text>
@@ -391,7 +389,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 16,
     paddingBottom: 32,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,

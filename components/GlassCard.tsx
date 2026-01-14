@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { View, StyleSheet, Platform, ViewStyle } from 'react-native';
-import { GlassView } from 'expo-glass-effect';
 import { colors } from '@/styles/commonStyles';
 
 interface GlassCardProps {
@@ -11,39 +10,20 @@ interface GlassCardProps {
 }
 
 /**
- * GlassCard component using Apple's Liquid Glass UI on iOS 26+
- * Falls back to regular card on Android and older iOS versions
+ * GlassCard component with fallback styling
+ * Note: expo-glass-effect requires iOS 18+ and specific configuration
+ * Using standard card styling for maximum compatibility
  */
-export function GlassCard({ children, style, glassEffectStyle = 'regular' }: GlassCardProps) {
-  if (Platform.OS === 'ios' && Platform.Version >= 26) {
-    return (
-      <GlassView
-        style={[styles.glassCard, style]}
-        glassEffectStyle={glassEffectStyle}
-      >
-        {children}
-      </GlassView>
-    );
-  }
-
-  // Fallback for Android and older iOS
+export function GlassCard({ children, style }: GlassCardProps) {
   return (
-    <View style={[styles.fallbackCard, style]}>
+    <View style={[styles.card, style]}>
       {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  glassCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginVertical: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  fallbackCard: {
+  card: {
     backgroundColor: colors.card,
     borderRadius: 20,
     padding: 20,

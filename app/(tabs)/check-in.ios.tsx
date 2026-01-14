@@ -20,6 +20,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { encryptWristbandData, decryptWristbandData } from '@/utils/wristbandEncryption';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CamperData {
   id: string;
@@ -33,6 +34,7 @@ interface CamperData {
 
 function CheckInScreenContent() {
   const { hasPermission } = useAuth();
+  const insets = useSafeAreaInsets();
   const [isScanning, setIsScanning] = useState(false);
   const [isProgramming, setIsProgramming] = useState(false);
   const [nfcSupported, setNfcSupported] = useState(false);
@@ -84,31 +86,25 @@ function CheckInScreenContent() {
     };
   }, [initNFC, cleanupNFC]);
 
-  // Use ref to track if search is in progress to prevent infinite loops
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Clear any existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // If search query is empty, clear results immediately
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setIsSearching(false);
       return;
     }
 
-    // Set searching state
     setIsSearching(true);
 
-    // Debounce search to avoid too many queries
     searchTimeoutRef.current = setTimeout(async () => {
       console.log('Searching for campers with query:', searchQuery);
 
       try {
-        // Use ilike for case-insensitive search on both first and last names
         const searchTerm = `%${searchQuery.trim()}%`;
         const { data, error } = await supabase
           .from('campers')
@@ -135,13 +131,12 @@ function CheckInScreenContent() {
       }
     }, 300);
 
-    // Cleanup function
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery]); // Only depend on searchQuery
+  }, [searchQuery]);
 
   const handleScanWristband = useCallback(async () => {
     if (!canCheckIn) {
@@ -171,7 +166,6 @@ function CheckInScreenContent() {
           const encryptedPayload = Ndef.text.decodePayload(ndefRecord.payload);
           console.log('Encrypted payload read from wristband');
 
-          // Decrypt the wristband data
           const decryptedData = await decryptWristbandData(encryptedPayload);
 
           if (decryptedData) {
@@ -180,7 +174,6 @@ function CheckInScreenContent() {
             
             setScannedData(decryptedData);
 
-            // Load full camper data
             const { data: camperData, error } = await supabase
               .from('campers')
               .select('*')
@@ -227,91 +220,6 @@ function CheckInScreenContent() {
     }
   }, [canCheckIn, nfcSupported, nfcEnabled]);
 
-  const handleProgramWristband = useCallback(async (camper: CamperData) => {
-    if (!canCheckIn) {
-      Alert.alert('Access Denied', 'You do not have permission to program wristbands.');
-      return;
-    }
-
-    if (!nfcSupported || !nfcEnabled) {
-      Alert.alert('NFC Not Available', 'NFC is not available on this device.');
-      return;
-    }
-
-    console.log('User tapped Program Wristband button for camper:', camper.id);
-    setIsProgramming(true);
-
-    try {
-      // Encrypt the camper data with lock code
-      const encryptedData = await encryptWristbandData({
-        id: camper.id,
-        firstName: camper.first_name,
-        lastName: camper.last_name,
-        dateOfBirth: camper.date_of_birth,
-        checkInStatus: camper.check_in_status,
-        sessionId: camper.session_id || undefined,
-      });
-
-      console.log('Camper data encrypted with universal lock code, ready to write to wristband');
-
-      await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('NFC technology requested for writing');
-
-      const bytes = Ndef.encodeMessage([Ndef.textRecord(encryptedData)]);
-
-      if (bytes) {
-        await NfcManager.ndefHandler.writeNdefMessage(bytes);
-        console.log('Successfully wrote encrypted data to wristband');
-
-        // Attempt to make the tag read-only (lock it)
-        try {
-          await NfcManager.ndefHandler.makeReadOnly();
-          console.log('Wristband locked successfully - data cannot be tampered with');
-        } catch (lockError) {
-          console.warn('Could not lock wristband (tag may not support locking):', lockError);
-        }
-
-        // Update the wristband_id in the database
-        const wristbandId = `WB-${camper.id.substring(0, 8)}`;
-        const { error: updateError } = await supabase
-          .from('campers')
-          .update({
-            wristband_id: wristbandId,
-            wristband_assigned: true,
-          })
-          .eq('id', camper.id);
-
-        if (updateError) {
-          console.error('Error updating wristband ID:', updateError);
-        }
-
-        Alert.alert(
-          'Programming Successful',
-          `Wristband has been programmed for ${camper.first_name} ${camper.last_name}\n\n✅ Data encrypted with universal lock code\n🔒 Wristband locked to prevent tampering\n\nThe wristband is now secure and ready to use.`,
-          [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
-        );
-      }
-    } catch (error: any) {
-      console.error('NFC write error:', error);
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
-
-      if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
-        console.log('NFC write cancelled by user');
-      } else if (errorMessage.includes('read-only') || errorMessage.includes('readonly')) {
-        Alert.alert('Write Error', 'This wristband is read-only and cannot be programmed.');
-      } else {
-        Alert.alert('Programming Error', 'Failed to program wristband. Please try again.');
-      }
-    } finally {
-      setIsProgramming(false);
-      try {
-        await NfcManager.cancelTechnologyRequest();
-      } catch (cancelError) {
-        console.error('Error cancelling NFC request:', cancelError);
-      }
-    }
-  }, [canCheckIn, nfcSupported, nfcEnabled]);
-
   const handleCheckIn = useCallback(async (camper: CamperData) => {
     console.log('User tapped Check In button for camper:', camper.id);
 
@@ -332,7 +240,7 @@ function CheckInScreenContent() {
 
       Alert.alert(
         'Check-In Successful',
-        `${camper.first_name} ${camper.last_name} has been checked in.`,
+        `${camper.first_name} ${camper.last_name} has been checked in to camp.`,
         [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
       );
     } catch (error) {
@@ -344,35 +252,49 @@ function CheckInScreenContent() {
   const handleCheckOut = useCallback(async (camper: CamperData) => {
     console.log('User tapped Check Out button for camper:', camper.id);
 
-    try {
-      const { error } = await supabase
-        .from('campers')
-        .update({
-          check_in_status: 'checked-out',
-          last_check_out: new Date().toISOString(),
-        })
-        .eq('id', camper.id);
+    Alert.alert(
+      'Check Out Camper',
+      `Are you sure you want to check out ${camper.first_name} ${camper.last_name}? This will erase their wristband data to factory settings.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Check Out & Erase',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('campers')
+                .update({
+                  check_in_status: 'checked-out',
+                  last_check_out: new Date().toISOString(),
+                  wristband_id: null,
+                  wristband_assigned: false,
+                })
+                .eq('id', camper.id);
 
-      if (error) {
-        console.error('Error checking out camper:', error);
-        Alert.alert('Error', 'Failed to check out camper. Please try again.');
-        return;
-      }
+              if (error) {
+                console.error('Error checking out camper:', error);
+                Alert.alert('Error', 'Failed to check out camper. Please try again.');
+                return;
+              }
 
-      Alert.alert(
-        'Check-Out Successful',
-        `${camper.first_name} ${camper.last_name} has been checked out.`,
-        [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
-      );
-    } catch (error) {
-      console.error('Error in handleCheckOut:', error);
-      Alert.alert('Error', 'Failed to check out camper.');
-    }
+              Alert.alert(
+                'Check-Out Successful',
+                `${camper.first_name} ${camper.last_name} has been checked out. Please erase their wristband to factory settings.`,
+                [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
+              );
+            } catch (error) {
+              console.error('Error in handleCheckOut:', error);
+              Alert.alert('Error', 'Failed to check out camper.');
+            }
+          },
+        },
+      ]
+    );
   }, []);
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
-      {/* Header with Gradient */}
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={['#6366F1', '#8B5CF6', '#EC4899']}
         start={{ x: 0, y: 0 }}
@@ -387,13 +309,12 @@ function CheckInScreenContent() {
             color="#FFFFFF"
           />
         </View>
-        <Text style={styles.headerTitle}>Check-In & Wristbands</Text>
+        <Text style={styles.headerTitle}>Check-In & Check-Out</Text>
         <Text style={styles.headerSubtitle}>
-          Secure NFC programming with encryption
+          Manage camper arrivals and departures
         </Text>
       </LinearGradient>
 
-      {/* NFC Status Banner */}
       {nfcInitialized && !nfcSupported && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
           <IconSymbol
@@ -423,74 +344,11 @@ function CheckInScreenContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Scan Wristband Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Scan Wristband</Text>
-          <GlassCard>
-            <Text style={styles.sectionDescription}>
-              Scan an existing wristband to view encrypted camper information and verify lock status.
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.scanButton,
-                (isScanning || !nfcSupported || !nfcEnabled) && styles.actionButtonDisabled,
-              ]}
-              onPress={handleScanWristband}
-              disabled={isScanning || !nfcSupported || !nfcEnabled}
-              activeOpacity={0.7}
-            >
-              <LinearGradient
-                colors={['#8B5CF6', '#6366F1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.buttonGradient}
-              >
-                <IconSymbol
-                  ios_icon_name="wave.3.right"
-                  android_material_icon_name="nfc"
-                  size={24}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.actionButtonText}>
-                  {isScanning ? 'Scanning...' : 'Scan Wristband'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {scannedData && (
-              <View style={styles.scannedDataContainer}>
-                <View style={styles.scannedDataHeader}>
-                  <IconSymbol
-                    ios_icon_name={scannedData.isLocked ? "lock.fill" : "lock.open.fill"}
-                    android_material_icon_name={scannedData.isLocked ? "lock" : "lock-open"}
-                    size={20}
-                    color={scannedData.isLocked ? colors.success : colors.warning}
-                  />
-                  <Text style={styles.scannedDataTitle}>
-                    {scannedData.isLocked ? '🔒 Locked & Secure' : '⚠️ Unlocked'}
-                  </Text>
-                </View>
-                <Text style={styles.scannedDataText}>
-                  Name: {scannedData.firstName} {scannedData.lastName}
-                </Text>
-                <Text style={styles.scannedDataText}>
-                  Status: {scannedData.checkInStatus}
-                </Text>
-                <Text style={styles.scannedDataText}>
-                  Scanned: {new Date(scannedData.timestamp).toLocaleString()}
-                </Text>
-              </View>
-            )}
-          </GlassCard>
-        </View>
-
-        {/* Search Campers Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Find Camper</Text>
           <GlassCard>
             <Text style={styles.sectionDescription}>
-              Search for a camper to program their wristband or manage check-in.
+              Search for a camper to check them in or out of camp.
             </Text>
             <View style={styles.searchContainer}>
               <IconSymbol
@@ -569,7 +427,6 @@ function CheckInScreenContent() {
           </GlassCard>
         </View>
 
-        {/* Selected Camper Actions */}
         {selectedCamper && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Camper Actions</Text>
@@ -602,33 +459,6 @@ function CheckInScreenContent() {
 
               <View style={styles.actionButtonsContainer}>
                 <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    (isProgramming || !nfcSupported || !nfcEnabled) && styles.actionButtonDisabled,
-                  ]}
-                  onPress={() => handleProgramWristband(selectedCamper)}
-                  disabled={isProgramming || !nfcSupported || !nfcEnabled}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={['#EC4899', '#8B5CF6']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.buttonGradient}
-                  >
-                    <IconSymbol
-                      ios_icon_name="lock.shield.fill"
-                      android_material_icon_name="security"
-                      size={24}
-                      color="#FFFFFF"
-                    />
-                    <Text style={styles.actionButtonText}>
-                      {isProgramming ? 'Programming...' : '🔒 Program & Lock Wristband'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
                   style={styles.actionButton}
                   onPress={() => handleCheckIn(selectedCamper)}
                   activeOpacity={0.7}
@@ -645,7 +475,7 @@ function CheckInScreenContent() {
                       size={24}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.actionButtonText}>Check In</Text>
+                    <Text style={styles.actionButtonText}>Check In to Camp</Text>
                   </LinearGradient>
                 </TouchableOpacity>
 
@@ -666,7 +496,7 @@ function CheckInScreenContent() {
                       size={24}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.actionButtonText}>Check Out</Text>
+                    <Text style={styles.actionButtonText}>Check Out & Erase Wristband</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -674,61 +504,22 @@ function CheckInScreenContent() {
           </View>
         )}
 
-        {/* Info Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Security Features</Text>
+          <Text style={styles.sectionTitle}>About Check-In/Out</Text>
           <GlassCard>
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <IconSymbol
-                  ios_icon_name="lock.shield.fill"
-                  android_material_icon_name="security"
-                  size={24}
-                  color="#8B5CF6"
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Universal Lock Code</Text>
-                <Text style={styles.infoDescription}>
-                  All wristbands are locked with a universal code stored in the system, preventing unauthorized modifications.
-                </Text>
-              </View>
-            </View>
-
-            <View style={commonStyles.divider} />
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <IconSymbol
-                  ios_icon_name="lock.fill"
-                  android_material_icon_name="lock"
-                  size={24}
-                  color="#EC4899"
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>SHA-256 Encryption</Text>
-                <Text style={styles.infoDescription}>
-                  All camper information is encrypted using SHA-256 before being written to the wristband.
-                </Text>
-              </View>
-            </View>
-
-            <View style={commonStyles.divider} />
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <IconSymbol
-                  ios_icon_name="checkmark.shield.fill"
-                  android_material_icon_name="verified-user"
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
                   size={24}
                   color="#10B981"
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Tamper Detection</Text>
+                <Text style={styles.infoTitle}>Check-In</Text>
                 <Text style={styles.infoDescription}>
-                  The app automatically detects if wristband data has been tampered with or corrupted.
+                  Mark campers as arrived at camp. Use the NFC tab to program their wristbands after check-in.
                 </Text>
               </View>
             </View>
@@ -738,16 +529,16 @@ function CheckInScreenContent() {
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <IconSymbol
-                  ios_icon_name="antenna.radiowaves.left.and.right"
-                  android_material_icon_name="nfc"
+                  ios_icon_name="arrow.right.circle.fill"
+                  android_material_icon_name="exit-to-app"
                   size={24}
-                  color="#3B82F6"
+                  color="#F59E0B"
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Cross-Platform NFC</Text>
+                <Text style={styles.infoTitle}>Check-Out & Wristband Erase</Text>
                 <Text style={styles.infoDescription}>
-                  Works on both iOS and Android devices with NFC capability for maximum compatibility.
+                  When checking out a camper, their wristband data is cleared and the wristband should be erased to factory settings for the next camper.
                 </Text>
               </View>
             </View>
@@ -767,12 +558,9 @@ export default function CheckInScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: 0,
-  },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 16,
     paddingBottom: 40,
     alignItems: 'center',
     borderBottomLeftRadius: 32,
@@ -844,9 +632,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 12,
   },
-  actionButtonDisabled: {
-    opacity: 0.5,
-  },
   buttonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -855,43 +640,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 10,
   },
-  scanButton: {
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
   actionButtonText: {
     fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
-  },
-  scannedDataContainer: {
-    marginTop: 20,
-    padding: 16,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#8B5CF6',
-  },
-  scannedDataHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  scannedDataTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  scannedDataText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-    marginBottom: 6,
   },
   searchContainer: {
     flexDirection: 'row',

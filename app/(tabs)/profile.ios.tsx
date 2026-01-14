@@ -14,10 +14,12 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol.ios';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function ProfileScreenContent() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const handleEditProfile = useCallback(() => {
     try {
@@ -94,13 +96,12 @@ function ProfileScreenContent() {
   };
 
   return (
-    <View style={commonStyles.container}>
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Gradient */}
         <LinearGradient
           colors={[colors.primary, colors.primaryDark]}
           start={{ x: 0, y: 0 }}
@@ -126,7 +127,6 @@ function ProfileScreenContent() {
           </View>
         </LinearGradient>
 
-        {/* Profile Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
           
@@ -184,7 +184,6 @@ function ProfileScreenContent() {
           </View>
         </View>
 
-        {/* Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
 
@@ -236,7 +235,6 @@ function ProfileScreenContent() {
             </View>
           </TouchableOpacity>
 
-          {/* Super Admin Only - User Management */}
           {displayRole === 'super-admin' && (
             <TouchableOpacity
               style={commonStyles.card}
@@ -288,7 +286,6 @@ function ProfileScreenContent() {
           </TouchableOpacity>
         </View>
 
-        {/* App Info */}
         <View style={styles.section}>
           <View style={styles.appInfo}>
             <Text style={styles.appInfoText}>CampSync v1.0.0</Text>
@@ -319,7 +316,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingTop: 16,
     paddingBottom: 32,
     alignItems: 'center',
     borderBottomLeftRadius: 24,
