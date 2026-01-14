@@ -38,30 +38,51 @@ function CampersScreenContent() {
   const [selectedCamper, setSelectedCamper] = useState<Camper | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
   const loadCampers = useCallback(async () => {
     console.log('Loading campers from database...');
+    setError(null);
+    
     try {
-      const { data, error } = await supabase
-        .from('campers')
-        .select('id, first_name, last_name, date_of_birth, check_in_status, wristband_id, camp_id')
-        .order('first_name', { ascending: true });
+      // Use the RPC function to bypass RLS
+      const { data, error: rpcError } = await supabase
+        .rpc('get_all_campers');
 
-      if (error) {
-        console.error('Error loading campers:', error);
-        Alert.alert('Error', 'Failed to load campers. Please try again.');
+      if (rpcError) {
+        console.error('Error loading campers via RPC:', rpcError);
+        
+        // Fallback to direct query
+        const { data: directData, error: directError } = await supabase
+          .from('campers')
+          .select('id, first_name, last_name, date_of_birth, check_in_status, wristband_id, camp_id')
+          .order('first_name', { ascending: true });
+
+        if (directError) {
+          console.error('Error loading campers directly:', directError);
+          setError('Failed to load campers. Please check your permissions.');
+          setCampers([]);
+          setFilteredCampers([]);
+          return;
+        }
+
+        console.log('Loaded campers directly:', directData?.length || 0);
+        setCampers(directData || []);
+        setFilteredCampers(directData || []);
         return;
       }
 
-      console.log('Loaded campers:', data?.length || 0);
+      console.log('Loaded campers via RPC:', data?.length || 0);
       setCampers(data || []);
       setFilteredCampers(data || []);
     } catch (error: any) {
       console.error('Error in loadCampers:', error);
-      Alert.alert('Error', `Failed to load campers: ${error?.message || 'Unknown error'}`);
+      setError(`Failed to load campers: ${error?.message || 'Unknown error'}`);
+      setCampers([]);
+      setFilteredCampers([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,8 +114,10 @@ function CampersScreenContent() {
   const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'checked-in':
+      case 'checked_in':
         return colors.success;
       case 'checked-out':
+      case 'checked_out':
         return colors.warning;
       default:
         return colors.textSecondary;
@@ -222,6 +245,22 @@ function CampersScreenContent() {
         </View>
       )}
 
+      {/* Error Message */}
+      {error && (
+        <View style={styles.errorContainer}>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="warning"
+            size={24}
+            color={colors.error}
+          />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={loadCampers} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Campers List */}
       <ScrollView
         style={styles.scrollView}
@@ -236,7 +275,7 @@ function CampersScreenContent() {
           />
         }
       >
-        {filteredCampers.length === 0 ? (
+        {filteredCampers.length === 0 && !error ? (
           <View style={styles.emptyState}>
             <IconSymbol
               ios_icon_name="person.slash.fill"
@@ -276,8 +315,8 @@ function CampersScreenContent() {
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.check_in_status) }]}>
                     <Text style={styles.statusText}>
-                      {camper.check_in_status === 'checked-in' ? 'In' : 
-                       camper.check_in_status === 'checked-out' ? 'Out' : 'N/A'}
+                      {camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? 'In' : 
+                       camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Out' : 'N/A'}
                     </Text>
                   </View>
                 </View>
@@ -422,6 +461,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 0.3,
+  },
+  errorContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.error,
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

@@ -22,6 +22,8 @@ function HomeScreenContent() {
     notArrived: 0,
   });
 
+  const isSuperAdmin = user?.role === 'super-admin';
+
   const checkNetworkStatus = useCallback(async () => {
     try {
       const networkState = await Network.getNetworkStateAsync();
@@ -296,6 +298,77 @@ function HomeScreenContent() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Admin Actions - Super Admin Only */}
+      {isSuperAdmin && (
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Admin Actions</Text>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => handleNavigation('/manage-authorization-codes')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.error, colors.error + 'DD']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.actionCardGradient}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="key.fill"
+                  android_material_icon_name="vpn-key"
+                  size={28}
+                  color="#FFFFFF"
+                />
+              </View>
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>Authorization Codes</Text>
+                <Text style={styles.actionSubtitle}>Manage registration codes</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="arrow-forward"
+                size={24}
+                color="#FFFFFF"
+              />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => handleNavigation('/user-management')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={['#8B5CF6', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.actionCardGradient}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="person.3.fill"
+                  android_material_icon_name="group"
+                  size={28}
+                  color="#FFFFFF"
+                />
+              </View>
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>User Management</Text>
+                <Text style={styles.actionSubtitle}>Manage users and roles</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="arrow-forward"
+                size={24}
+                color="#FFFFFF"
+              />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
