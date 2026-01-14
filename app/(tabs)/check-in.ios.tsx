@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -84,51 +84,64 @@ function CheckInScreenContent() {
     };
   }, [initNFC, cleanupNFC]);
 
-  const searchCampers = useCallback(async () => {
+  // Use ref to track if search is in progress to prevent infinite loops
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // If search query is empty, clear results immediately
     if (!searchQuery.trim()) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
-    console.log('Searching for campers with query:', searchQuery);
+    // Set searching state
     setIsSearching(true);
 
-    try {
-      // Use ilike for case-insensitive search on both first and last names
-      const searchTerm = `%${searchQuery.trim()}%`;
-      const { data, error } = await supabase
-        .from('campers')
-        .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, wristband_id')
-        .or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
-        .order('first_name', { ascending: true })
-        .limit(20);
-
-      if (error) {
-        console.error('Error searching campers:', error);
-        Alert.alert('Search Error', `Failed to search campers: ${error.message}`);
-        setSearchResults([]);
-        return;
-      }
-
-      console.log('Search results found:', data?.length || 0, 'campers');
-      setSearchResults(data || []);
-    } catch (error: any) {
-      console.error('Error in searchCampers:', error);
-      Alert.alert('Search Error', `An unexpected error occurred: ${error?.message || 'Unknown error'}`);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchQuery]);
-
-  useEffect(() => {
     // Debounce search to avoid too many queries
-    const timeoutId = setTimeout(() => {
-      searchCampers();
+    searchTimeoutRef.current = setTimeout(async () => {
+      console.log('Searching for campers with query:', searchQuery);
+
+      try {
+        // Use ilike for case-insensitive search on both first and last names
+        const searchTerm = `%${searchQuery.trim()}%`;
+        const { data, error } = await supabase
+          .from('campers')
+          .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, wristband_id')
+          .or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
+          .order('first_name', { ascending: true })
+          .limit(20);
+
+        if (error) {
+          console.error('Error searching campers:', error);
+          Alert.alert('Search Error', `Failed to search campers: ${error.message}`);
+          setSearchResults([]);
+          return;
+        }
+
+        console.log('Search results found:', data?.length || 0, 'campers');
+        setSearchResults(data || []);
+      } catch (error: any) {
+        console.error('Error in searchCampers:', error);
+        Alert.alert('Search Error', `An unexpected error occurred: ${error?.message || 'Unknown error'}`);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
     }, 300);
 
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchCampers]);
+    // Cleanup function
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]); // Only depend on searchQuery
 
   const handleScanWristband = useCallback(async () => {
     if (!canCheckIn) {
