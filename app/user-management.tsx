@@ -34,6 +34,7 @@ function UserManagementContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
     loadUsers();
@@ -247,50 +248,70 @@ function UserManagementContent() {
     }
   };
 
+  const handleBack = () => {
+    console.log('Navigating back to home screen');
+    try {
+      router.push('/(tabs)/(home)');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      router.back();
+    }
+  };
+
+  const handleScroll = (event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    setScrollY(currentScrollY);
+  };
+
   const filteredUsers = users.filter(user =>
     user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const headerHeight = Math.max(0, 140 - scrollY);
+  const headerOpacity = Math.max(0, 1 - scrollY / 100);
+
   return (
     <View style={[commonStyles.container, styles.container]}>
-      {/* Header with Gradient */}
-      <LinearGradient
-        colors={[colors.error, '#C81E1E']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow-back"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={loadUsers}
-          >
-            <IconSymbol
-              ios_icon_name="arrow.clockwise"
-              android_material_icon_name="refresh"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.headerTitle}>User Management</Text>
-        <Text style={styles.headerSubtitle}>
-          {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
-        </Text>
-      </LinearGradient>
+      {/* Collapsible Header with Gradient */}
+      {headerHeight > 0 && (
+        <LinearGradient
+          colors={[colors.error, '#C81E1E']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { height: headerHeight, opacity: headerOpacity }]}
+        >
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+            >
+              <IconSymbol
+                ios_icon_name="chevron.left"
+                android_material_icon_name="arrow-back"
+                size={24}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={loadUsers}
+            >
+              <IconSymbol
+                ios_icon_name="arrow.clockwise"
+                android_material_icon_name="refresh"
+                size={24}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.headerTitle}>User Management</Text>
+          <Text style={styles.headerSubtitle}>
+            {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
+          </Text>
+        </LinearGradient>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -332,6 +353,8 @@ function UserManagementContent() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           {filteredUsers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -503,6 +526,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    overflow: 'hidden',
   },
   headerTop: {
     flexDirection: 'row',

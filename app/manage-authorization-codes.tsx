@@ -36,9 +36,11 @@ export default function ManageAuthorizationCodesScreen() {
   }, []);
 
   const loadCodes = async () => {
+    console.log('Loading authorization codes...');
     setIsLoading(true);
     try {
       const data = await listAuthorizationCodes();
+      console.log('Loaded authorization codes:', data.length);
       setCodes(data);
     } catch (error) {
       console.error('Error loading codes:', error);
@@ -104,12 +106,22 @@ export default function ManageAuthorizationCodesScreen() {
     );
   };
 
+  const handleBack = () => {
+    console.log('Navigating back to home screen');
+    try {
+      router.push('/(tabs)/(home)');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      router.back();
+    }
+  };
+
   // Check permissions
   if (!hasPermission(['super-admin', 'camp-admin'])) {
     return (
       <View style={commonStyles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <IconSymbol
               ios_icon_name="chevron.left"
               android_material_icon_name="arrow-back"
@@ -139,7 +151,7 @@ export default function ManageAuthorizationCodesScreen() {
     <View style={commonStyles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <IconSymbol
             ios_icon_name="chevron.left"
             android_material_icon_name="arrow-back"
@@ -227,6 +239,9 @@ export default function ManageAuthorizationCodesScreen() {
         {isLoading ? (
           <View style={styles.centerContent}>
             <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
+              Loading authorization codes...
+            </Text>
           </View>
         ) : codes.length === 0 ? (
           <View style={styles.centerContent}>
@@ -237,6 +252,9 @@ export default function ManageAuthorizationCodesScreen() {
               color={colors.textSecondary}
             />
             <Text style={styles.emptyText}>No authorization codes</Text>
+            <Text style={commonStyles.textSecondary}>
+              Create a code to get started
+            </Text>
           </View>
         ) : (
           <View style={styles.codesList}>
@@ -343,6 +361,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 120,
   },
   createForm: {
     marginBottom: 16,
@@ -411,8 +430,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: colors.text,
+    fontWeight: '600',
     marginTop: 16,
+    marginBottom: 8,
   },
   codesList: {
     gap: 12,

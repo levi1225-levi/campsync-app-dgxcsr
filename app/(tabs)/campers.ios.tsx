@@ -39,6 +39,7 @@ function CampersScreenContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scrollY, setScrollY] = useState(0);
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
@@ -54,24 +55,9 @@ function CampersScreenContent() {
 
       if (rpcError) {
         console.error('Error loading campers via RPC:', rpcError);
-        
-        // Fallback to direct query
-        const { data: directData, error: directError } = await supabase
-          .from('campers')
-          .select('id, first_name, last_name, date_of_birth, check_in_status, wristband_id, camp_id')
-          .order('first_name', { ascending: true });
-
-        if (directError) {
-          console.error('Error loading campers directly:', directError);
-          setError('Failed to load campers. Please check your permissions.');
-          setCampers([]);
-          setFilteredCampers([]);
-          return;
-        }
-
-        console.log('Loaded campers directly:', directData?.length || 0);
-        setCampers(directData || []);
-        setFilteredCampers(directData || []);
+        setError('Failed to load campers. Please try again.');
+        setCampers([]);
+        setFilteredCampers([]);
         return;
       }
 
@@ -171,6 +157,14 @@ function CampersScreenContent() {
     setSelectedCamper(prev => prev?.id === camper.id ? null : camper);
   }, []);
 
+  const handleScroll = (event: any) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    setScrollY(currentScrollY);
+  };
+
+  const headerHeight = Math.max(0, 120 - scrollY);
+  const headerOpacity = Math.max(0, 1 - scrollY / 100);
+
   if (loading) {
     return (
       <View style={[commonStyles.container, styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -182,18 +176,20 @@ function CampersScreenContent() {
 
   return (
     <View style={[commonStyles.container, styles.container]}>
-      {/* Header with Gradient */}
-      <LinearGradient
-        colors={[colors.primary, colors.primaryDark]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>Campers</Text>
-        <Text style={styles.headerSubtitle}>
-          {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
-        </Text>
-      </LinearGradient>
+      {/* Collapsible Header with Gradient */}
+      {headerHeight > 0 && (
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { height: headerHeight, opacity: headerOpacity }]}
+        >
+          <Text style={styles.headerTitle}>Campers</Text>
+          <Text style={styles.headerSubtitle}>
+            {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
+          </Text>
+        </LinearGradient>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -266,6 +262,8 @@ function CampersScreenContent() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -400,6 +398,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    overflow: 'hidden',
   },
   headerTitle: {
     fontSize: 32,
