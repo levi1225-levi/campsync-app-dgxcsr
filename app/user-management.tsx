@@ -17,6 +17,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface UserProfile {
   id: string;
@@ -30,11 +31,11 @@ interface UserProfile {
 
 function UserManagementContent() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
     loadUsers();
@@ -115,7 +116,6 @@ function UserManagementContent() {
             try {
               console.log('Deleting user:', user.id);
               
-              // Delete user profile (this will cascade to related records)
               const { error } = await supabase
                 .from('user_profiles')
                 .delete()
@@ -258,60 +258,47 @@ function UserManagementContent() {
     }
   };
 
-  const handleScroll = (event: any) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
-    setScrollY(currentScrollY);
-  };
-
   const filteredUsers = users.filter(user =>
     user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const headerHeight = Math.max(0, 140 - scrollY);
-  const headerOpacity = Math.max(0, 1 - scrollY / 100);
-
   return (
-    <View style={[commonStyles.container, styles.container]}>
-      {/* Collapsible Header with Gradient */}
-      {headerHeight > 0 && (
-        <LinearGradient
-          colors={[colors.error, '#C81E1E']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { height: headerHeight, opacity: headerOpacity }]}
-        >
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBack}
-            >
-              <IconSymbol
-                ios_icon_name="chevron.left"
-                android_material_icon_name="arrow-back"
-                size={24}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={loadUsers}
-            >
-              <IconSymbol
-                ios_icon_name="arrow.clockwise"
-                android_material_icon_name="refresh"
-                size={24}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.headerTitle}>User Management</Text>
-          <Text style={styles.headerSubtitle}>
-            {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
-          </Text>
-        </LinearGradient>
-      )}
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+      {/* Fixed Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={loadUsers}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
+            <IconSymbol
+              ios_icon_name="arrow.clockwise"
+              android_material_icon_name="refresh"
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.headerTitle}>User Management</Text>
+        <Text style={styles.headerSubtitle}>
+          {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
+        </Text>
+      </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -353,8 +340,6 @@ function UserManagementContent() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
         >
           {filteredUsers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -517,16 +502,13 @@ export default function UserManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: Platform.OS === 'android' ? 48 : 0,
-  },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: 24,
+    backgroundColor: colors.error,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    overflow: 'hidden',
   },
   headerTop: {
     flexDirection: 'row',
@@ -538,14 +520,22 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   refreshButton: {
     padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -567,7 +557,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     gap: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 2,
     borderWidth: 1,
     borderColor: colors.border,
@@ -648,7 +641,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     gap: 8,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 2,
   },
   actionButtonText: {

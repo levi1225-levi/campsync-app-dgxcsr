@@ -21,9 +21,11 @@ import {
   deactivateAuthorizationCode,
 } from '@/services/authorizationCode.service';
 import { AuthorizationCode, AuthorizationCodeRole } from '@/types/authorizationCode';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ManageAuthorizationCodesScreen() {
   const { user, hasPermission } = useAuth();
+  const insets = useSafeAreaInsets();
   const [codes, setCodes] = useState<AuthorizationCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -119,9 +121,13 @@ export default function ManageAuthorizationCodesScreen() {
   // Check permissions
   if (!hasPermission(['super-admin', 'camp-admin'])) {
     return (
-      <View style={commonStyles.container}>
+      <View style={[commonStyles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={handleBack}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
             <IconSymbol
               ios_icon_name="chevron.left"
               android_material_icon_name="arrow-back"
@@ -130,6 +136,7 @@ export default function ManageAuthorizationCodesScreen() {
             />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Authorization Codes</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.centerContent}>
           <IconSymbol
@@ -148,10 +155,14 @@ export default function ManageAuthorizationCodesScreen() {
   }
 
   return (
-    <View style={commonStyles.container}>
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={handleBack}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        >
           <IconSymbol
             ios_icon_name="chevron.left"
             android_material_icon_name="arrow-back"
@@ -163,6 +174,7 @@ export default function ManageAuthorizationCodesScreen() {
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => setShowCreateForm(!showCreateForm)}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           <IconSymbol
             ios_icon_name={showCreateForm ? 'xmark' : 'plus'}
@@ -272,6 +284,7 @@ export default function ManageAuthorizationCodesScreen() {
                   {code.is_active && (
                     <TouchableOpacity
                       onPress={() => handleDeactivateCode(code.id, code.code)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <IconSymbol
                         ios_icon_name="xmark.circle.fill"
@@ -337,7 +350,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 48 : 16,
+    paddingTop: 16,
     paddingBottom: 16,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
@@ -345,6 +358,10 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
@@ -355,6 +372,10 @@ const styles = StyleSheet.create({
   },
   addButton: {
     padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,

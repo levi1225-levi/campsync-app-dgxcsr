@@ -17,6 +17,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CamperProfile {
   id: string;
@@ -48,6 +49,7 @@ interface CamperProfile {
 function CamperProfileContent() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const { hasPermission } = useAuth();
   const [camper, setCamper] = useState<CamperProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,12 +87,12 @@ function CamperProfileContent() {
       console.log('Loading camper profile:', camperId);
       setIsLoading(true);
 
-      // Load camper basic info WITHOUT joining sessions to avoid RLS recursion
+      // Load camper basic info - use maybeSingle() instead of single() to avoid error
       const { data: camperData, error: camperError } = await supabase
         .from('campers')
         .select('*')
         .eq('id', camperId)
-        .single();
+        .maybeSingle();
 
       if (camperError) {
         console.error('Error loading camper:', camperError);
@@ -110,7 +112,7 @@ function CamperProfileContent() {
           .from('sessions')
           .select('name')
           .eq('id', camperData.session_id)
-          .single();
+          .maybeSingle();
         
         if (!sessionError && sessionData) {
           sessionName = sessionData.name;
@@ -202,7 +204,7 @@ function CamperProfileContent() {
 
   if (isLoading) {
     return (
-      <View style={[commonStyles.container, styles.loadingContainer]}>
+      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
           Loading camper profile...
@@ -213,7 +215,7 @@ function CamperProfileContent() {
 
   if (!camper) {
     return (
-      <View style={[commonStyles.container, styles.loadingContainer]}>
+      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
         <IconSymbol
           ios_icon_name="exclamationmark.triangle.fill"
           android_material_icon_name="warning"
@@ -235,7 +237,7 @@ function CamperProfileContent() {
   }
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
+    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
       {/* Header with Gradient */}
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
@@ -248,7 +250,7 @@ function CamperProfileContent() {
             style={styles.backButton}
             onPress={handleBack}
             activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -262,7 +264,7 @@ function CamperProfileContent() {
               style={styles.editButton}
               onPress={handleEdit}
               activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             >
               <IconSymbol
                 ios_icon_name="pencil"
@@ -488,9 +490,6 @@ export default function CamperProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: Platform.OS === 'android' ? 48 : 0,
-  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -499,7 +498,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: 32,
     alignItems: 'center',
     borderBottomLeftRadius: 24,
@@ -521,11 +520,19 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 12,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   editButton: {
     padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 12,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerAvatar: {
     width: 96,
