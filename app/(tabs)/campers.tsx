@@ -133,12 +133,14 @@ function CampersScreenContent() {
   }, [router]);
 
   const handleEditCamper = useCallback((camper: Camper) => {
-    Alert.alert(
-      'Edit Camper',
-      `Editing functionality for ${camper.first_name} ${camper.last_name} will be implemented in the admin dashboard.`,
-      [{ text: 'OK' }]
-    );
-  }, []);
+    try {
+      console.log('User tapped Edit Camper for:', camper.id);
+      router.push(`/edit-camper?id=${camper.id}`);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open edit camper screen');
+    }
+  }, [router]);
 
   const handleCreateCamper = useCallback(() => {
     try {

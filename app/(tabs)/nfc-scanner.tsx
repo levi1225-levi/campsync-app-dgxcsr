@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -18,8 +19,13 @@ import { Camper } from '@/types/camper';
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { supabase } from '@/app/integrations/supabase/client';
 
+const HEADER_MAX_HEIGHT = 180;
+const HEADER_MIN_HEIGHT = 80;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+
 function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
+  const scrollY = useRef(new Animated.Value(0)).current;
   const [isScanning, setIsScanning] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
   const [scannedCamper, setScannedCamper] = useState<Camper | null>(null);
@@ -28,6 +34,18 @@ function NFCScannerScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
 
   const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
+
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+    extrapolate: 'clamp',
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
+    outputRange: [1, 0.5, 0],
+    extrapolate: 'clamp',
+  });
 
   const calculateAge = (dateOfBirth: string): number => {
     const today = new Date();
@@ -363,20 +381,22 @@ function NFCScannerScreenContent() {
   }, [scannedCamper]);
 
   return (
-    <ScrollView style={[commonStyles.container, styles.container]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <IconSymbol
-          ios_icon_name="wave.3.right"
-          android_material_icon_name="nfc"
-          size={32}
-          color="#FFFFFF"
-        />
-        <Text style={styles.headerTitle}>NFC Scanner</Text>
-        <Text style={styles.headerSubtitle}>
-          Scan and write to camper wristbands
-        </Text>
-      </View>
+    <View style={[commonStyles.container, styles.container]}>
+      {/* Animated Header */}
+      <Animated.View style={[styles.header, { height: headerHeight }]}>
+        <Animated.View style={{ opacity: headerOpacity }}>
+          <IconSymbol
+            ios_icon_name="wave.3.right"
+            android_material_icon_name="nfc"
+            size={32}
+            color="#FFFFFF"
+          />
+          <Text style={styles.headerTitle}>NFC Scanner</Text>
+          <Text style={styles.headerSubtitle}>
+            Scan and write to camper wristbands
+          </Text>
+        </Animated.View>
+      </Animated.View>
 
       {/* NFC Status */}
       {nfcInitialized && !nfcSupported && (
@@ -415,205 +435,216 @@ function NFCScannerScreenContent() {
         </View>
       )}
 
-      {/* Scanner Area */}
-      <View style={styles.scannerContainer}>
-        <View style={[styles.scannerCircle, (isScanning || isWriting) && styles.scannerCircleActive]}>
-          <IconSymbol
-            ios_icon_name="wave.3.right"
-            android_material_icon_name="nfc"
-            size={80}
-            color={(isScanning || isWriting) ? colors.primary : colors.textSecondary}
-          />
+      <Animated.ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
+        {/* Scanner Area */}
+        <View style={styles.scannerContainer}>
+          <View style={[styles.scannerCircle, (isScanning || isWriting) && styles.scannerCircleActive]}>
+            <IconSymbol
+              ios_icon_name="wave.3.right"
+              android_material_icon_name="nfc"
+              size={80}
+              color={(isScanning || isWriting) ? colors.primary : colors.textSecondary}
+            />
+          </View>
+
+          <Text style={styles.scannerText}>
+            {isWriting 
+              ? 'Writing to wristband...' 
+              : isScanning 
+              ? 'Hold wristband near device...' 
+              : 'Tap to scan NFC wristband'}
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.scanButton, (isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
+            onPress={handleScan}
+            disabled={isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.scanButtonText}>
+              {!nfcInitialized ? 'Initializing...' : isWriting ? 'Writing...' : isScanning ? 'Scanning...' : 'Start Scan'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.scannerText}>
-          {isWriting 
-            ? 'Writing to wristband...' 
-            : isScanning 
-            ? 'Hold wristband near device...' 
-            : 'Tap to scan NFC wristband'}
-        </Text>
-
-        <TouchableOpacity
-          style={[styles.scanButton, (isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
-          onPress={handleScan}
-          disabled={isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.scanButtonText}>
-            {!nfcInitialized ? 'Initializing...' : isWriting ? 'Writing...' : isScanning ? 'Scanning...' : 'Start Scan'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Scanned Camper Info */}
-      {scannedCamper && (
-        <View style={styles.camperInfoContainer}>
-          <View style={commonStyles.card}>
-            <View style={styles.camperHeader}>
-              <View style={styles.camperAvatar}>
-                <IconSymbol
-                  ios_icon_name="person.fill"
-                  android_material_icon_name="person"
-                  size={40}
-                  color={colors.primary}
-                />
+        {/* Scanned Camper Info */}
+        {scannedCamper && (
+          <View style={styles.camperInfoContainer}>
+            <View style={commonStyles.card}>
+              <View style={styles.camperHeader}>
+                <View style={styles.camperAvatar}>
+                  <IconSymbol
+                    ios_icon_name="person.fill"
+                    android_material_icon_name="person"
+                    size={40}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.camperInfo}>
+                  <Text style={styles.camperName}>
+                    {scannedCamper.firstName} {scannedCamper.lastName}
+                  </Text>
+                  <Text style={commonStyles.textSecondary}>
+                    Age {scannedCamper.age} • Cabin {scannedCamper.cabin}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        scannedCamper.checkInStatus === 'checked-in'
+                          ? colors.success
+                          : scannedCamper.checkInStatus === 'checked-out'
+                          ? colors.warning
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  <Text style={styles.statusBadgeText}>
+                    {scannedCamper.checkInStatus === 'checked-in'
+                      ? 'Checked In'
+                      : scannedCamper.checkInStatus === 'checked-out'
+                      ? 'Checked Out'
+                      : 'Not Arrived'}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.camperInfo}>
-                <Text style={styles.camperName}>
-                  {scannedCamper.firstName} {scannedCamper.lastName}
-                </Text>
-                <Text style={commonStyles.textSecondary}>
-                  Age {scannedCamper.age} • Cabin {scannedCamper.cabin}
-                </Text>
+
+              <View style={commonStyles.divider} />
+
+              {/* Medical Alerts */}
+              {scannedCamper.medicalInfo.allergies.length > 0 && (
+                <View style={styles.alertRow}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="warning"
+                    size={20}
+                    color={colors.error}
+                  />
+                  <Text style={[commonStyles.textSecondary, { color: colors.error, flex: 1 }]}>
+                    Allergies: {scannedCamper.medicalInfo.allergies.join(', ')}
+                  </Text>
+                </View>
+              )}
+
+              {scannedCamper.medicalInfo.medications.length > 0 && (
+                <View style={styles.alertRow}>
+                  <IconSymbol
+                    ios_icon_name="pills.fill"
+                    android_material_icon_name="medication"
+                    size={20}
+                    color={colors.secondary}
+                  />
+                  <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
+                    Medications: {scannedCamper.medicalInfo.medications.join(', ')}
+                  </Text>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.success }]}
+                  onPress={handleCheckIn}
+                  activeOpacity={0.7}
+                >
+                  <IconSymbol
+                    ios_icon_name="checkmark.circle.fill"
+                    android_material_icon_name="check-circle"
+                    size={24}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.actionButtonText}>Check In</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.warning }]}
+                  onPress={handleCheckOut}
+                  activeOpacity={0.7}
+                >
+                  <IconSymbol
+                    ios_icon_name="arrow.right.circle.fill"
+                    android_material_icon_name="exit-to-app"
+                    size={24}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.actionButtonText}>Check Out</Text>
+                </TouchableOpacity>
               </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  {
-                    backgroundColor:
-                      scannedCamper.checkInStatus === 'checked-in'
-                        ? colors.success
-                        : scannedCamper.checkInStatus === 'checked-out'
-                        ? colors.warning
-                        : colors.textSecondary,
-                  },
-                ]}
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.incidentButton]}
+                onPress={handleLogIncident}
+                activeOpacity={0.7}
               >
-                <Text style={styles.statusBadgeText}>
-                  {scannedCamper.checkInStatus === 'checked-in'
-                    ? 'Checked In'
-                    : scannedCamper.checkInStatus === 'checked-out'
-                    ? 'Checked Out'
-                    : 'Not Arrived'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={commonStyles.divider} />
-
-            {/* Medical Alerts */}
-            {scannedCamper.medicalInfo.allergies.length > 0 && (
-              <View style={styles.alertRow}>
                 <IconSymbol
                   ios_icon_name="exclamationmark.triangle.fill"
-                  android_material_icon_name="warning"
-                  size={20}
-                  color={colors.error}
-                />
-                <Text style={[commonStyles.textSecondary, { color: colors.error, flex: 1 }]}>
-                  Allergies: {scannedCamper.medicalInfo.allergies.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {scannedCamper.medicalInfo.medications.length > 0 && (
-              <View style={styles.alertRow}>
-                <IconSymbol
-                  ios_icon_name="pills.fill"
-                  android_material_icon_name="medication"
-                  size={20}
-                  color={colors.secondary}
-                />
-                <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
-                  Medications: {scannedCamper.medicalInfo.medications.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.success }]}
-                onPress={handleCheckIn}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check-circle"
+                  android_material_icon_name="report"
                   size={24}
                   color="#FFFFFF"
                 />
-                <Text style={styles.actionButtonText}>Check In</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.warning }]}
-                onPress={handleCheckOut}
-                activeOpacity={0.7}
-              >
-                <IconSymbol
-                  ios_icon_name="arrow.right.circle.fill"
-                  android_material_icon_name="exit-to-app"
-                  size={24}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.actionButtonText}>Check Out</Text>
+                <Text style={styles.actionButtonText}>Log Incident</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.incidentButton]}
-              onPress={handleLogIncident}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle.fill"
-                android_material_icon_name="report"
-                size={24}
-                color="#FFFFFF"
-              />
-              <Text style={styles.actionButtonText}>Log Incident</Text>
-            </TouchableOpacity>
+        {/* Instructions */}
+        <View style={styles.instructions}>
+          <Text style={styles.instructionsTitle}>How to use:</Text>
+          <View style={styles.instructionRow}>
+            <View style={styles.instructionNumber}>
+              <Text style={styles.instructionNumberText}>1</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              Tap &quot;Start Scan&quot; button
+            </Text>
+          </View>
+          <View style={styles.instructionRow}>
+            <View style={styles.instructionNumber}>
+              <Text style={styles.instructionNumberText}>2</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              Hold the device near the camper&apos;s NFC wristband
+            </Text>
+          </View>
+          <View style={styles.instructionRow}>
+            <View style={styles.instructionNumber}>
+              <Text style={styles.instructionNumberText}>3</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              Wait for the scan to complete
+            </Text>
+          </View>
+          <View style={styles.instructionRow}>
+            <View style={styles.instructionNumber}>
+              <Text style={styles.instructionNumberText}>4</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              Review camper information and take action
+            </Text>
+          </View>
+          <View style={styles.instructionRow}>
+            <View style={styles.instructionNumber}>
+              <Text style={styles.instructionNumberText}>5</Text>
+            </View>
+            <Text style={commonStyles.textSecondary}>
+              Check in will offer to write status to wristband
+            </Text>
           </View>
         </View>
-      )}
-
-      {/* Instructions */}
-      <View style={styles.instructions}>
-        <Text style={styles.instructionsTitle}>How to use:</Text>
-        <View style={styles.instructionRow}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>1</Text>
-          </View>
-          <Text style={commonStyles.textSecondary}>
-            Tap &quot;Start Scan&quot; button
-          </Text>
-        </View>
-        <View style={styles.instructionRow}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>2</Text>
-          </View>
-          <Text style={commonStyles.textSecondary}>
-            Hold the device near the camper&apos;s NFC wristband
-          </Text>
-        </View>
-        <View style={styles.instructionRow}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>3</Text>
-          </View>
-          <Text style={commonStyles.textSecondary}>
-            Wait for the scan to complete
-          </Text>
-        </View>
-        <View style={styles.instructionRow}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>4</Text>
-          </View>
-          <Text style={commonStyles.textSecondary}>
-            Review camper information and take action
-          </Text>
-        </View>
-        <View style={styles.instructionRow}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>5</Text>
-          </View>
-          <Text style={commonStyles.textSecondary}>
-            Check in will offer to write status to wristband
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
@@ -635,6 +666,7 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     backgroundColor: colors.primary,
     alignItems: 'center',
+    justifyContent: 'center',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -664,6 +696,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 120,
   },
   scannerContainer: {
     alignItems: 'center',
@@ -791,7 +829,7 @@ const styles = StyleSheet.create({
   instructions: {
     paddingHorizontal: 16,
     marginTop: 'auto',
-    paddingBottom: 120,
+    paddingBottom: 40,
   },
   instructionsTitle: {
     fontSize: 18,

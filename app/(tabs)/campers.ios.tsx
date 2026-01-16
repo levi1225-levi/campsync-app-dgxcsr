@@ -97,19 +97,6 @@ function CampersScreenContent() {
     loadCampers();
   }, [loadCampers]);
 
-  const getStatusColor = useCallback((status: string) => {
-    switch (status) {
-      case 'checked-in':
-      case 'checked_in':
-        return colors.success;
-      case 'checked-out':
-      case 'checked_out':
-        return colors.warning;
-      default:
-        return colors.textSecondary;
-    }
-  }, []);
-
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
@@ -132,12 +119,14 @@ function CampersScreenContent() {
   }, [router]);
 
   const handleEditCamper = useCallback((camper: Camper) => {
-    Alert.alert(
-      'Edit Camper',
-      `Editing functionality for ${camper.first_name} ${camper.last_name} will be implemented in the admin dashboard.`,
-      [{ text: 'OK' }]
-    );
-  }, []);
+    try {
+      console.log('User tapped Edit Camper for:', camper.id);
+      router.push(`/edit-camper?id=${camper.id}`);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open edit camper screen');
+    }
+  }, [router]);
 
   const handleCreateCamper = useCallback(() => {
     try {
@@ -160,7 +149,7 @@ function CampersScreenContent() {
 
   if (loading) {
     return (
-      <View style={[commonStyles.container, styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[commonStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[commonStyles.text, { marginTop: 16 }]}>Loading campers...</Text>
       </View>
@@ -168,7 +157,7 @@ function CampersScreenContent() {
   }
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
+    <View style={commonStyles.container}>
       {/* Fixed Header with Gradient */}
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
@@ -222,7 +211,7 @@ function CampersScreenContent() {
           <TouchableOpacity 
             style={styles.addButton}
             onPress={handleCreateCamper}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
             <IconSymbol
               ios_icon_name="plus.circle.fill"
@@ -303,7 +292,7 @@ function CampersScreenContent() {
                       Age {calculateAge(camper.date_of_birth)}
                     </Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.check_in_status) }]}>
+                  <View style={[styles.statusBadge, { backgroundColor: camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? colors.success : camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? colors.warning : colors.textSecondary }]}>
                     <Text style={styles.statusText}>
                       {camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? 'In' : 
                        camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Out' : 'N/A'}
@@ -334,7 +323,7 @@ function CampersScreenContent() {
                       <TouchableOpacity 
                         style={[styles.actionButton, { backgroundColor: colors.primary }]}
                         onPress={() => handleViewFullProfile(camper)}
-                        activeOpacity={0.7}
+                        activeOpacity={0.8}
                       >
                         <IconSymbol
                           ios_icon_name="doc.text.fill"
@@ -349,7 +338,7 @@ function CampersScreenContent() {
                         <TouchableOpacity 
                           style={[styles.actionButton, { backgroundColor: colors.secondary }]}
                           onPress={() => handleEditCamper(camper)}
-                          activeOpacity={0.7}
+                          activeOpacity={0.8}
                         >
                           <IconSymbol
                             ios_icon_name="pencil"
@@ -381,9 +370,6 @@ export default function CampersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: 0,
-  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 24,

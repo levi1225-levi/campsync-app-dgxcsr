@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -29,9 +30,14 @@ interface CamperData {
   wristband_id: string | null;
 }
 
+const HEADER_MAX_HEIGHT = 220;
+const HEADER_MIN_HEIGHT = 100;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+
 function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
   const insets = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
   const [isScanning, setIsScanning] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
   const [scannedCamper, setScannedCamper] = useState<CamperData | null>(null);
@@ -41,6 +47,18 @@ function NFCScannerScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
 
   const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
+
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+    extrapolate: 'clamp',
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
+    outputRange: [1, 0.5, 0],
+    extrapolate: 'clamp',
+  });
 
   const initNFC = useCallback(async () => {
     try {
@@ -258,25 +276,30 @@ function NFCScannerScreenContent() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={['#8B5CF6', '#6366F1']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerIcon}>
-          <IconSymbol
-            ios_icon_name="wave.3.right"
-            android_material_icon_name="nfc"
-            size={40}
-            color="#FFFFFF"
-          />
-        </View>
-        <Text style={styles.headerTitle}>NFC Wristband Manager</Text>
-        <Text style={styles.headerSubtitle}>
-          Read and program camper wristbands
-        </Text>
-      </LinearGradient>
+      {/* Animated Header */}
+      <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
+        <LinearGradient
+          colors={['#8B5CF6', '#6366F1']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Animated.View style={[styles.headerContent, { opacity: headerOpacity }]}>
+            <View style={styles.headerIcon}>
+              <IconSymbol
+                ios_icon_name="wave.3.right"
+                android_material_icon_name="nfc"
+                size={40}
+                color="#FFFFFF"
+              />
+            </View>
+            <Text style={styles.headerTitle}>NFC Wristband Manager</Text>
+            <Text style={styles.headerSubtitle}>
+              Read and program camper wristbands
+            </Text>
+          </Animated.View>
+        </LinearGradient>
+      </Animated.View>
 
       {nfcInitialized && !nfcSupported && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
@@ -302,10 +325,15 @@ function NFCScannerScreenContent() {
         </BlurView>
       )}
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
       >
         <View style={styles.scannerContainer}>
           <View style={[styles.scannerCircle, (isScanning || isWriting) && styles.scannerCircleActive]}>
@@ -467,7 +495,7 @@ function NFCScannerScreenContent() {
             </Text>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -481,13 +509,21 @@ export default function NFCScannerScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerContainer: {
+    overflow: 'hidden',
+  },
   header: {
+    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 40,
     alignItems: 'center',
+    justifyContent: 'center',
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
+  },
+  headerContent: {
+    alignItems: 'center',
   },
   headerIcon: {
     width: 80,
@@ -651,6 +687,7 @@ const styles = StyleSheet.create({
   instructions: {
     paddingHorizontal: 16,
     marginTop: 'auto',
+    paddingBottom: 40,
   },
   instructionsTitle: {
     fontSize: 18,
