@@ -54,7 +54,9 @@ function CamperProfileContent() {
   const [camper, setCamper] = useState<CamperProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const camperId = params.id as string;
+  // Get the camper ID from params - handle both string and array cases
+  const camperId = Array.isArray(params.id) ? params.id[0] : params.id;
+  
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
@@ -83,6 +85,12 @@ function CamperProfileContent() {
   };
 
   const loadCamperProfile = useCallback(async () => {
+    if (!camperId) {
+      console.error('No camper ID provided');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       console.log('Loading camper profile for ID:', camperId);
       setIsLoading(true);
@@ -179,13 +187,8 @@ function CamperProfileContent() {
   }, [camperId, canViewMedical]);
 
   useEffect(() => {
-    if (camperId) {
-      loadCamperProfile();
-    } else {
-      console.error('No camper ID provided');
-      setIsLoading(false);
-    }
-  }, [camperId, loadCamperProfile]);
+    loadCamperProfile();
+  }, [loadCamperProfile]);
 
   const handleBack = useCallback(() => {
     try {
@@ -225,6 +228,9 @@ function CamperProfileContent() {
         />
         <Text style={[commonStyles.text, { marginTop: 16, fontSize: 18, fontWeight: '600' }]}>
           Camper not found
+        </Text>
+        <Text style={[commonStyles.textSecondary, { marginTop: 8, textAlign: 'center', paddingHorizontal: 32 }]}>
+          The camper you're looking for could not be found. They may have been removed from the system.
         </Text>
         <TouchableOpacity
           style={[commonStyles.button, { marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 }]}

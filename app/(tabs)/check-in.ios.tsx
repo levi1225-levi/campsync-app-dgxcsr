@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
+  Animated,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -32,6 +33,10 @@ interface CamperData {
   wristband_id: string | null;
 }
 
+const HEADER_MAX_HEIGHT = 200;
+const HEADER_MIN_HEIGHT = 0;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+
 function CheckInScreenContent() {
   const { hasPermission } = useAuth();
   const insets = useSafeAreaInsets();
@@ -45,6 +50,20 @@ function CheckInScreenContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCamper, setSelectedCamper] = useState<CamperData | null>(null);
   const [scannedData, setScannedData] = useState<any>(null);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+    extrapolate: 'clamp',
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
+    outputRange: [1, 0.5, 0],
+    extrapolate: 'clamp',
+  });
 
   const canCheckIn = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
@@ -138,88 +157,6 @@ function CheckInScreenContent() {
     };
   }, [searchQuery]);
 
-  const handleScanWristband = useCallback(async () => {
-    if (!canCheckIn) {
-      Alert.alert('Access Denied', 'You do not have permission to scan wristbands.');
-      return;
-    }
-
-    if (!nfcSupported || !nfcEnabled) {
-      Alert.alert('NFC Not Available', 'NFC is not available on this device.');
-      return;
-    }
-
-    console.log('User tapped Scan Wristband button');
-    setIsScanning(true);
-    setScannedData(null);
-
-    try {
-      await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('NFC technology requested');
-
-      const tag = await NfcManager.getTag();
-      console.log('NFC Tag detected:', JSON.stringify(tag, null, 2));
-
-      if (tag && tag.ndefMessage && tag.ndefMessage.length > 0) {
-        try {
-          const ndefRecord = tag.ndefMessage[0];
-          const encryptedPayload = Ndef.text.decodePayload(ndefRecord.payload);
-          console.log('Encrypted payload read from wristband');
-
-          const decryptedData = await decryptWristbandData(encryptedPayload);
-
-          if (decryptedData) {
-            console.log('Wristband data decrypted successfully:', decryptedData.id);
-            console.log('Wristband lock status:', decryptedData.isLocked ? 'LOCKED' : 'UNLOCKED');
-            
-            setScannedData(decryptedData);
-
-            const { data: camperData, error } = await supabase
-              .from('campers')
-              .select('*')
-              .eq('id', decryptedData.id)
-              .single();
-
-            if (error || !camperData) {
-              Alert.alert('Error', 'Camper not found in database');
-              return;
-            }
-
-            setSelectedCamper(camperData);
-            
-            const lockStatus = decryptedData.isLocked ? '🔒 Locked & Secure' : '⚠️ Unlocked';
-            Alert.alert(
-              'Wristband Scanned',
-              `${decryptedData.firstName} ${decryptedData.lastName}\nStatus: ${decryptedData.checkInStatus}\n${lockStatus}`,
-              [{ text: 'OK' }]
-            );
-          } else {
-            Alert.alert('Invalid Wristband', 'Could not decrypt wristband data. The wristband may be corrupted or tampered with.');
-          }
-        } catch (decryptError) {
-          console.error('Error decrypting wristband data:', decryptError);
-          Alert.alert('Decryption Error', 'Failed to decrypt wristband data.');
-        }
-      } else {
-        Alert.alert('Empty Wristband', 'This wristband has not been programmed yet.');
-      }
-    } catch (error: any) {
-      console.error('NFC scan error:', error);
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
-      
-      if (!errorMessage.includes('cancelled') && !errorMessage.includes('cancel')) {
-        Alert.alert('Scan Error', 'Failed to read wristband. Please try again.');
-      }
-    } finally {
-      setIsScanning(false);
-      try {
-        await NfcManager.cancelTechnologyRequest();
-      } catch (cancelError) {
-        console.error('Error cancelling NFC request:', cancelError);
-      }
-    }
-  }, [canCheckIn, nfcSupported, nfcEnabled]);
-
   const handleCheckIn = useCallback(async (camper: CamperData) => {
     console.log('User tapped Check In button for camper:', camper.id);
 
@@ -241,7 +178,11 @@ function CheckInScreenContent() {
       Alert.alert(
         'Check-In Successful',
         `${camper.first_name} ${camper.last_name} has been checked in to camp.`,
-        [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
       );
     } catch (error) {
       console.error('Error in handleCheckIn:', error);
@@ -281,7 +222,11 @@ function CheckInScreenContent() {
               Alert.alert(
                 'Check-Out Successful',
                 `${camper.first_name} ${camper.last_name} has been checked out. Please erase their wristband to factory settings.`,
-                [{ text: 'OK', onPress: () => setSelectedCamper(null) }]
+                [{ text: 'OK', onPress: () => {
+                  setSelectedCamper(null);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}]
               );
             } catch (error) {
               console.error('Error in handleCheckOut:', error);
@@ -295,25 +240,27 @@ function CheckInScreenContent() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={['#6366F1', '#8B5CF6', '#EC4899']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerIcon}>
-          <IconSymbol
-            ios_icon_name="checkmark.circle.fill"
-            android_material_icon_name="check-circle"
-            size={40}
-            color="#FFFFFF"
-          />
-        </View>
-        <Text style={styles.headerTitle}>Check-In & Check-Out</Text>
-        <Text style={styles.headerSubtitle}>
-          Manage camper arrivals and departures
-        </Text>
-      </LinearGradient>
+      <Animated.View style={[styles.headerContainer, { height: headerHeight, opacity: headerOpacity }]}>
+        <LinearGradient
+          colors={['#6366F1', '#8B5CF6', '#EC4899']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerIcon}>
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check-circle"
+              size={40}
+              color="#FFFFFF"
+            />
+          </View>
+          <Text style={styles.headerTitle}>Check-In & Check-Out</Text>
+          <Text style={styles.headerSubtitle}>
+            Manage camper arrivals and departures
+          </Text>
+        </LinearGradient>
+      </Animated.View>
 
       {nfcInitialized && !nfcSupported && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
@@ -339,10 +286,15 @@ function CheckInScreenContent() {
         </BlurView>
       )}
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
       >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Find Camper</Text>
@@ -544,7 +496,7 @@ function CheckInScreenContent() {
             </View>
           </GlassCard>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -558,7 +510,11 @@ export default function CheckInScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerContainer: {
+    overflow: 'hidden',
+  },
   header: {
+    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 40,
