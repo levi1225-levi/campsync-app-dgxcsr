@@ -1,203 +1,232 @@
 
 import { supabase } from '@/app/integrations/supabase/client';
-import { 
-  AuthorizationCode, 
-  AuthorizationCodeValidationResult,
-  CreateAuthorizationCodeParams,
-  AuthorizationCodeRole
-} from '@/types/authorizationCode';
+import { AuthorizationCode, AuthorizationCodeRole } from '@/types/authorizationCode';
 
 /**
- * Validates an authorization code
- * Returns validation result with role and linked camper IDs if valid
- */
-export async function validateAuthorizationCode(
-  code: string
-): Promise<AuthorizationCodeValidationResult> {
-  try {
-    console.log('Validating authorization code:', code);
-
-    const { data, error } = await supabase.rpc('validate_authorization_code', {
-      p_code: code
-    });
-
-    if (error) {
-      console.error('Error validating authorization code:', error);
-      return {
-        valid: false,
-        error: 'Failed to validate code'
-      };
-    }
-
-    console.log('Validation result:', data);
-    return data as AuthorizationCodeValidationResult;
-  } catch (error) {
-    console.error('Exception validating authorization code:', error);
-    return {
-      valid: false,
-      error: 'An error occurred while validating the code'
-    };
-  }
-}
-
-/**
- * Increments the usage count of an authorization code atomically
- */
-export async function incrementCodeUsage(codeId: string): Promise<void> {
-  try {
-    console.log('Incrementing code usage for:', codeId);
-
-    const { error } = await supabase.rpc('increment_code_usage', {
-      p_code_id: codeId
-    });
-
-    if (error) {
-      console.error('Error incrementing code usage:', error);
-      throw new Error('Failed to increment code usage');
-    }
-
-    console.log('Code usage incremented successfully');
-  } catch (error) {
-    console.error('Exception incrementing code usage:', error);
-    throw error;
-  }
-}
-
-/**
- * Creates a new authorization code
- * Only accessible to super-admin and camp-admin roles
- */
-export async function createAuthorizationCode(
-  params: CreateAuthorizationCodeParams
-): Promise<AuthorizationCode | null> {
-  try {
-    console.log('Creating authorization code:', params);
-
-    // Generate a unique code
-    const code = generateUniqueCode(params.role);
-
-    const { data, error } = await supabase
-      .from('authorization_codes')
-      .insert({
-        code,
-        role: params.role,
-        is_active: true,
-        expires_at: params.expires_at?.toISOString() || null,
-        max_uses: params.max_uses || null,
-        linked_camper_ids: params.linked_camper_ids || [],
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating authorization code:', error);
-      return null;
-    }
-
-    console.log('Authorization code created:', data);
-    return data as AuthorizationCode;
-  } catch (error) {
-    console.error('Exception creating authorization code:', error);
-    return null;
-  }
-}
-
-/**
- * Generates a unique authorization code based on role
- */
-function generateUniqueCode(role: AuthorizationCodeRole): string {
-  const prefix = role.toUpperCase().replace('-', '_');
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `${prefix}_${timestamp}_${random}`;
-}
-
-/**
- * Lists all authorization codes (admin only)
+ * List all authorization codes
  */
 export async function listAuthorizationCodes(): Promise<AuthorizationCode[]> {
+  console.log('Fetching all authorization codes using RPC...');
+  
   try {
+    // Try using RPC function first (bypasses RLS)
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_all_authorization_codes');
+
+    if (!rpcError && rpcData) {
+      console.log('Successfully fetched authorization codes via RPC:', rpcData.length);
+      return rpcData;
+    }
+
+    console.log('RPC failed, falling back to direct query:', rpcError);
+
+    // Fallback to direct query
     const { data, error } = await supabase
       .from('authorization_codes')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error listing authorization codes:', error);
-      return [];
+      console.error('Error fetching authorization codes:', error);
+      throw error;
     }
 
-    return data as AuthorizationCode[];
+    console.log('Successfully fetched authorization codes via direct query:', data?.length || 0);
+    return data || [];
   } catch (error) {
-    console.error('Exception listing authorization codes:', error);
+    console.error('Error in listAuthorizationCodes:', error);
     return [];
   }
 }
 
 /**
- * Deactivates an authorization code
+ * Create a new authorization code
  */
-export async function deactivateAuthorizationCode(codeId: string): Promise<boolean> {
+export async function createAuthorizationCode(params: {
+  role: AuthorizationCodeRole;
+  max_uses?: number;
+  expires_at?: Date;
+  linked_camper_ids?: string[];
+}): Promise<AuthorizationCode | null> {
+  console.log('Creating authorization code with params:', params);
+
   try {
-    const { error } = await supabase
+    // Generate a unique code
+    const code = generateAuthorizationCode(params.role);
+    console.log('Generated code:', code);
+
+    const insertData: any = {
+      code,
+      role: params.role,
+      is_active: true,
+      used_count: 0,
+      linked_camper_ids: params.linked_camper_ids || [],
+    };
+
+    if (params.max_uses) {
+      insertData.max_uses = params.max_uses;
+    }
+
+    if (params.expires_at) {
+      insertData.expires_at = params.expires_at.toISOString();
+    }
+
+    console.log('Inserting authorization code:', insertData);
+
+    const { data, error } = await supabase
       .from('authorization_codes')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', codeId);
+      .insert(insertData)
+      .select()
+      .single();
 
     if (error) {
-      console.error('Error deactivating authorization code:', error);
+      console.error('Error creating authorization code:', error);
+      throw error;
+    }
+
+    console.log('Authorization code created successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in createAuthorizationCode:', error);
+    return null;
+  }
+}
+
+/**
+ * Validate an authorization code
+ */
+export async function validateAuthorizationCode(
+  code: string
+): Promise<{ valid: boolean; code?: AuthorizationCode; error?: string }> {
+  console.log('Validating authorization code:', code);
+
+  try {
+    const { data, error } = await supabase
+      .from('authorization_codes')
+      .select('*')
+      .eq('code', code)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error validating code:', error);
+      return { valid: false, error: 'Failed to validate code' };
+    }
+
+    if (!data) {
+      console.log('Code not found or inactive');
+      return { valid: false, error: 'Invalid or inactive code' };
+    }
+
+    // Check if code has expired
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      console.log('Code has expired');
+      return { valid: false, error: 'Code has expired' };
+    }
+
+    // Check if code has reached max uses
+    if (data.max_uses && data.used_count >= data.max_uses) {
+      console.log('Code has reached maximum uses');
+      return { valid: false, error: 'Code has reached maximum uses' };
+    }
+
+    console.log('Code is valid:', data);
+    return { valid: true, code: data };
+  } catch (error) {
+    console.error('Error in validateAuthorizationCode:', error);
+    return { valid: false, error: 'An error occurred while validating the code' };
+  }
+}
+
+/**
+ * Increment the usage count of an authorization code
+ */
+export async function incrementCodeUsage(codeId: string): Promise<boolean> {
+  console.log('Incrementing usage count for code:', codeId);
+
+  try {
+    const { error } = await supabase.rpc('increment_code_usage', {
+      code_id: codeId,
+    });
+
+    if (error) {
+      console.error('Error incrementing code usage:', error);
       return false;
     }
 
-    console.log('Authorization code deactivated:', codeId);
+    console.log('Code usage incremented successfully');
     return true;
   } catch (error) {
-    console.error('Exception deactivating authorization code:', error);
+    console.error('Error in incrementCodeUsage:', error);
     return false;
   }
 }
 
 /**
- * Generates a parent invitation code for specific campers
- * Automatically expires in 30 days and is single-use
+ * Deactivate an authorization code
  */
-export async function generateParentInvitationCode(
-  camperIds: string[]
-): Promise<AuthorizationCode | null> {
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
+export async function deactivateAuthorizationCode(codeId: string): Promise<boolean> {
+  console.log('Deactivating authorization code:', codeId);
 
-  return createAuthorizationCode({
-    role: 'parent',
-    expires_at: expiresAt,
-    max_uses: 1,
-    linked_camper_ids: camperIds,
-  });
+  try {
+    const { error } = await supabase
+      .from('authorization_codes')
+      .update({ is_active: false })
+      .eq('id', codeId);
+
+    if (error) {
+      console.error('Error deactivating code:', error);
+      return false;
+    }
+
+    console.log('Code deactivated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error in deactivateAuthorizationCode:', error);
+    return false;
+  }
 }
 
 /**
- * Finds campers linked to a parent by email (emergency contacts)
- * Used for email-based auto-matching during parent registration
+ * Find campers linked to a parent's email via authorization codes
  */
 export async function findCampersByParentEmail(email: string): Promise<string[]> {
-  try {
-    console.log('Finding campers by parent email:', email);
+  console.log('Finding campers for parent email:', email);
 
-    const { data, error } = await supabase
-      .from('emergency_contacts')
-      .select('camper_id')
-      .eq('email', email.toLowerCase());
+  try {
+    // Find all codes used by this email
+    const { data: codes, error } = await supabase
+      .from('authorization_codes')
+      .select('linked_camper_ids')
+      .eq('role', 'parent');
 
     if (error) {
-      console.error('Error finding campers by email:', error);
+      console.error('Error finding codes:', error);
       return [];
     }
 
-    const camperIds = data.map(contact => contact.camper_id);
-    console.log('Found campers:', camperIds);
-    return camperIds;
+    // Collect all unique camper IDs
+    const camperIds = new Set<string>();
+    codes?.forEach((code) => {
+      if (code.linked_camper_ids) {
+        code.linked_camper_ids.forEach((id: string) => camperIds.add(id));
+      }
+    });
+
+    console.log('Found camper IDs:', Array.from(camperIds));
+    return Array.from(camperIds);
   } catch (error) {
-    console.error('Exception finding campers by email:', error);
+    console.error('Error in findCampersByParentEmail:', error);
     return [];
   }
+}
+
+/**
+ * Generate a unique authorization code
+ */
+function generateAuthorizationCode(role: AuthorizationCodeRole): string {
+  const prefix = role.toUpperCase().replace('-', '_');
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `${prefix}_${timestamp}_${random}`;
 }

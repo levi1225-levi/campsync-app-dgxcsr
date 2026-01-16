@@ -43,9 +43,23 @@ function UserManagementContent() {
 
   const loadUsers = async () => {
     try {
-      console.log('Loading all users...');
+      console.log('Loading all users using RPC...');
       setIsLoading(true);
       
+      // Try using RPC function first (bypasses RLS)
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_all_user_profiles');
+
+      if (!rpcError && rpcData) {
+        console.log('Successfully loaded users via RPC:', rpcData.length);
+        setUsers(rpcData);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('RPC failed, falling back to direct query:', rpcError);
+
+      // Fallback to direct query
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -57,7 +71,7 @@ function UserManagementContent() {
         return;
       }
 
-      console.log('Loaded users:', data?.length);
+      console.log('Loaded users via direct query:', data?.length);
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);

@@ -9,7 +9,6 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
-  Animated,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -33,10 +32,6 @@ interface CamperData {
   wristband_id: string | null;
 }
 
-const HEADER_MAX_HEIGHT = 200;
-const HEADER_MIN_HEIGHT = 0;
-const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
-
 function CheckInScreenContent() {
   const { hasPermission } = useAuth();
   const insets = useSafeAreaInsets();
@@ -50,20 +45,6 @@ function CheckInScreenContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCamper, setSelectedCamper] = useState<CamperData | null>(null);
   const [scannedData, setScannedData] = useState<any>(null);
-
-  const scrollY = useRef(new Animated.Value(0)).current;
-
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE],
-    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-    extrapolate: 'clamp',
-  });
-
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
-    outputRange: [1, 0.5, 0],
-    extrapolate: 'clamp',
-  });
 
   const canCheckIn = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
@@ -240,7 +221,8 @@ function CheckInScreenContent() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      <Animated.View style={[styles.headerContainer, { height: headerHeight, opacity: headerOpacity }]}>
+      {/* Fixed Header */}
+      <View style={styles.headerContainer}>
         <LinearGradient
           colors={['#6366F1', '#8B5CF6', '#EC4899']}
           start={{ x: 0, y: 0 }}
@@ -260,7 +242,7 @@ function CheckInScreenContent() {
             Manage camper arrivals and departures
           </Text>
         </LinearGradient>
-      </Animated.View>
+      </View>
 
       {nfcInitialized && !nfcSupported && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
@@ -286,15 +268,10 @@ function CheckInScreenContent() {
         </BlurView>
       )}
 
-      <Animated.ScrollView
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
       >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Find Camper</Text>
@@ -496,7 +473,7 @@ function CheckInScreenContent() {
             </View>
           </GlassCard>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 }
@@ -514,7 +491,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 40,

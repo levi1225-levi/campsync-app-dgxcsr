@@ -81,15 +81,27 @@ export default function CreateCamperScreen() {
       });
 
       // Get the first camp (since this is a single-camp system)
+      // Use maybeSingle() instead of single() to handle no results gracefully
       const { data: camps, error: campsError } = await supabase
         .from('camps')
         .select('id')
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (campsError || !camps) {
-        console.error('No camp found:', campsError);
-        throw new Error('No camp found. Please create a camp first.');
+      if (campsError) {
+        console.error('Error fetching camp:', campsError);
+        throw new Error('Failed to fetch camp information. Please try again.');
+      }
+
+      if (!camps) {
+        console.error('No camp found in database');
+        Alert.alert(
+          'No Camp Found',
+          'No camp exists in the system. Please contact an administrator to create a camp first.',
+          [{ text: 'OK' }]
+        );
+        setLoading(false);
+        return;
       }
 
       console.log('Found camp:', camps.id);
