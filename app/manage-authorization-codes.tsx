@@ -32,6 +32,7 @@ export default function ManageAuthorizationCodesScreen() {
   const [selectedRole, setSelectedRole] = useState<AuthorizationCodeRole>('staff');
   const [maxUses, setMaxUses] = useState('');
   const [expiryDays, setExpiryDays] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     loadCodes();
@@ -42,7 +43,7 @@ export default function ManageAuthorizationCodesScreen() {
     setIsLoading(true);
     try {
       const data = await listAuthorizationCodes();
-      console.log('Loaded authorization codes:', data.length);
+      console.log('Loaded authorization codes:', data.length, 'codes');
       setCodes(data);
     } catch (error) {
       console.error('Error loading codes:', error);
@@ -53,6 +54,9 @@ export default function ManageAuthorizationCodesScreen() {
   };
 
   const handleCreateCode = async () => {
+    console.log('User tapped Generate Code button');
+    setIsCreating(true);
+    
     try {
       const params: any = {
         role: selectedRole,
@@ -68,20 +72,25 @@ export default function ManageAuthorizationCodesScreen() {
         params.expires_at = expiresAt;
       }
 
+      console.log('Creating authorization code with params:', params);
       const newCode = await createAuthorizationCode(params);
 
       if (newCode) {
+        console.log('Authorization code created successfully:', newCode.code);
         Alert.alert('Success', `Authorization code created: ${newCode.code}`);
         setShowCreateForm(false);
         setMaxUses('');
         setExpiryDays('');
         loadCodes();
       } else {
-        Alert.alert('Error', 'Failed to create authorization code');
+        console.error('Failed to create authorization code - returned null');
+        Alert.alert('Error', 'Failed to create authorization code. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating code:', error);
-      Alert.alert('Error', 'An error occurred while creating the code');
+      Alert.alert('Error', `An error occurred: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -121,7 +130,7 @@ export default function ManageAuthorizationCodesScreen() {
   // Check permissions
   if (!hasPermission(['super-admin', 'camp-admin'])) {
     return (
-      <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+      <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton} 
@@ -155,7 +164,7 @@ export default function ManageAuthorizationCodesScreen() {
   }
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+    <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -241,8 +250,13 @@ export default function ManageAuthorizationCodesScreen() {
             <TouchableOpacity
               style={[buttonStyles.primary, { marginTop: 16 }]}
               onPress={handleCreateCode}
+              disabled={isCreating}
             >
-              <Text style={buttonStyles.text}>Generate Code</Text>
+              {isCreating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={buttonStyles.text}>Generate Code</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -350,8 +364,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingVertical: 16,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,

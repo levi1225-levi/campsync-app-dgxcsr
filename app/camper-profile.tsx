@@ -84,10 +84,10 @@ function CamperProfileContent() {
 
   const loadCamperProfile = useCallback(async () => {
     try {
-      console.log('Loading camper profile:', camperId);
+      console.log('Loading camper profile for ID:', camperId);
       setIsLoading(true);
 
-      // Load camper basic info - use maybeSingle() instead of single() to avoid error
+      // Load camper basic info - use maybeSingle() to avoid error if not found
       const { data: camperData, error: camperError } = await supabase
         .from('campers')
         .select('*')
@@ -96,14 +96,15 @@ function CamperProfileContent() {
 
       if (camperError) {
         console.error('Error loading camper:', camperError);
-        throw camperError;
+        throw new Error(`Failed to load camper: ${camperError.message}`);
       }
 
       if (!camperData) {
+        console.error('Camper not found with ID:', camperId);
         throw new Error('Camper not found');
       }
 
-      console.log('Camper data loaded:', camperData);
+      console.log('Camper data loaded successfully:', camperData.first_name, camperData.last_name);
 
       // Load session name separately if session_id exists
       let sessionName = null;
@@ -133,7 +134,7 @@ function CamperProfileContent() {
           console.error('Error loading medical info:', medicalError);
         } else if (medicalData) {
           medicalInfo = medicalData;
-          console.log('Medical info loaded');
+          console.log('Medical info loaded successfully');
         }
       }
 
@@ -204,7 +205,7 @@ function CamperProfileContent() {
 
   if (isLoading) {
     return (
-      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
           Loading camper profile...
@@ -215,7 +216,7 @@ function CamperProfileContent() {
 
   if (!camper) {
     return (
-      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
         <IconSymbol
           ios_icon_name="exclamationmark.triangle.fill"
           android_material_icon_name="warning"
@@ -237,7 +238,7 @@ function CamperProfileContent() {
   }
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
+    <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
       {/* Header with Gradient */}
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}

@@ -40,7 +40,6 @@ function CampersScreenContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scrollY, setScrollY] = useState(0);
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
@@ -89,6 +88,7 @@ function CampersScreenContent() {
       const filtered = campers.filter(camper =>
         `${camper.first_name} ${camper.last_name}`.toLowerCase().includes(query)
       );
+      console.log('Filtered campers:', filtered.length, 'results for query:', searchQuery);
       setFilteredCampers(filtered);
     }
   }, [searchQuery, campers]);
@@ -124,7 +124,7 @@ function CampersScreenContent() {
 
   const handleViewFullProfile = useCallback((camper: Camper) => {
     try {
-      console.log('Navigating to camper profile:', camper.id);
+      console.log('User tapped View Full Profile for camper:', camper.id);
       router.push(`/camper-profile?id=${camper.id}`);
     } catch (error) {
       console.error('Navigation error:', error);
@@ -142,7 +142,7 @@ function CampersScreenContent() {
 
   const handleCreateCamper = useCallback(() => {
     try {
-      console.log('Navigating to create camper');
+      console.log('User tapped Create Camper button');
       router.push('/create-camper');
     } catch (error) {
       console.error('Navigation error:', error);
@@ -151,20 +151,13 @@ function CampersScreenContent() {
   }, [router]);
 
   const handleClearSearch = useCallback(() => {
+    console.log('User cleared search');
     setSearchQuery('');
   }, []);
 
   const handleToggleCamper = useCallback((camper: Camper) => {
     setSelectedCamper(prev => prev?.id === camper.id ? null : camper);
   }, []);
-
-  const handleScroll = (event: any) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
-    setScrollY(currentScrollY);
-  };
-
-  const headerHeight = Math.max(0, 120 - scrollY);
-  const headerOpacity = Math.max(0, 1 - scrollY / 100);
 
   if (loading) {
     return (
@@ -177,20 +170,18 @@ function CampersScreenContent() {
 
   return (
     <View style={[commonStyles.container, styles.container]}>
-      {/* Collapsible Header with Gradient */}
-      {headerHeight > 0 && (
-        <LinearGradient
-          colors={[colors.primary, colors.primaryDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { height: headerHeight, opacity: headerOpacity }]}
-        >
-          <Text style={styles.headerTitle}>Campers</Text>
-          <Text style={styles.headerSubtitle}>
-            {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
-          </Text>
-        </LinearGradient>
-      )}
+      {/* Fixed Header with Gradient */}
+      <LinearGradient
+        colors={[colors.primary, colors.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <Text style={styles.headerTitle}>Campers</Text>
+        <Text style={styles.headerSubtitle}>
+          {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
+        </Text>
+      </LinearGradient>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -205,7 +196,10 @@ function CampersScreenContent() {
           placeholder="Search by name..."
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={(text) => {
+            console.log('User searching for:', text);
+            setSearchQuery(text);
+          }}
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity 
@@ -263,8 +257,6 @@ function CampersScreenContent() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -399,7 +391,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    overflow: 'hidden',
   },
   headerTitle: {
     fontSize: 32,
@@ -424,7 +415,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     gap: 12,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
     borderWidth: 1,
     borderColor: colors.border,
@@ -447,7 +441,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     gap: 8,
-    boxShadow: '0px 4px 12px rgba(99, 102, 241, 0.3)',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 4,
   },
   addButtonText: {
@@ -552,7 +549,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     gap: 8,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 2,
   },
   actionButtonText: {
