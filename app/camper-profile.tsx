@@ -53,6 +53,7 @@ function CamperProfileContent() {
   const { hasPermission } = useAuth();
   const [camper, setCamper] = useState<CamperProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Get the camper ID from params - handle both string and array cases
   const camperId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -84,112 +85,123 @@ function CamperProfileContent() {
     }
   };
 
-  const loadCamperProfile = useCallback(async () => {
-    if (!camperId) {
-      console.error('No camper ID provided in params:', params);
-      Alert.alert('Error', 'No camper ID provided');
-      setIsLoading(false);
-      return;
-    }
+  // Load camper profile - removed params from dependencies to prevent infinite loop
+  useEffect(() => {
+    let isMounted = true;
 
-    try {
-      console.log('Loading camper profile for ID:', camperId);
-      setIsLoading(true);
-
-      // First, try to get the camper using RPC function to bypass RLS
-      const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
-      
-      if (rpcError) {
-        console.error('Error loading campers via RPC:', rpcError);
-        throw new Error(`Failed to load campers: ${rpcError.message}`);
+    const loadCamperProfile = async () => {
+      if (!camperId) {
+        console.error('No camper ID provided in params:', params);
+        setError('No camper ID provided');
+        setIsLoading(false);
+        return;
       }
 
-      // Find the specific camper from the list
-      const camperData = allCampers?.find((c: any) => c.id === camperId);
+      try {
+        console.log('Loading camper profile for ID:', camperId);
+        setIsLoading(true);
+        setError(null);
 
-      if (!camperData) {
-        console.error('Camper not found with ID:', camperId);
-        console.log('Available campers:', allCampers?.map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
-        throw new Error('Camper not found');
-      }
-
-      console.log('Camper data loaded successfully:', camperData.first_name, camperData.last_name);
-
-      // Load session name separately if session_id exists
-      let sessionName = null;
-      if (camperData.session_id) {
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('sessions')
-          .select('name')
-          .eq('id', camperData.session_id)
-          .maybeSingle();
+        // First, try to get the camper using RPC function to bypass RLS
+        const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
         
-        if (!sessionError && sessionData) {
-          sessionName = sessionData.name;
-          console.log('Session name loaded:', sessionName);
+        if (rpcError) {
+          console.error('Error loading campers via RPC:', rpcError);
+          throw new Error(`Failed to load campers: ${rpcError.message}`);
         }
-      }
 
-      // Load medical info if permitted
-      let medicalInfo = null;
-      if (canViewMedical) {
-        const { data: medicalData, error: medicalError } = await supabase
-          .from('camper_medical_info')
+        // Find the specific camper from the list
+        const camperData = allCampers?.find((c: any) => c.id === camperId);
+
+        if (!camperData) {
+          console.error('Camper not found with ID:', camperId);
+          console.log('Available campers:', allCampers?.map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
+          throw new Error('Camper not found');
+        }
+
+        if (!isMounted) return;
+
+        console.log('Camper data loaded successfully:', camperData.first_name, camperData.last_name);
+
+        // Load session name separately if session_id exists
+        let sessionName = null;
+        if (camperData.session_id) {
+          const { data: sessionData, error: sessionError } = await supabase
+            .from('sessions')
+            .select('name')
+            .eq('id', camperData.session_id)
+            .maybeSingle();
+          
+          if (!sessionError && sessionData) {
+            sessionName = sessionData.name;
+            console.log('Session name loaded:', sessionName);
+          }
+        }
+
+        // Load medical info if permitted
+        let medicalInfo = null;
+        if (canViewMedical) {
+          const { data: medicalData, error: medicalError } = await supabase
+            .from('camper_medical_info')
+            .select('*')
+            .eq('camper_id', camperId)
+            .maybeSingle();
+          
+          if (medicalError) {
+            console.error('Error loading medical info:', medicalError);
+          } else if (medicalData) {
+            medicalInfo = medicalData;
+            console.log('Medical info loaded successfully');
+          }
+        }
+
+        // Load emergency contacts
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('emergency_contacts')
           .select('*')
           .eq('camper_id', camperId)
-          .maybeSingle();
-        
-        if (medicalError) {
-          console.error('Error loading medical info:', medicalError);
-        } else if (medicalData) {
-          medicalInfo = medicalData;
-          console.log('Medical info loaded successfully');
+          .order('priority_order');
+
+        if (contactsError) {
+          console.error('Error loading emergency contacts:', contactsError);
+        }
+
+        if (!isMounted) return;
+
+        const profile: CamperProfile = {
+          id: camperData.id,
+          first_name: camperData.first_name,
+          last_name: camperData.last_name,
+          date_of_birth: camperData.date_of_birth,
+          registration_status: camperData.registration_status || 'pending',
+          wristband_id: camperData.wristband_id,
+          check_in_status: camperData.check_in_status,
+          last_check_in: camperData.last_check_in || null,
+          last_check_out: camperData.last_check_out || null,
+          session_id: camperData.session_id,
+          session_name: sessionName,
+          medical_info: medicalInfo,
+          emergency_contacts: contactsData || [],
+        };
+
+        console.log('Profile assembled successfully');
+        setCamper(profile);
+        setIsLoading(false);
+      } catch (error: any) {
+        console.error('Error loading camper profile:', error);
+        if (isMounted) {
+          setError(error?.message || 'Failed to load camper profile');
+          setIsLoading(false);
         }
       }
+    };
 
-      // Load emergency contacts
-      const { data: contactsData, error: contactsError } = await supabase
-        .from('emergency_contacts')
-        .select('*')
-        .eq('camper_id', camperId)
-        .order('priority_order');
-
-      if (contactsError) {
-        console.error('Error loading emergency contacts:', contactsError);
-      }
-
-      const profile: CamperProfile = {
-        id: camperData.id,
-        first_name: camperData.first_name,
-        last_name: camperData.last_name,
-        date_of_birth: camperData.date_of_birth,
-        registration_status: camperData.registration_status || 'pending',
-        wristband_id: camperData.wristband_id,
-        check_in_status: camperData.check_in_status,
-        last_check_in: camperData.last_check_in || null,
-        last_check_out: camperData.last_check_out || null,
-        session_id: camperData.session_id,
-        session_name: sessionName,
-        medical_info: medicalInfo,
-        emergency_contacts: contactsData || [],
-      };
-
-      console.log('Profile assembled successfully');
-      setCamper(profile);
-    } catch (error: any) {
-      console.error('Error loading camper profile:', error);
-      Alert.alert(
-        'Error', 
-        error?.message || 'Failed to load camper profile. Please try again.'
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [camperId, canViewMedical, params]);
-
-  useEffect(() => {
     loadCamperProfile();
-  }, [loadCamperProfile]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [camperId, canViewMedical]); // Only depend on camperId and canViewMedical, NOT params
 
   const handleBack = useCallback(() => {
     try {
@@ -218,7 +230,7 @@ function CamperProfileContent() {
     );
   }
 
-  if (!camper) {
+  if (error || !camper) {
     return (
       <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
         <IconSymbol
@@ -228,10 +240,10 @@ function CamperProfileContent() {
           color={colors.error}
         />
         <Text style={[commonStyles.text, { marginTop: 16, fontSize: 18, fontWeight: '600' }]}>
-          Camper not found
+          {error || 'Camper not found'}
         </Text>
         <Text style={[commonStyles.textSecondary, { marginTop: 8, textAlign: 'center', paddingHorizontal: 32 }]}>
-          The camper you're looking for could not be found. They may have been removed from the system.
+          {error ? 'Please try again or contact support if the problem persists.' : 'The camper you\'re looking for could not be found. They may have been removed from the system.'}
         </Text>
         <TouchableOpacity
           style={[commonStyles.button, { marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 }]}

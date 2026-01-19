@@ -156,13 +156,16 @@ function CheckInScreenContent() {
   const writeNFCTag = useCallback(async (camper: CamperData) => {
     console.log('Starting NFC write for camper:', camper.id);
     setIsProgramming(true);
+    let nfcWriteSuccess = false;
 
     try {
       // Request NFC technology
+      console.log('Requesting NFC technology...');
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested successfully');
 
       // Encrypt the camper data
+      console.log('Encrypting camper data...');
       const encryptedData = await encryptWristbandData({
         id: camper.id,
         firstName: camper.first_name,
@@ -171,111 +174,172 @@ function CheckInScreenContent() {
         checkInStatus: 'checked-in',
         sessionId: camper.session_id || undefined,
       });
-
-      console.log('Camper data encrypted, writing to NFC tag...');
+      console.log('Camper data encrypted successfully');
 
       // Create NDEF message
+      console.log('Creating NDEF message...');
       const bytes = Ndef.encodeMessage([Ndef.textRecord(encryptedData)]);
 
-      if (bytes) {
-        await NfcManager.ndefHandler.writeNdefMessage(bytes);
-        console.log('NFC tag written successfully');
-
-        // Generate wristband ID from tag
-        const tag = await NfcManager.getTag();
-        const wristbandId = tag?.id || `WB-${Date.now()}`;
-
-        // Update database with wristband ID
-        const { error } = await supabase
-          .from('campers')
-          .update({
-            check_in_status: 'checked-in',
-            last_check_in: new Date().toISOString(),
-            wristband_id: wristbandId,
-            wristband_assigned: true,
-          })
-          .eq('id', camper.id);
-
-        if (error) {
-          console.error('Error updating camper in database:', error);
-          throw error;
-        }
-
-        Alert.alert(
-          'Check-In Successful! ✅',
-          `${camper.first_name} ${camper.last_name} has been checked in and their wristband has been programmed.\n\nWristband ID: ${wristbandId}`,
-          [{ text: 'OK', onPress: () => {
-            setSelectedCamper(null);
-            setSearchQuery('');
-            setSearchResults([]);
-          }}]
-        );
+      if (!bytes) {
+        throw new Error('Failed to encode NDEF message');
       }
-    } catch (error: any) {
-      console.error('Error writing NFC tag:', error);
+
+      console.log('Writing NDEF message to NFC tag...');
+      await NfcManager.ndefHandler.writeNdefMessage(bytes);
+      console.log('NFC tag written successfully');
+      nfcWriteSuccess = true;
+
+      // Generate wristband ID from tag
+      console.log('Getting tag ID...');
+      const tag = await NfcManager.getTag();
+      const wristbandId = tag?.id || `WB-${Date.now()}`;
+      console.log('Wristband ID:', wristbandId);
+
+      // Update database with wristband ID
+      console.log('Updating database...');
+      const { error: dbError } = await supabase
+        .from('campers')
+        .update({
+          check_in_status: 'checked-in',
+          last_check_in: new Date().toISOString(),
+          wristband_id: wristbandId,
+          wristband_assigned: true,
+        })
+        .eq('id', camper.id);
+
+      if (dbError) {
+        console.error('Database update error:', dbError);
+        throw new Error(`Database update failed: ${dbError.message}`);
+      }
+
+      console.log('Database updated successfully');
+
       Alert.alert(
-        'NFC Write Failed',
-        'Failed to write to wristband. Please try again or check if the wristband is writable.',
+        'Check-In Successful! ✅',
+        `${camper.first_name} ${camper.last_name} has been checked in and their wristband has been programmed.\n\nWristband ID: ${wristbandId}`,
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
+      );
+    } catch (error: any) {
+      console.error('Error in writeNFCTag:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      let errorMessage = 'Failed to write to wristband. ';
+      
+      if (error.message?.includes('Database')) {
+        errorMessage += 'The wristband was programmed but the database update failed. Please try again.';
+      } else if (error.message?.includes('User canceled')) {
+        errorMessage = 'NFC scan was canceled. Please try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+      } else if (nfcWriteSuccess) {
+        errorMessage = 'The wristband was programmed successfully but there was an issue updating the database. Please contact support.';
+      } else {
+        errorMessage += 'Please make sure the wristband is writable and try again.';
+      }
+      
+      Alert.alert(
+        'Check-In Failed',
+        errorMessage,
         [{ text: 'OK' }]
       );
     } finally {
       setIsProgramming(false);
-      await NfcManager.cancelTechnologyRequest();
+      try {
+        await NfcManager.cancelTechnologyRequest();
+        console.log('NFC technology request canceled');
+      } catch (cleanupError) {
+        console.error('Error canceling NFC request:', cleanupError);
+      }
     }
   }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
     console.log('Starting NFC erase for camper:', camper.id);
     setIsProgramming(true);
+    let nfcEraseSuccess = false;
 
     try {
       // Request NFC technology
+      console.log('Requesting NFC technology for erase...');
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested for erase');
 
       // Write empty NDEF message to erase
+      console.log('Creating empty NDEF message...');
       const emptyBytes = Ndef.encodeMessage([Ndef.textRecord('')]);
 
-      if (emptyBytes) {
-        await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
-        console.log('NFC tag erased successfully');
-
-        // Update database
-        const { error } = await supabase
-          .from('campers')
-          .update({
-            check_in_status: 'checked-out',
-            last_check_out: new Date().toISOString(),
-            wristband_id: null,
-            wristband_assigned: false,
-          })
-          .eq('id', camper.id);
-
-        if (error) {
-          console.error('Error updating camper in database:', error);
-          throw error;
-        }
-
-        Alert.alert(
-          'Check-Out Successful! ✅',
-          `${camper.first_name} ${camper.last_name} has been checked out and their wristband has been erased to factory settings.`,
-          [{ text: 'OK', onPress: () => {
-            setSelectedCamper(null);
-            setSearchQuery('');
-            setSearchResults([]);
-          }}]
-        );
+      if (!emptyBytes) {
+        throw new Error('Failed to encode empty NDEF message');
       }
-    } catch (error: any) {
-      console.error('Error erasing NFC tag:', error);
+
+      console.log('Writing empty NDEF message to erase tag...');
+      await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
+      console.log('NFC tag erased successfully');
+      nfcEraseSuccess = true;
+
+      // Update database
+      console.log('Updating database for check-out...');
+      const { error: dbError } = await supabase
+        .from('campers')
+        .update({
+          check_in_status: 'checked-out',
+          last_check_out: new Date().toISOString(),
+          wristband_id: null,
+          wristband_assigned: false,
+        })
+        .eq('id', camper.id);
+
+      if (dbError) {
+        console.error('Database update error:', dbError);
+        throw new Error(`Database update failed: ${dbError.message}`);
+      }
+
+      console.log('Database updated successfully for check-out');
+
       Alert.alert(
-        'NFC Erase Failed',
-        'Failed to erase wristband. Please try again or manually erase the wristband.',
+        'Check-Out Successful! ✅',
+        `${camper.first_name} ${camper.last_name} has been checked out and their wristband has been erased to factory settings.`,
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
+      );
+    } catch (error: any) {
+      console.error('Error in eraseNFCTag:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      let errorMessage = 'Failed to erase wristband. ';
+      
+      if (error.message?.includes('Database')) {
+        errorMessage += 'The wristband was erased but the database update failed. Please try again.';
+      } else if (error.message?.includes('User canceled')) {
+        errorMessage = 'NFC scan was canceled. Please try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+      } else if (nfcEraseSuccess) {
+        errorMessage = 'The wristband was erased successfully but there was an issue updating the database. Please contact support.';
+      } else {
+        errorMessage += 'Please make sure the wristband is writable and try again.';
+      }
+      
+      Alert.alert(
+        'Check-Out Failed',
+        errorMessage,
         [{ text: 'OK' }]
       );
     } finally {
       setIsProgramming(false);
-      await NfcManager.cancelTechnologyRequest();
+      try {
+        await NfcManager.cancelTechnologyRequest();
+        console.log('NFC technology request canceled');
+      } catch (cleanupError) {
+        console.error('Error canceling NFC request:', cleanupError);
+      }
     }
   }, []);
 
