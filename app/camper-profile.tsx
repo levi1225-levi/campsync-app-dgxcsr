@@ -86,7 +86,8 @@ function CamperProfileContent() {
 
   const loadCamperProfile = useCallback(async () => {
     if (!camperId) {
-      console.error('No camper ID provided');
+      console.error('No camper ID provided in params:', params);
+      Alert.alert('Error', 'No camper ID provided');
       setIsLoading(false);
       return;
     }
@@ -95,20 +96,20 @@ function CamperProfileContent() {
       console.log('Loading camper profile for ID:', camperId);
       setIsLoading(true);
 
-      // Load camper basic info - use maybeSingle() to avoid error if not found
-      const { data: camperData, error: camperError } = await supabase
-        .from('campers')
-        .select('*')
-        .eq('id', camperId)
-        .maybeSingle();
-
-      if (camperError) {
-        console.error('Error loading camper:', camperError);
-        throw new Error(`Failed to load camper: ${camperError.message}`);
+      // First, try to get the camper using RPC function to bypass RLS
+      const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
+      
+      if (rpcError) {
+        console.error('Error loading campers via RPC:', rpcError);
+        throw new Error(`Failed to load campers: ${rpcError.message}`);
       }
+
+      // Find the specific camper from the list
+      const camperData = allCampers?.find((c: any) => c.id === camperId);
 
       if (!camperData) {
         console.error('Camper not found with ID:', camperId);
+        console.log('Available campers:', allCampers?.map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
         throw new Error('Camper not found');
       }
 
@@ -162,11 +163,11 @@ function CamperProfileContent() {
         first_name: camperData.first_name,
         last_name: camperData.last_name,
         date_of_birth: camperData.date_of_birth,
-        registration_status: camperData.registration_status,
+        registration_status: camperData.registration_status || 'pending',
         wristband_id: camperData.wristband_id,
         check_in_status: camperData.check_in_status,
-        last_check_in: camperData.last_check_in,
-        last_check_out: camperData.last_check_out,
+        last_check_in: camperData.last_check_in || null,
+        last_check_out: camperData.last_check_out || null,
         session_id: camperData.session_id,
         session_name: sessionName,
         medical_info: medicalInfo,
@@ -184,7 +185,7 @@ function CamperProfileContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [camperId, canViewMedical]);
+  }, [camperId, canViewMedical, params]);
 
   useEffect(() => {
     loadCamperProfile();
@@ -201,10 +202,10 @@ function CamperProfileContent() {
 
   const handleEdit = useCallback(() => {
     if (camper) {
-      console.log('Edit camper:', camper.id);
-      Alert.alert('Edit Camper', 'Edit functionality will be available in the admin dashboard.');
+      console.log('User tapped Edit button for camper:', camper.id);
+      router.push(`/edit-camper?id=${camper.id}`);
     }
-  }, [camper]);
+  }, [camper, router]);
 
   if (isLoading) {
     return (

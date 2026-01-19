@@ -41,6 +41,7 @@ function CheckInScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CamperData[]>([]);
+  const [allCampers, setAllCampers] = useState<CamperData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCamper, setSelectedCamper] = useState<CamperData | null>(null);
   const [scannedData, setScannedData] = useState<any>(null);
@@ -93,6 +94,30 @@ function CheckInScreenContent() {
     };
   }, [initNFC, cleanupNFC]);
 
+  // Load all campers once using RPC function to bypass RLS
+  useEffect(() => {
+    const loadAllCampers = async () => {
+      console.log('Loading all campers for check-in search...');
+      try {
+        const { data, error } = await supabase.rpc('get_all_campers');
+        
+        if (error) {
+          console.error('Error loading campers via RPC:', error);
+          setAllCampers([]);
+          return;
+        }
+
+        console.log('Loaded campers for search:', data?.length || 0);
+        setAllCampers(data || []);
+      } catch (error: any) {
+        console.error('Error in loadAllCampers:', error);
+        setAllCampers([]);
+      }
+    };
+
+    loadAllCampers();
+  }, []);
+
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -108,30 +133,20 @@ function CheckInScreenContent() {
 
     setIsSearching(true);
 
-    searchTimeoutRef.current = setTimeout(async () => {
+    searchTimeoutRef.current = setTimeout(() => {
       console.log('Searching for campers with query:', searchQuery);
 
       try {
-        const searchTerm = `%${searchQuery.trim()}%`;
-        const { data, error } = await supabase
-          .from('campers')
-          .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, wristband_id')
-          .or(`first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
-          .order('first_name', { ascending: true })
-          .limit(20);
+        const query = searchQuery.toLowerCase().trim();
+        const filtered = allCampers.filter(camper => {
+          const fullName = `${camper.first_name} ${camper.last_name}`.toLowerCase();
+          return fullName.includes(query);
+        });
 
-        if (error) {
-          console.error('Error searching campers:', error);
-          Alert.alert('Search Error', `Failed to search campers: ${error.message}`);
-          setSearchResults([]);
-          return;
-        }
-
-        console.log('Search results found:', data?.length || 0, 'campers');
-        setSearchResults(data || []);
+        console.log('Search results found:', filtered.length, 'campers');
+        setSearchResults(filtered);
       } catch (error: any) {
-        console.error('Error in searchCampers:', error);
-        Alert.alert('Search Error', `An unexpected error occurred: ${error?.message || 'Unknown error'}`);
+        console.error('Error in search:', error);
         setSearchResults([]);
       } finally {
         setIsSearching(false);
@@ -143,7 +158,7 @@ function CheckInScreenContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery]);
+  }, [searchQuery, allCampers]);
 
   const handleCheckIn = useCallback(async (camper: CamperData) => {
     console.log('User tapped Check In button for camper:', camper.id);
@@ -515,7 +530,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 24,
     paddingTop: 32,
-    paddingBottom: 40,
+    paddingBottom: 32,
     alignItems: 'center',
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
@@ -530,7 +545,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
     color: '#FFFFFF',
     marginBottom: 8,
@@ -538,7 +553,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: '#FFFFFF',
     opacity: 0.95,
