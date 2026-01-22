@@ -214,13 +214,21 @@ function CheckInScreenContent() {
   };
 
   const writeNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check In - starting NFC write immediately for camper:', camper.id);
+    console.log('User tapped Check In - starting NFC session IMMEDIATELY for iOS:', camper.id);
     setIsProgramming(true);
     let nfcWriteSuccess = false;
 
     try {
-      // Fetch comprehensive data including medical info FIRST
-      console.log('Fetching comprehensive camper data...');
+      // 🚨 CRITICAL FIX FOR iOS: Request NFC technology FIRST, IMMEDIATELY in response to user tap
+      // iOS requires the NFC session to start synchronously, not after async operations
+      console.log('🔵 iOS: Requesting NFC technology FIRST - this triggers the iOS NFC prompt');
+      await NfcManager.requestTechnology(NfcTech.Ndef, {
+        alertMessage: `Hold wristband near device to check in ${camper.first_name} ${camper.last_name}`,
+      });
+      console.log('✅ iOS NFC prompt should now be visible - NFC session started');
+
+      // NOW fetch comprehensive data including medical info AFTER NFC session is active
+      console.log('Fetching comprehensive camper data while NFC session is active...');
       const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
       
       if (!comprehensiveData) {
@@ -231,13 +239,6 @@ function CheckInScreenContent() {
       console.log('Encrypting comprehensive camper data...');
       const encryptedData = await encryptWristbandData(comprehensiveData);
       console.log('Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
-
-      // Request NFC technology - THIS MUST HAPPEN IMMEDIATELY
-      console.log('Requesting NFC technology - hold wristband near device...');
-      await NfcManager.requestTechnology(NfcTech.Ndef, {
-        alertMessage: `Hold wristband near device to check in ${camper.first_name} ${camper.last_name}`,
-      });
-      console.log('NFC technology requested successfully');
 
       // Create NDEF message
       console.log('Creating NDEF message...');
@@ -330,17 +331,17 @@ function CheckInScreenContent() {
   }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check Out - starting NFC erase immediately for camper:', camper.id);
+    console.log('User tapped Check Out - starting NFC session IMMEDIATELY for iOS:', camper.id);
     setIsProgramming(true);
     let nfcEraseSuccess = false;
 
     try {
-      // Request NFC technology - THIS MUST HAPPEN IMMEDIATELY
-      console.log('Requesting NFC technology for erase - hold wristband near device...');
+      // 🚨 CRITICAL FIX FOR iOS: Request NFC technology FIRST, IMMEDIATELY
+      console.log('🔵 iOS: Requesting NFC technology FIRST for erase - this triggers the iOS NFC prompt');
       await NfcManager.requestTechnology(NfcTech.Ndef, {
         alertMessage: `Hold wristband near device to check out ${camper.first_name} ${camper.last_name}`,
       });
-      console.log('NFC technology requested for erase');
+      console.log('✅ iOS NFC prompt should now be visible for erase - NFC session started');
 
       // Write empty NDEF message to erase
       console.log('Creating empty NDEF message...');
