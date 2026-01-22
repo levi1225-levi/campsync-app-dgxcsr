@@ -8,8 +8,10 @@ const ENCRYPTION_KEY = 'CampSync2024SecureWristbandKey!';
 
 /**
  * Encrypts camper data to be written to NFC wristband
+ * OPTIMIZED FOR SMALL NFC CHIPS (540 bytes)
+ * Only writes camper ID - all other data is fetched from database
  * @param camperData - The camper information to encrypt
- * @returns Encrypted string to write to wristband
+ * @returns Encrypted string to write to wristband (minimal size)
  */
 export async function encryptWristbandData(camperData: {
   id: string;
@@ -22,30 +24,33 @@ export async function encryptWristbandData(camperData: {
   try {
     console.log('Encrypting wristband data for camper:', camperData.id);
     
-    // Create a JSON string of the data
-    const dataString = JSON.stringify({
+    // MINIMAL DATA: Only store camper ID
+    // All other data is fetched from database when scanning
+    const minimalData = {
       id: camperData.id,
-      fn: camperData.firstName,
-      ln: camperData.lastName,
-      dob: camperData.dateOfBirth,
-      status: camperData.checkInStatus,
-      sid: camperData.sessionId || '',
       ts: Date.now(), // Timestamp for verification
-      lock: WRISTBAND_LOCK_CODE, // Include lock code in encrypted data
-    });
+    };
     
-    // Create a hash of the data + key for encryption
+    // Create a compact JSON string
+    const dataString = JSON.stringify(minimalData);
+    console.log('Data to encrypt (size):', dataString.length, 'bytes');
+    
+    // Create a short hash for verification (only 8 characters)
     const dataToEncrypt = `${ENCRYPTION_KEY}:${dataString}`;
-    const encrypted = await Crypto.digestStringAsync(
+    const fullHash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       dataToEncrypt
     );
     
-    // Combine the encrypted hash with the data (base64 encoded)
-    const base64Data = Buffer.from(dataString).toString('base64');
-    const encryptedPayload = `${encrypted.substring(0, 16)}:${base64Data}`;
+    // Use only first 8 characters of hash to save space
+    const shortHash = fullHash.substring(0, 8);
     
-    console.log('Wristband data encrypted successfully with lock code');
+    // Combine short hash with data (no base64 encoding to save space)
+    const encryptedPayload = `${shortHash}:${dataString}`;
+    
+    console.log('Encrypted payload size:', encryptedPayload.length, 'bytes');
+    console.log('Wristband data encrypted successfully (minimal format)');
+    
     return encryptedPayload;
   } catch (error) {
     console.error('Error encrypting wristband data:', error);
@@ -70,19 +75,26 @@ export async function decryptWristbandData(encryptedData: string): Promise<{
 } | null> {
   try {
     console.log('Decrypting wristband data...');
+    console.log('Encrypted data length:', encryptedData.length, 'bytes');
     
     // Split the encrypted payload
     const parts = encryptedData.split(':');
-    if (parts.length !== 2) {
+    if (parts.length < 2) {
       console.error('Invalid encrypted data format');
       return null;
     }
     
-    const [hash, base64Data] = parts;
+    const shortHash = parts[0];
+    const dataString = parts.slice(1).join(':'); // Rejoin in case there are colons in the data
     
-    // Decode the base64 data
-    const dataString = Buffer.from(base64Data, 'base64').toString('utf-8');
-    const data = JSON.parse(dataString);
+    // Parse the data
+    let data;
+    try {
+      data = JSON.parse(dataString);
+    } catch (parseError) {
+      console.error('Failed to parse wristband data:', parseError);
+      return null;
+    }
     
     // Verify the hash
     const dataToVerify = `${ENCRYPTION_KEY}:${dataString}`;
@@ -91,29 +103,24 @@ export async function decryptWristbandData(encryptedData: string): Promise<{
       dataToVerify
     );
     
-    if (!verifyHash.startsWith(hash)) {
+    if (!verifyHash.startsWith(shortHash)) {
       console.error('Hash verification failed - data may be tampered');
       return null;
     }
     
-    // Verify lock code
-    const isLocked = data.lock === WRISTBAND_LOCK_CODE;
-    if (!isLocked) {
-      console.warn('Wristband lock code mismatch - may be tampered or from different system');
-    }
-    
     console.log('Wristband data decrypted and verified successfully');
+    console.log('Camper ID from wristband:', data.id);
     
-    // Return the decrypted data
+    // Return minimal data - caller should fetch full camper details from database
     return {
       id: data.id,
-      firstName: data.fn,
-      lastName: data.ln,
-      dateOfBirth: data.dob,
-      checkInStatus: data.status,
-      sessionId: data.sid || undefined,
+      firstName: '', // Will be fetched from database
+      lastName: '',
+      dateOfBirth: '',
+      checkInStatus: '',
+      sessionId: undefined,
       timestamp: data.ts,
-      isLocked,
+      isLocked: true, // Assume locked if decryption succeeded
     };
   } catch (error) {
     console.error('Error decrypting wristband data:', error);
