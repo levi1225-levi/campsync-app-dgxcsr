@@ -157,38 +157,28 @@ function CheckInScreenContent() {
 
   const fetchComprehensiveCamperData = async (camperId: string): Promise<WristbandCamperData | null> => {
     try {
-      console.log('Fetching comprehensive camper data for NFC write:', camperId);
+      console.log('Fetching comprehensive camper data for NFC write using RPC:', camperId);
       
-      // Fetch camper basic info
-      const { data: camperData, error: camperError } = await supabase
-        .from('campers')
-        .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, swim_level, cabin_assignment')
-        .eq('id', camperId)
-        .single();
+      // Use RPC function to bypass RLS and get all data in one call
+      const { data, error } = await supabase
+        .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
       
-      if (camperError || !camperData) {
-        console.error('Error fetching camper data:', camperError);
+      if (error) {
+        console.error('Error fetching comprehensive camper data via RPC:', error);
         return null;
       }
       
-      // Fetch medical info
-      const { data: medicalData, error: medicalError } = await supabase
-        .from('camper_medical_info')
-        .select('allergies, medications')
-        .eq('camper_id', camperId)
-        .maybeSingle();
-      
-      if (medicalError) {
-        console.error('Error fetching medical data:', medicalError);
+      if (!data || data.length === 0) {
+        console.error('No camper data returned from RPC');
+        return null;
       }
       
-      const allergiesList = medicalData?.allergies || [];
-      const medicationsList = medicalData?.medications || [];
+      const camperData = data[0];
       
-      const allergiesArray = Array.isArray(allergiesList) ? allergiesList : [];
-      const medicationsArray = Array.isArray(medicationsList) ? medicationsList : [];
+      const allergiesArray = Array.isArray(camperData.allergies) ? camperData.allergies : [];
+      const medicationsArray = Array.isArray(camperData.medications) ? camperData.medications : [];
       
-      console.log('Comprehensive data fetched:');
+      console.log('Comprehensive data fetched via RPC:');
       console.log('- Name:', camperData.first_name, camperData.last_name);
       console.log('- Allergies:', allergiesArray.length);
       console.log('- Medications:', medicationsArray.length);

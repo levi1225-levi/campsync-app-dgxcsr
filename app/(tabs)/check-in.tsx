@@ -156,38 +156,28 @@ function CheckInScreenContent() {
 
   const fetchComprehensiveCamperData = async (camperId: string): Promise<WristbandCamperData | null> => {
     try {
-      console.log('Fetching comprehensive camper data for NFC write:', camperId);
+      console.log('Fetching comprehensive camper data for NFC write using RPC:', camperId);
       
-      // Fetch camper basic info
-      const { data: camperData, error: camperError } = await supabase
-        .from('campers')
-        .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, swim_level, cabin_assignment')
-        .eq('id', camperId)
-        .single();
+      // Use RPC function to bypass RLS and get all data in one call
+      const { data, error } = await supabase
+        .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
       
-      if (camperError || !camperData) {
-        console.error('Error fetching camper data:', camperError);
+      if (error) {
+        console.error('Error fetching comprehensive camper data via RPC:', error);
         return null;
       }
       
-      // Fetch medical info
-      const { data: medicalData, error: medicalError } = await supabase
-        .from('camper_medical_info')
-        .select('allergies, medications')
-        .eq('camper_id', camperId)
-        .maybeSingle();
-      
-      if (medicalError) {
-        console.error('Error fetching medical data:', medicalError);
+      if (!data || data.length === 0) {
+        console.error('No camper data returned from RPC');
+        return null;
       }
       
-      const allergiesList = medicalData?.allergies || [];
-      const medicationsList = medicalData?.medications || [];
+      const camperData = data[0];
       
-      const allergiesArray = Array.isArray(allergiesList) ? allergiesList : [];
-      const medicationsArray = Array.isArray(medicationsList) ? medicationsList : [];
+      const allergiesArray = Array.isArray(camperData.allergies) ? camperData.allergies : [];
+      const medicationsArray = Array.isArray(camperData.medications) ? camperData.medications : [];
       
-      console.log('Comprehensive data fetched:');
+      console.log('Comprehensive data fetched via RPC:');
       console.log('- Name:', camperData.first_name, camperData.last_name);
       console.log('- Allergies:', allergiesArray.length);
       console.log('- Medications:', medicationsArray.length);
@@ -218,8 +208,7 @@ function CheckInScreenContent() {
     let nfcWriteSuccess = false;
 
     try {
-      // 🚨 CRITICAL FIX: Fetch and prepare ALL data BEFORE starting NFC session
-      // This prevents timeout issues during the NFC write operation
+      // Fetch and prepare ALL data BEFORE starting NFC session
       console.log('Step 1: Fetching comprehensive camper data BEFORE NFC session...');
       const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
       
@@ -250,10 +239,8 @@ function CheckInScreenContent() {
 
       // NOW start NFC session with data ready to write immediately
       console.log('Step 4: Starting NFC session NOW with data ready to write');
-      await NfcManager.requestTechnology(NfcTech.Ndef, {
-        alertMessage: `Hold wristband near device to check in ${camper.first_name} ${camper.last_name}`,
-      });
-      console.log('NFC session started - writing data immediately...');
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log('✅ NFC session started - writing data immediately...');
 
       // Write immediately while tag is detected
       console.log('Step 5: Writing NDEF message to NFC tag...');
@@ -347,17 +334,14 @@ function CheckInScreenContent() {
   }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check Out - starting NFC erase immediately for camper:', camper.id);
+    console.log('User tapped Check Out - starting NFC session:', camper.id);
     setIsProgramming(true);
     let nfcEraseSuccess = false;
 
     try {
-      // Request NFC technology - THIS MUST HAPPEN IMMEDIATELY
-      console.log('Requesting NFC technology for erase - hold wristband near device...');
-      await NfcManager.requestTechnology(NfcTech.Ndef, {
-        alertMessage: `Hold wristband near device to check out ${camper.first_name} ${camper.last_name}`,
-      });
-      console.log('NFC technology requested for erase');
+      console.log('Requesting NFC technology for erase');
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log('✅ NFC session started for erase');
 
       // Write empty NDEF message to erase
       console.log('Creating empty NDEF message...');
@@ -479,7 +463,7 @@ function CheckInScreenContent() {
 
   return (
     <View style={commonStyles.container}>
-      {/* Header and rest of UI - same as iOS version */}
+      {/* Fixed Header */}
       <View style={styles.headerContainer}>
         <LinearGradient
           colors={['#6366F1', '#8B5CF6', '#EC4899']}
@@ -503,7 +487,7 @@ function CheckInScreenContent() {
       </View>
 
       {nfcInitialized && !nfcSupported && (
-        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
+        <View style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
             android_material_icon_name="error"
@@ -511,11 +495,11 @@ function CheckInScreenContent() {
             color="#FFFFFF"
           />
           <Text style={styles.statusText}>NFC not supported on this device</Text>
-        </BlurView>
+        </View>
       )}
 
       {nfcInitialized && nfcSupported && nfcEnabled && (
-        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
+        <View style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
           <IconSymbol
             ios_icon_name="checkmark.shield.fill"
             android_material_icon_name="verified-user"
@@ -523,14 +507,14 @@ function CheckInScreenContent() {
             color="#FFFFFF"
           />
           <Text style={styles.statusText}>🔒 NFC Ready - Full Offline Mode</Text>
-        </BlurView>
+        </View>
       )}
 
       {isProgramming && (
-        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(99, 102, 241, 0.9)' }]}>
+        <View style={[styles.statusBanner, { backgroundColor: 'rgba(99, 102, 241, 0.9)' }]}>
           <ActivityIndicator size="small" color="#FFFFFF" />
           <Text style={styles.statusText}>Hold wristband near device...</Text>
-        </BlurView>
+        </View>
       )}
 
       <ScrollView
