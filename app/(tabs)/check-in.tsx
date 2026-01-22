@@ -213,13 +213,14 @@ function CheckInScreenContent() {
   };
 
   const writeNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check In - starting NFC write immediately for camper:', camper.id);
+    console.log('User tapped Check In - FETCHING DATA FIRST before NFC session:', camper.id);
     setIsProgramming(true);
     let nfcWriteSuccess = false;
 
     try {
-      // Fetch comprehensive data including medical info FIRST
-      console.log('Fetching comprehensive camper data...');
+      // 🚨 CRITICAL FIX: Fetch and prepare ALL data BEFORE starting NFC session
+      // This prevents timeout issues during the NFC write operation
+      console.log('Step 1: Fetching comprehensive camper data BEFORE NFC session...');
       const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
       
       if (!comprehensiveData) {
@@ -227,38 +228,51 @@ function CheckInScreenContent() {
       }
       
       // Encrypt the comprehensive camper data
-      console.log('Encrypting comprehensive camper data...');
+      console.log('Step 2: Encrypting comprehensive camper data...');
       const encryptedData = await encryptWristbandData(comprehensiveData);
       console.log('Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
 
-      // Request NFC technology - THIS MUST HAPPEN IMMEDIATELY
-      console.log('Requesting NFC technology - hold wristband near device...');
-      await NfcManager.requestTechnology(NfcTech.Ndef, {
-        alertMessage: `Hold wristband near device to check in ${camper.first_name} ${camper.last_name}`,
-      });
-      console.log('NFC technology requested successfully');
+      // Verify data size is within NFC chip capacity (540 bytes)
+      if (encryptedData.length > 500) {
+        console.warn('⚠️ WARNING: Encrypted data is', encryptedData.length, 'bytes - may be too large for 540 byte chip');
+        throw new Error(`Data too large (${encryptedData.length} bytes). Maximum is 500 bytes for reliable writing.`);
+      }
 
-      // Create NDEF message
-      console.log('Creating NDEF message...');
+      // Create NDEF message BEFORE starting NFC session
+      console.log('Step 3: Creating NDEF message...');
       const bytes = Ndef.encodeMessage([Ndef.textRecord(encryptedData)]);
 
       if (!bytes) {
         throw new Error('Failed to encode NDEF message');
       }
 
-      console.log('Writing NDEF message to NFC tag...');
+      console.log('NDEF message created, total size:', bytes.length, 'bytes');
+
+      // NOW start NFC session with data ready to write immediately
+      console.log('Step 4: Starting NFC session NOW with data ready to write');
+      await NfcManager.requestTechnology(NfcTech.Ndef, {
+        alertMessage: `Hold wristband near device to check in ${camper.first_name} ${camper.last_name}`,
+      });
+      console.log('NFC session started - writing data immediately...');
+
+      // Write immediately while tag is detected
+      console.log('Step 5: Writing NDEF message to NFC tag...');
       await NfcManager.ndefHandler.writeNdefMessage(bytes);
-      console.log('NFC tag written successfully with offline data');
+      console.log('✅ NFC tag written successfully with offline data');
       nfcWriteSuccess = true;
 
       // Generate wristband ID from tag
-      console.log('Getting tag ID...');
+      console.log('Step 6: Getting tag ID...');
       const tag = await NfcManager.getTag();
       const wristbandId = tag?.id || `WB-${Date.now()}`;
       console.log('Wristband ID:', wristbandId);
 
+      // Cancel NFC session before database update
+      await NfcManager.cancelTechnologyRequest();
+      console.log('NFC session closed');
+
       // Update database with wristband ID
-      console.log('Updating database...');
+      console.log('Step 7: Updating database...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -274,7 +288,7 @@ function CheckInScreenContent() {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      console.log('Database updated successfully');
+      console.log('✅ Database updated successfully');
 
       const offlineDataSummary = `
 ✅ Offline Data Written:
@@ -295,21 +309,25 @@ function CheckInScreenContent() {
         }}]
       );
     } catch (error: any) {
-      console.error('Error in writeNFCTag:', error);
+      console.error('❌ Error in writeNFCTag:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
       
       let errorMessage = 'Failed to write to wristband. ';
       
-      if (error.message?.includes('Database')) {
+      if (error.message?.includes('too large')) {
+        errorMessage = error.message + '\n\nTry reducing the amount of medical information or use shorter descriptions.';
+      } else if (error.message?.includes('Database')) {
         errorMessage += 'The wristband was programmed but the database update failed. Please try again.';
       } else if (error.message?.includes('User canceled') || error.message?.includes('cancelled')) {
         errorMessage = 'NFC scan was canceled. Please try again.';
       } else if (error.message?.includes('timeout')) {
-        errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+        errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device and hold it steady.';
+      } else if (error.message?.includes('not writable') || error.message?.includes('write protection')) {
+        errorMessage = 'This wristband is write-protected or locked. Please use a new, writable wristband.';
       } else if (nfcWriteSuccess) {
         errorMessage = 'The wristband was programmed successfully but there was an issue updating the database. Please contact support.';
       } else {
-        errorMessage += 'Please make sure the wristband is writable and try again.';
+        errorMessage += `Please make sure the wristband is writable and try again.\n\nError: ${error.message || 'Unknown error'}`;
       }
       
       Alert.alert(
@@ -321,7 +339,7 @@ function CheckInScreenContent() {
       setIsProgramming(false);
       try {
         await NfcManager.cancelTechnologyRequest();
-        console.log('NFC technology request canceled');
+        console.log('NFC cleanup complete');
       } catch (cleanupError) {
         console.error('Error canceling NFC request:', cleanupError);
       }
