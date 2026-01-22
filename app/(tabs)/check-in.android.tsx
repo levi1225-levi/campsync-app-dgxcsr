@@ -60,11 +60,7 @@ function CheckInScreenContent() {
       if (supported) {
         await NfcManager.start();
         console.log('NFC manager started');
-        
-        const enabled = await NfcManager.isEnabled();
-        console.log('NFC enabled on Android:', enabled);
-        setNfcEnabled(enabled);
-        
+        setNfcEnabled(true);
         setNfcInitialized(true);
       } else {
         setNfcInitialized(true);
@@ -216,137 +212,202 @@ function CheckInScreenContent() {
   };
 
   const writeNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('Starting NFC write for camper:', camper.id);
+    console.log('User tapped Check In - starting NFC write immediately for camper:', camper.id);
     setIsProgramming(true);
+    let nfcWriteSuccess = false;
 
     try {
-      // Fetch comprehensive data including medical info
+      // Fetch comprehensive data including medical info FIRST
+      console.log('Fetching comprehensive camper data...');
       const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
       
       if (!comprehensiveData) {
         throw new Error('Failed to fetch comprehensive camper data');
       }
       
-      // Request NFC technology
+      // Encrypt the comprehensive camper data
+      console.log('Encrypting comprehensive camper data...');
+      const encryptedData = await encryptWristbandData(comprehensiveData);
+      console.log('Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
+
+      // Request NFC technology - THIS MUST HAPPEN IMMEDIATELY
+      console.log('Requesting NFC technology - hold wristband near device...');
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested successfully');
 
-      // Encrypt the comprehensive camper data
-      const encryptedData = await encryptWristbandData(comprehensiveData);
-
-      console.log('Camper data encrypted, writing to NFC tag...');
-
       // Create NDEF message
+      console.log('Creating NDEF message...');
       const bytes = Ndef.encodeMessage([Ndef.textRecord(encryptedData)]);
 
-      if (bytes) {
-        await NfcManager.ndefHandler.writeNdefMessage(bytes);
-        console.log('NFC tag written successfully with offline data');
+      if (!bytes) {
+        throw new Error('Failed to encode NDEF message');
+      }
 
-        // Generate wristband ID from tag
-        const tag = await NfcManager.getTag();
-        const wristbandId = tag?.id || `WB-${Date.now()}`;
+      console.log('Writing NDEF message to NFC tag...');
+      await NfcManager.ndefHandler.writeNdefMessage(bytes);
+      console.log('NFC tag written successfully with offline data');
+      nfcWriteSuccess = true;
 
-        // Update database with wristband ID
-        const { error } = await supabase
-          .from('campers')
-          .update({
-            check_in_status: 'checked-in',
-            last_check_in: new Date().toISOString(),
-            wristband_id: wristbandId,
-            wristband_assigned: true,
-          })
-          .eq('id', camper.id);
+      // Generate wristband ID from tag
+      console.log('Getting tag ID...');
+      const tag = await NfcManager.getTag();
+      const wristbandId = tag?.id || `WB-${Date.now()}`;
+      console.log('Wristband ID:', wristbandId);
 
-        if (error) {
-          console.error('Error updating camper in database:', error);
-          throw error;
-        }
+      // Update database with wristband ID
+      console.log('Updating database...');
+      const { error: dbError } = await supabase
+        .from('campers')
+        .update({
+          check_in_status: 'checked-in',
+          last_check_in: new Date().toISOString(),
+          wristband_id: wristbandId,
+          wristband_assigned: true,
+        })
+        .eq('id', camper.id);
 
-        const offlineDataSummary = `
+      if (dbError) {
+        console.error('Database update error:', dbError);
+        throw new Error(`Database update failed: ${dbError.message}`);
+      }
+
+      console.log('Database updated successfully');
+
+      const offlineDataSummary = `
 ✅ Offline Data Written:
 • Name: ${comprehensiveData.firstName} ${comprehensiveData.lastName}
 • Allergies: ${comprehensiveData.allergies.length > 0 ? comprehensiveData.allergies.join(', ') : 'None'}
 • Medications: ${comprehensiveData.medications.length > 0 ? comprehensiveData.medications.join(', ') : 'None'}
 • Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
 • Cabin: ${comprehensiveData.cabin || 'Not assigned'}
-        `.trim();
+      `.trim();
 
-        Alert.alert(
-          'Check-In Successful! ✅',
-          `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}\n\n${offlineDataSummary}`,
-          [{ text: 'OK', onPress: () => {
-            setSelectedCamper(null);
-            setSearchQuery('');
-            setSearchResults([]);
-          }}]
-        );
-      }
-    } catch (error: any) {
-      console.error('Error writing NFC tag:', error);
       Alert.alert(
-        'NFC Write Failed',
-        'Failed to write to wristband. Please try again or check if the wristband is writable.',
+        'Check-In Successful! ✅',
+        `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}\n\n${offlineDataSummary}`,
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
+      );
+    } catch (error: any) {
+      console.error('Error in writeNFCTag:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      let errorMessage = 'Failed to write to wristband. ';
+      
+      if (error.message?.includes('Database')) {
+        errorMessage += 'The wristband was programmed but the database update failed. Please try again.';
+      } else if (error.message?.includes('User canceled') || error.message?.includes('cancelled')) {
+        errorMessage = 'NFC scan was canceled. Please try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+      } else if (nfcWriteSuccess) {
+        errorMessage = 'The wristband was programmed successfully but there was an issue updating the database. Please contact support.';
+      } else {
+        errorMessage += 'Please make sure the wristband is writable and try again.';
+      }
+      
+      Alert.alert(
+        'Check-In Failed',
+        errorMessage,
         [{ text: 'OK' }]
       );
     } finally {
       setIsProgramming(false);
-      await NfcManager.cancelTechnologyRequest();
+      try {
+        await NfcManager.cancelTechnologyRequest();
+        console.log('NFC technology request canceled');
+      } catch (cleanupError) {
+        console.error('Error canceling NFC request:', cleanupError);
+      }
     }
   }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('Starting NFC erase for camper:', camper.id);
+    console.log('User tapped Check Out - starting NFC erase immediately for camper:', camper.id);
     setIsProgramming(true);
+    let nfcEraseSuccess = false;
 
     try {
-      // Request NFC technology
+      // Request NFC technology - THIS MUST HAPPEN IMMEDIATELY
+      console.log('Requesting NFC technology for erase - hold wristband near device...');
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested for erase');
 
       // Write empty NDEF message to erase
+      console.log('Creating empty NDEF message...');
       const emptyBytes = Ndef.encodeMessage([Ndef.textRecord('')]);
 
-      if (emptyBytes) {
-        await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
-        console.log('NFC tag erased successfully');
-
-        // Update database
-        const { error } = await supabase
-          .from('campers')
-          .update({
-            check_in_status: 'checked-out',
-            last_check_out: new Date().toISOString(),
-            wristband_id: null,
-            wristband_assigned: false,
-          })
-          .eq('id', camper.id);
-
-        if (error) {
-          console.error('Error updating camper in database:', error);
-          throw error;
-        }
-
-        Alert.alert(
-          'Check-Out Successful! ✅',
-          `${camper.first_name} ${camper.last_name} has been checked out and their wristband has been erased to factory settings.`,
-          [{ text: 'OK', onPress: () => {
-            setSelectedCamper(null);
-            setSearchQuery('');
-            setSearchResults([]);
-          }}]
-        );
+      if (!emptyBytes) {
+        throw new Error('Failed to encode empty NDEF message');
       }
-    } catch (error: any) {
-      console.error('Error erasing NFC tag:', error);
+
+      console.log('Writing empty NDEF message to erase tag...');
+      await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
+      console.log('NFC tag erased successfully');
+      nfcEraseSuccess = true;
+
+      // Update database
+      console.log('Updating database for check-out...');
+      const { error: dbError } = await supabase
+        .from('campers')
+        .update({
+          check_in_status: 'checked-out',
+          last_check_out: new Date().toISOString(),
+          wristband_id: null,
+          wristband_assigned: false,
+        })
+        .eq('id', camper.id);
+
+      if (dbError) {
+        console.error('Database update error:', dbError);
+        throw new Error(`Database update failed: ${dbError.message}`);
+      }
+
+      console.log('Database updated successfully for check-out');
+
       Alert.alert(
-        'NFC Erase Failed',
-        'Failed to erase wristband. Please try again or manually erase the wristband.',
+        'Check-Out Successful! ✅',
+        `${camper.first_name} ${camper.last_name} has been checked out and their wristband has been erased to factory settings.`,
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
+      );
+    } catch (error: any) {
+      console.error('Error in eraseNFCTag:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      
+      let errorMessage = 'Failed to erase wristband. ';
+      
+      if (error.message?.includes('Database')) {
+        errorMessage += 'The wristband was erased but the database update failed. Please try again.';
+      } else if (error.message?.includes('User canceled') || error.message?.includes('cancelled')) {
+        errorMessage = 'NFC scan was canceled. Please try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+      } else if (nfcEraseSuccess) {
+        errorMessage = 'The wristband was erased successfully but there was an issue updating the database. Please contact support.';
+      } else {
+        errorMessage += 'Please make sure the wristband is writable and try again.';
+      }
+      
+      Alert.alert(
+        'Check-Out Failed',
+        errorMessage,
         [{ text: 'OK' }]
       );
     } finally {
       setIsProgramming(false);
-      await NfcManager.cancelTechnologyRequest();
+      try {
+        await NfcManager.cancelTechnologyRequest();
+        console.log('NFC technology request canceled');
+      } catch (cleanupError) {
+        console.error('Error canceling NFC request:', cleanupError);
+      }
     }
   }, []);
 
@@ -362,17 +423,8 @@ function CheckInScreenContent() {
       return;
     }
 
-    Alert.alert(
-      'Ready to Program Wristband',
-      `Hold the wristband near your device to check in ${camper.first_name} ${camper.last_name}.\n\n📝 Wristband will include:\n• Name & DOB\n• Allergies & Medications\n• Swim Level\n• Cabin Assignment\n\nThis enables full offline access.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Scan Wristband',
-          onPress: () => writeNFCTag(camper),
-        },
-      ]
-    );
+    // Start NFC write IMMEDIATELY - no confirmation dialog
+    writeNFCTag(camper);
   }, [nfcSupported, nfcEnabled, writeNFCTag]);
 
   const handleCheckOut = useCallback(async (camper: CamperData) => {
@@ -387,13 +439,14 @@ function CheckInScreenContent() {
       return;
     }
 
+    // Show confirmation for check-out since it's destructive
     Alert.alert(
       'Check Out & Erase Wristband',
-      `Are you sure you want to check out ${camper.first_name} ${camper.last_name}?\n\nThis will erase their wristband data to factory settings. Hold the wristband near your device to proceed.`,
+      `Are you sure you want to check out ${camper.first_name} ${camper.last_name}?\n\nThis will erase their wristband data to factory settings.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Scan & Erase',
+          text: 'Check Out',
           style: 'destructive',
           onPress: () => eraseNFCTag(camper),
         },
@@ -402,7 +455,7 @@ function CheckInScreenContent() {
   }, [nfcSupported, nfcEnabled, eraseNFCTag]);
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
+    <View style={[commonStyles.container, { paddingTop: 48 }]}>
       {/* Fixed Header */}
       <View style={styles.headerContainer}>
         <LinearGradient
@@ -427,7 +480,7 @@ function CheckInScreenContent() {
       </View>
 
       {nfcInitialized && !nfcSupported && (
-        <View style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
+        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
           <IconSymbol
             ios_icon_name="exclamationmark.triangle.fill"
             android_material_icon_name="error"
@@ -435,23 +488,11 @@ function CheckInScreenContent() {
             color="#FFFFFF"
           />
           <Text style={styles.statusText}>NFC not supported on this device</Text>
-        </View>
-      )}
-
-      {nfcInitialized && nfcSupported && !nfcEnabled && (
-        <View style={[styles.statusBanner, { backgroundColor: 'rgba(245, 158, 11, 0.9)' }]}>
-          <IconSymbol
-            ios_icon_name="exclamationmark.triangle.fill"
-            android_material_icon_name="warning"
-            size={20}
-            color="#FFFFFF"
-          />
-          <Text style={styles.statusText}>NFC is disabled - Enable in settings</Text>
-        </View>
+        </BlurView>
       )}
 
       {nfcInitialized && nfcSupported && nfcEnabled && (
-        <View style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
+        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
           <IconSymbol
             ios_icon_name="checkmark.shield.fill"
             android_material_icon_name="verified-user"
@@ -459,14 +500,14 @@ function CheckInScreenContent() {
             color="#FFFFFF"
           />
           <Text style={styles.statusText}>🔒 NFC Ready - Full Offline Mode</Text>
-        </View>
+        </BlurView>
       )}
 
       {isProgramming && (
-        <View style={[styles.statusBanner, { backgroundColor: 'rgba(99, 102, 241, 0.9)' }]}>
+        <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(99, 102, 241, 0.9)' }]}>
           <ActivityIndicator size="small" color="#FFFFFF" />
           <Text style={styles.statusText}>Hold wristband near device...</Text>
-        </View>
+        </BlurView>
       )}
 
       <ScrollView
@@ -670,7 +711,7 @@ function CheckInScreenContent() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Check-Out & Wristband Erase</Text>
                 <Text style={styles.infoDescription}>
-                  When checking out a camper, you'll be prompted to hold their wristband near your device. The wristband will be erased to factory settings for the next camper.
+                  When checking out a camper, you&apos;ll be prompted to hold their wristband near your device. The wristband will be erased to factory settings for the next camper.
                 </Text>
               </View>
             </View>
@@ -690,15 +731,12 @@ export default function CheckInScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: 48,
-  },
   headerContainer: {
     overflow: 'hidden',
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 16,
     paddingBottom: 32,
     alignItems: 'center',
     borderBottomLeftRadius: 32,
