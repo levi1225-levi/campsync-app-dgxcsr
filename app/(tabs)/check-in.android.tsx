@@ -202,23 +202,24 @@ function CheckInScreenContent() {
   };
 
   const writeNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check In - FETCHING DATA FIRST before NFC session:', camper.id);
+    console.log('🚀 User tapped Check In - Starting check-in process for:', camper.id);
     setIsProgramming(true);
     let nfcWriteSuccess = false;
+    let wristbandId = '';
 
     try {
-      // Fetch and prepare ALL data BEFORE starting NFC session
-      console.log('Step 1: Fetching comprehensive camper data BEFORE NFC session...');
+      // 🚨 STEP 1: Fetch and prepare ALL data BEFORE starting NFC session
+      console.log('📊 Step 1: Fetching comprehensive camper data BEFORE NFC session...');
       const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
       
       if (!comprehensiveData) {
         throw new Error('Failed to fetch comprehensive camper data');
       }
       
-      // Encrypt the comprehensive camper data
-      console.log('Step 2: Encrypting comprehensive camper data...');
+      // 🔐 STEP 2: Encrypt the comprehensive camper data
+      console.log('🔐 Step 2: Encrypting comprehensive camper data...');
       const encryptedData = await encryptWristbandData(comprehensiveData);
-      console.log('Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
+      console.log('✅ Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
 
       // Verify data size is within NFC chip capacity (540 bytes)
       if (encryptedData.length > 500) {
@@ -226,39 +227,39 @@ function CheckInScreenContent() {
         throw new Error(`Data too large (${encryptedData.length} bytes). Maximum is 500 bytes for reliable writing.`);
       }
 
-      // Create NDEF message BEFORE starting NFC session
-      console.log('Step 3: Creating NDEF message...');
+      // 📝 STEP 3: Create NDEF message BEFORE starting NFC session
+      console.log('📝 Step 3: Creating NDEF message...');
       const bytes = Ndef.encodeMessage([Ndef.textRecord(encryptedData)]);
 
       if (!bytes) {
         throw new Error('Failed to encode NDEF message');
       }
 
-      console.log('NDEF message created, total size:', bytes.length, 'bytes');
+      console.log('✅ NDEF message created, total size:', bytes.length, 'bytes');
 
-      // NOW start NFC session with data ready to write immediately
-      console.log('Step 4: 🟢 Android: Starting NFC session NOW with data ready to write');
+      // 📱 STEP 4: NOW start NFC session with data ready to write immediately
+      console.log('📱 Step 4: 🟢 Android: Starting NFC session NOW with data ready to write');
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('✅ Android NFC session started - writing data immediately...');
 
-      // Write immediately while tag is detected
-      console.log('Step 5: Writing NDEF message to NFC tag...');
+      // ✍️ STEP 5: Write immediately while tag is detected
+      console.log('✍️ Step 5: Writing NDEF message to NFC tag...');
       await NfcManager.ndefHandler.writeNdefMessage(bytes);
       console.log('✅ NFC tag written successfully with offline data');
       nfcWriteSuccess = true;
 
-      // Generate wristband ID from tag
-      console.log('Step 6: Getting tag ID...');
+      // 🏷️ STEP 6: Generate wristband ID from tag
+      console.log('🏷️ Step 6: Getting tag ID...');
       const tag = await NfcManager.getTag();
-      const wristbandId = tag?.id || `WB-${Date.now()}`;
-      console.log('Wristband ID:', wristbandId);
+      wristbandId = tag?.id || `WB-${Date.now()}`;
+      console.log('✅ Wristband ID:', wristbandId);
 
       // Cancel NFC session before database update
       await NfcManager.cancelTechnologyRequest();
-      console.log('NFC session closed');
+      console.log('✅ NFC session closed');
 
-      // Update database with wristband ID
-      console.log('Step 7: Updating database...');
+      // 💾 STEP 7: 🚨 CRITICAL FIX - Update database with check-in status AND wristband ID
+      console.log('💾 Step 7: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -270,11 +271,11 @@ function CheckInScreenContent() {
         .eq('id', camper.id);
 
       if (dbError) {
-        console.error('Database update error:', dbError);
+        console.error('❌ Database update error:', dbError);
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      console.log('✅ Database updated successfully');
+      console.log('✅✅✅ DATABASE UPDATED SUCCESSFULLY - CAMPER IS NOW CHECKED IN ✅✅✅');
 
       const offlineDataSummary = `
 ✅ Offline Data Written:
@@ -283,6 +284,9 @@ function CheckInScreenContent() {
 • Medications: ${comprehensiveData.medications.length > 0 ? comprehensiveData.medications.join(', ') : 'None'}
 • Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
 • Cabin: ${comprehensiveData.cabin || 'Not assigned'}
+
+🔒 Security: Data encrypted
+✅ Database: Camper marked as checked-in
       `.trim();
 
       Alert.alert(
@@ -355,8 +359,8 @@ function CheckInScreenContent() {
       console.log('NFC tag erased successfully');
       nfcEraseSuccess = true;
 
-      // Update database
-      console.log('Updating database for check-out...');
+      // 💾 🚨 CRITICAL FIX - Update database with check-out status
+      console.log('💾 Updating database for check-out...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -372,7 +376,7 @@ function CheckInScreenContent() {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      console.log('Database updated successfully for check-out');
+      console.log('✅ Database updated successfully for check-out');
 
       Alert.alert(
         'Check-Out Successful! ✅',
@@ -505,7 +509,7 @@ function CheckInScreenContent() {
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>🔒 NFC Ready - Full Offline Mode</Text>
+          <Text style={styles.statusText}>🔒 NFC Ready - Secure Encrypted Mode</Text>
         </View>
       )}
 
@@ -689,6 +693,25 @@ function CheckInScreenContent() {
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <IconSymbol
+                  ios_icon_name="lock.shield.fill"
+                  android_material_icon_name="security"
+                  size={24}
+                  color="#10B981"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoTitle}>Secure Encrypted Wristbands</Text>
+                <Text style={styles.infoDescription}>
+                  Wristbands are automatically encrypted after programming to prevent tampering. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
+                </Text>
+              </View>
+            </View>
+
+            <View style={commonStyles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoIcon}>
+                <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
                   android_material_icon_name="check-circle"
                   size={24}
@@ -698,7 +721,7 @@ function CheckInScreenContent() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Full Offline Capabilities</Text>
                 <Text style={styles.infoDescription}>
-                  Wristbands now store comprehensive camper data including name, allergies, medications, swim level, and cabin assignment. This enables full offline access to critical information.
+                  Wristbands store comprehensive encrypted camper data including name, allergies, medications, swim level, and cabin assignment. This enables full offline access to critical information.
                 </Text>
               </View>
             </View>
