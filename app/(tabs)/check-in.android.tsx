@@ -19,7 +19,7 @@ import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { encryptWristbandData, decryptWristbandData } from '@/utils/wristbandEncryption';
+import { encryptWristbandData, decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
 
 interface CamperData {
   id: string;
@@ -29,6 +29,8 @@ interface CamperData {
   check_in_status: string;
   session_id: string | null;
   wristband_id: string | null;
+  swim_level: string | null;
+  cabin_assignment: string | null;
 }
 
 function CheckInScreenContent() {
@@ -155,24 +157,82 @@ function CheckInScreenContent() {
     };
   }, [searchQuery, allCampers]);
 
+  const fetchComprehensiveCamperData = async (camperId: string): Promise<WristbandCamperData | null> => {
+    try {
+      console.log('Fetching comprehensive camper data for NFC write:', camperId);
+      
+      // Fetch camper basic info
+      const { data: camperData, error: camperError } = await supabase
+        .from('campers')
+        .select('id, first_name, last_name, date_of_birth, check_in_status, session_id, swim_level, cabin_assignment')
+        .eq('id', camperId)
+        .single();
+      
+      if (camperError || !camperData) {
+        console.error('Error fetching camper data:', camperError);
+        return null;
+      }
+      
+      // Fetch medical info
+      const { data: medicalData, error: medicalError } = await supabase
+        .from('camper_medical_info')
+        .select('allergies, medications')
+        .eq('camper_id', camperId)
+        .maybeSingle();
+      
+      if (medicalError) {
+        console.error('Error fetching medical data:', medicalError);
+      }
+      
+      const allergiesList = medicalData?.allergies || [];
+      const medicationsList = medicalData?.medications || [];
+      
+      const allergiesArray = Array.isArray(allergiesList) ? allergiesList : [];
+      const medicationsArray = Array.isArray(medicationsList) ? medicationsList : [];
+      
+      console.log('Comprehensive data fetched:');
+      console.log('- Name:', camperData.first_name, camperData.last_name);
+      console.log('- Allergies:', allergiesArray.length);
+      console.log('- Medications:', medicationsArray.length);
+      console.log('- Swim Level:', camperData.swim_level || 'Not set');
+      console.log('- Cabin:', camperData.cabin_assignment || 'Not assigned');
+      
+      return {
+        id: camperData.id,
+        firstName: camperData.first_name,
+        lastName: camperData.last_name,
+        dateOfBirth: camperData.date_of_birth,
+        allergies: allergiesArray,
+        medications: medicationsArray,
+        swimLevel: camperData.swim_level,
+        cabin: camperData.cabin_assignment,
+        checkInStatus: 'checked-in',
+        sessionId: camperData.session_id || undefined,
+      };
+    } catch (error) {
+      console.error('Error in fetchComprehensiveCamperData:', error);
+      return null;
+    }
+  };
+
   const writeNFCTag = useCallback(async (camper: CamperData) => {
     console.log('Starting NFC write for camper:', camper.id);
     setIsProgramming(true);
 
     try {
+      // Fetch comprehensive data including medical info
+      const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
+      
+      if (!comprehensiveData) {
+        throw new Error('Failed to fetch comprehensive camper data');
+      }
+      
       // Request NFC technology
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested successfully');
 
-      // Encrypt the camper data
-      const encryptedData = await encryptWristbandData({
-        id: camper.id,
-        firstName: camper.first_name,
-        lastName: camper.last_name,
-        dateOfBirth: camper.date_of_birth,
-        checkInStatus: 'checked-in',
-        sessionId: camper.session_id || undefined,
-      });
+      // Encrypt the comprehensive camper data
+      const encryptedData = await encryptWristbandData(comprehensiveData);
 
       console.log('Camper data encrypted, writing to NFC tag...');
 
@@ -181,7 +241,7 @@ function CheckInScreenContent() {
 
       if (bytes) {
         await NfcManager.ndefHandler.writeNdefMessage(bytes);
-        console.log('NFC tag written successfully');
+        console.log('NFC tag written successfully with offline data');
 
         // Generate wristband ID from tag
         const tag = await NfcManager.getTag();
@@ -203,9 +263,18 @@ function CheckInScreenContent() {
           throw error;
         }
 
+        const offlineDataSummary = `
+✅ Offline Data Written:
+• Name: ${comprehensiveData.firstName} ${comprehensiveData.lastName}
+• Allergies: ${comprehensiveData.allergies.length > 0 ? comprehensiveData.allergies.join(', ') : 'None'}
+• Medications: ${comprehensiveData.medications.length > 0 ? comprehensiveData.medications.join(', ') : 'None'}
+• Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
+• Cabin: ${comprehensiveData.cabin || 'Not assigned'}
+        `.trim();
+
         Alert.alert(
           'Check-In Successful! ✅',
-          `${camper.first_name} ${camper.last_name} has been checked in and their wristband has been programmed.\n\nWristband ID: ${wristbandId}`,
+          `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}\n\n${offlineDataSummary}`,
           [{ text: 'OK', onPress: () => {
             setSelectedCamper(null);
             setSearchQuery('');
@@ -295,7 +364,7 @@ function CheckInScreenContent() {
 
     Alert.alert(
       'Ready to Program Wristband',
-      `Hold the wristband near your device to check in ${camper.first_name} ${camper.last_name} and program their wristband.`,
+      `Hold the wristband near your device to check in ${camper.first_name} ${camper.last_name}.\n\n📝 Wristband will include:\n• Name & DOB\n• Allergies & Medications\n• Swim Level\n• Cabin Assignment\n\nThis enables full offline access.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -389,7 +458,7 @@ function CheckInScreenContent() {
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>🔒 NFC Ready - Encrypted & Locked</Text>
+          <Text style={styles.statusText}>🔒 NFC Ready - Full Offline Mode</Text>
         </View>
       )}
 
@@ -580,9 +649,9 @@ function CheckInScreenContent() {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Check-In with NFC</Text>
+                <Text style={styles.infoTitle}>Full Offline Capabilities</Text>
                 <Text style={styles.infoDescription}>
-                  When you check in a camper, you'll be prompted to hold their wristband near your device. The wristband will be programmed with encrypted camper data.
+                  Wristbands now store comprehensive camper data including name, allergies, medications, swim level, and cabin assignment. This enables full offline access to critical information.
                 </Text>
               </View>
             </View>
