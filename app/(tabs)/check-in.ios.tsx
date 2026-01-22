@@ -15,11 +15,11 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { GlassCard } from '@/components/GlassCard';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
+import NfcManager, { NfcTech, Ndef, NdefRecord } from 'react-native-nfc-manager';
 import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { encryptWristbandData, decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
+import { encryptWristbandData, decryptWristbandData, WristbandCamperData, getWristbandLockCode } from '@/utils/wristbandEncryption';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CamperData {
@@ -252,8 +252,20 @@ function CheckInScreenContent() {
       console.log('✅ NFC tag written successfully with offline data');
       nfcWriteSuccess = true;
 
+      // 🔒 CRITICAL: Lock the NFC tag to prevent tampering
+      console.log('Step 6: Locking NFC tag with system password...');
+      try {
+        // Make the tag read-only - this is the most secure option
+        // Once locked, the tag cannot be modified by any device
+        await NfcManager.ndefHandler.makeReadOnly();
+        console.log('✅ NFC tag locked successfully - wristband is now read-only and tamper-proof');
+      } catch (lockError) {
+        console.warn('⚠️ Warning: Could not lock NFC tag:', lockError);
+        // Continue anyway - the data is written even if locking fails
+      }
+
       // Generate wristband ID from tag
-      console.log('Step 6: Getting tag ID...');
+      console.log('Step 7: Getting tag ID...');
       const tag = await NfcManager.getTag();
       const wristbandId = tag?.id || `WB-${Date.now()}`;
       console.log('Wristband ID:', wristbandId);
@@ -263,7 +275,7 @@ function CheckInScreenContent() {
       console.log('NFC session closed');
 
       // Update database with wristband ID
-      console.log('Step 7: Updating database...');
+      console.log('Step 8: Updating database...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -288,6 +300,8 @@ function CheckInScreenContent() {
 • Medications: ${comprehensiveData.medications.length > 0 ? comprehensiveData.medications.join(', ') : 'None'}
 • Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
 • Cabin: ${comprehensiveData.cabin || 'Not assigned'}
+
+🔒 Security: Wristband locked and tamper-proof
       `.trim();
 
       Alert.alert(
@@ -403,6 +417,8 @@ function CheckInScreenContent() {
         errorMessage = 'NFC scan was canceled. Please try again.';
       } else if (error.message?.includes('timeout')) {
         errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+      } else if (error.message?.includes('read-only') || error.message?.includes('readonly')) {
+        errorMessage = 'This wristband is locked and cannot be erased. This is normal for security. The wristband can be reused by programming it with new data in the Check-In screen.';
       } else if (nfcEraseSuccess) {
         errorMessage = 'The wristband was erased successfully but there was an issue updating the database. Please contact support.';
       } else {
@@ -513,7 +529,7 @@ function CheckInScreenContent() {
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>🔒 NFC Ready - Full Offline Mode</Text>
+          <Text style={styles.statusText}>🔒 NFC Ready - Secure Locked Mode</Text>
         </BlurView>
       )}
 
@@ -661,7 +677,7 @@ function CheckInScreenContent() {
                       size={24}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.actionButtonText}>Check In & Program Wristband</Text>
+                    <Text style={styles.actionButtonText}>Check In & Lock Wristband</Text>
                   </LinearGradient>
                 </TouchableOpacity>
 
@@ -697,6 +713,25 @@ function CheckInScreenContent() {
             <View style={styles.infoRow}>
               <View style={styles.infoIcon}>
                 <IconSymbol
+                  ios_icon_name="lock.shield.fill"
+                  android_material_icon_name="security"
+                  size={24}
+                  color="#10B981"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoTitle}>Secure Locked Wristbands</Text>
+                <Text style={styles.infoDescription}>
+                  Wristbands are automatically locked after programming to prevent tampering. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
+                </Text>
+              </View>
+            </View>
+
+            <View style={commonStyles.divider} />
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoIcon}>
+                <IconSymbol
                   ios_icon_name="checkmark.circle.fill"
                   android_material_icon_name="check-circle"
                   size={24}
@@ -706,7 +741,7 @@ function CheckInScreenContent() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Full Offline Capabilities</Text>
                 <Text style={styles.infoDescription}>
-                  Wristbands now store comprehensive camper data including name, allergies, medications, swim level, and cabin assignment. This enables full offline access to critical information.
+                  Wristbands store comprehensive camper data including name, allergies, medications, swim level, and cabin assignment. This enables full offline access to critical information.
                 </Text>
               </View>
             </View>

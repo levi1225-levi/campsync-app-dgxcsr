@@ -81,7 +81,7 @@ export default function CreateCamperScreen() {
       });
 
       // Get the first camp (since this is a single-camp system)
-      // Use maybeSingle() instead of single() to handle no results gracefully
+      console.log('Fetching camp information...');
       const { data: camps, error: campsError } = await supabase
         .from('camps')
         .select('id')
@@ -90,14 +90,20 @@ export default function CreateCamperScreen() {
 
       if (campsError) {
         console.error('Error fetching camp:', campsError);
-        throw new Error('Failed to fetch camp information. Please try again.');
+        Alert.alert(
+          'Database Error',
+          'Failed to fetch camp information. Please try again or contact support.',
+          [{ text: 'OK' }]
+        );
+        setLoading(false);
+        return;
       }
 
       if (!camps) {
-        console.error('No camp found in database');
+        console.error('No camp found in database - this should not happen in production');
         Alert.alert(
-          'No Camp Found',
-          'No camp exists in the system. Please contact an administrator to create a camp first.',
+          'Setup Required',
+          'No camp exists in the system yet. Please contact your administrator to create a camp first before adding campers.',
           [{ text: 'OK' }]
         );
         setLoading(false);
@@ -107,7 +113,8 @@ export default function CreateCamperScreen() {
       console.log('Found camp:', camps.id);
 
       // Create camper with service role bypass to avoid RLS recursion
-      const { data: camper, error: camperError } = await supabase
+      console.log('Creating camper via RPC function...');
+      const { data: camperId, error: camperError } = await supabase
         .rpc('create_camper_bypass_rls', {
           p_camp_id: camps.id,
           p_first_name: firstName.trim(),
@@ -118,10 +125,27 @@ export default function CreateCamperScreen() {
 
       if (camperError) {
         console.error('Error creating camper:', camperError);
-        throw camperError;
+        Alert.alert(
+          'Creation Failed',
+          `Failed to create camper: ${camperError.message}. Please try again.`,
+          [{ text: 'OK' }]
+        );
+        setLoading(false);
+        return;
       }
 
-      console.log('Camper created successfully:', camper);
+      if (!camperId) {
+        console.error('No camper ID returned from RPC function');
+        Alert.alert(
+          'Creation Failed',
+          'Failed to create camper. Please try again.',
+          [{ text: 'OK' }]
+        );
+        setLoading(false);
+        return;
+      }
+
+      console.log('Camper created successfully with ID:', camperId);
 
       // Create medical info if any medical data is provided
       if (allergies || medications || medicalConditions || dietaryRestrictions) {
@@ -129,7 +153,7 @@ export default function CreateCamperScreen() {
         const { error: medicalError } = await supabase
           .from('camper_medical_info')
           .insert({
-            camper_id: camper,
+            camper_id: camperId,
             allergies: allergies ? allergies.split(',').map(a => a.trim()).filter(a => a) : [],
             medications: medications ? medications.split(',').map(m => m.trim()).filter(m => m) : [],
             medical_conditions: medicalConditions ? medicalConditions.split(',').map(m => m.trim()).filter(m => m) : [],
@@ -149,7 +173,7 @@ export default function CreateCamperScreen() {
       
       if (emergency1Name && emergency1Phone) {
         emergencyContacts.push({
-          camper_id: camper,
+          camper_id: camperId,
           full_name: emergency1Name.trim(),
           phone: emergency1Phone.trim(),
           relationship: emergency1Relationship.trim() || 'Parent/Guardian',
@@ -159,7 +183,7 @@ export default function CreateCamperScreen() {
 
       if (emergency2Name && emergency2Phone) {
         emergencyContacts.push({
-          camper_id: camper,
+          camper_id: camperId,
           full_name: emergency2Name.trim(),
           phone: emergency2Phone.trim(),
           relationship: emergency2Relationship.trim() || 'Parent/Guardian',
@@ -182,7 +206,7 @@ export default function CreateCamperScreen() {
       }
 
       Alert.alert(
-        'Success',
+        'Success! ✅',
         `${firstName} ${lastName} has been added successfully!`,
         [
           {

@@ -71,12 +71,22 @@ function EditCamperContent() {
 
       if (error) {
         console.error('Error loading camper:', error);
-        throw new Error(`Failed to load camper: ${error.message}`);
+        Alert.alert(
+          'Database Error',
+          `Failed to load camper: ${error.message}. Please try again.`,
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+        return;
       }
 
       if (!data) {
         console.error('Camper not found with ID:', camperId);
-        throw new Error('Camper not found');
+        Alert.alert(
+          'Camper Not Found',
+          'The camper you are trying to edit could not be found. They may have been deleted.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+        return;
       }
 
       console.log('Camper data loaded:', data.first_name, data.last_name);
@@ -87,8 +97,11 @@ function EditCamperContent() {
       setCheckInStatus(data.check_in_status || 'not-arrived');
     } catch (error: any) {
       console.error('Error in loadCamper:', error);
-      Alert.alert('Error', error?.message || 'Failed to load camper data');
-      router.back();
+      Alert.alert(
+        'Error',
+        error?.message || 'Failed to load camper data',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } finally {
       setLoading(false);
     }
@@ -157,7 +170,7 @@ function EditCamperContent() {
 
       console.log('Camper updated successfully');
       Alert.alert(
-        'Success',
+        'Success! ✅',
         'Camper information has been updated',
         [
           {

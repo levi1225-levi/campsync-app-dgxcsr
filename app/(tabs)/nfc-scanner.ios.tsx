@@ -144,14 +144,30 @@ function NFCScannerScreenContent() {
             console.log('Wristband data decrypted successfully:', decryptedData.id);
             setScannedData(decryptedData);
 
+            // Query database using RPC function to bypass RLS
+            console.log('Querying database for camper:', decryptedData.id);
             const { data: camperData, error } = await supabase
-              .from('campers')
-              .select('*')
+              .rpc('get_all_campers')
               .eq('id', decryptedData.id)
-              .single();
+              .maybeSingle();
 
-            if (error || !camperData) {
-              Alert.alert('Error', 'Camper not found in database');
+            if (error) {
+              console.error('Error querying camper from database:', error);
+              Alert.alert(
+                'Database Error',
+                `Failed to verify camper in database: ${error.message}`,
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+
+            if (!camperData) {
+              console.error('Camper not found in database with ID:', decryptedData.id);
+              Alert.alert(
+                'Camper Not Found',
+                `The camper data on this wristband (${decryptedData.firstName} ${decryptedData.lastName}) could not be found in the database. The wristband may be from a different camp or the camper may have been deleted.`,
+                [{ text: 'OK' }]
+              );
               return;
             }
 
@@ -159,16 +175,16 @@ function NFCScannerScreenContent() {
             
             const lockStatus = decryptedData.isLocked ? '🔒 Locked & Secure' : '⚠️ Unlocked';
             Alert.alert(
-              'Wristband Scanned',
+              'Wristband Scanned ✅',
               `${decryptedData.firstName} ${decryptedData.lastName}\n${lockStatus}`,
               [{ text: 'OK' }]
             );
           } else {
-            Alert.alert('Invalid Wristband', 'Could not decrypt wristband data.');
+            Alert.alert('Invalid Wristband', 'Could not decrypt wristband data. The wristband may be corrupted or from another system.');
           }
         } catch (decryptError) {
           console.error('Error decrypting wristband data:', decryptError);
-          Alert.alert('Decryption Error', 'Failed to decrypt wristband data.');
+          Alert.alert('Decryption Error', 'Failed to decrypt wristband data. The wristband may be corrupted.');
         }
       } else {
         Alert.alert('Empty Wristband', 'This wristband has not been programmed yet.');
@@ -212,6 +228,10 @@ function NFCScannerScreenContent() {
         firstName: scannedCamper.first_name,
         lastName: scannedCamper.last_name,
         dateOfBirth: scannedCamper.date_of_birth,
+        allergies: [],
+        medications: [],
+        swimLevel: null,
+        cabin: null,
         checkInStatus: scannedCamper.check_in_status,
         sessionId: scannedCamper.session_id || undefined,
       });
@@ -248,7 +268,7 @@ function NFCScannerScreenContent() {
         }
 
         Alert.alert(
-          'Programming Successful',
+          'Programming Successful ✅',
           `Wristband has been programmed for ${scannedCamper.first_name} ${scannedCamper.last_name}\n\n✅ Data encrypted\n🔒 Wristband locked`,
           [{ text: 'OK', onPress: () => { setScannedCamper(null); setScannedData(null); } }]
         );
