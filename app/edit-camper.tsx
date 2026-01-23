@@ -63,24 +63,25 @@ function EditCamperContent() {
       console.log('Loading camper data for editing:', camperId);
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('campers')
-        .select('*')
-        .eq('id', camperId)
-        .maybeSingle();
+      // FIXED: Use RPC function to bypass RLS, same as campers screen
+      const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
 
-      if (error) {
-        console.error('Error loading camper:', error);
+      if (rpcError) {
+        console.error('Error loading campers via RPC:', rpcError);
         Alert.alert(
           'Database Error',
-          `Failed to load camper: ${error.message}. Please try again.`,
+          `Failed to load camper: ${rpcError.message}. Please try again.`,
           [{ text: 'OK', onPress: () => router.back() }]
         );
         return;
       }
 
+      // Find the specific camper from the list
+      const data = allCampers?.find((c: any) => c.id === camperId);
+
       if (!data) {
         console.error('Camper not found with ID:', camperId);
+        console.log('Available campers:', allCampers?.map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
         Alert.alert(
           'Camper Not Found',
           'The camper you are trying to edit could not be found. They may have been deleted.',

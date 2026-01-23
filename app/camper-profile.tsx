@@ -85,7 +85,7 @@ function CamperProfileContent() {
     }
   };
 
-  // Load camper profile - removed params from dependencies to prevent infinite loop
+  // Load camper profile - FIXED: removed params from dependencies to prevent infinite loop
   useEffect(() => {
     let isMounted = true;
 
@@ -201,7 +201,7 @@ function CamperProfileContent() {
     return () => {
       isMounted = false;
     };
-  }, [camperId, canViewMedical, params]); // Include params to satisfy exhaustive-deps
+  }, [camperId, canViewMedical]); // FIXED: Removed params from dependencies to prevent infinite loop
 
   const handleBack = useCallback(() => {
     try {

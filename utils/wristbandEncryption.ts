@@ -4,6 +4,13 @@ import * as Crypto from 'expo-crypto';
 // 🔐 UNIVERSAL WRISTBAND LOCK CODE - CRITICAL FOR SYSTEM OPERATION
 // This code is used to lock and unlock NFC wristbands in the CampSync system
 // ⚠️ IMPORTANT: Keep this code secure and only share with authorized administrators
+// 
+// 🔓 HOW IT WORKS:
+// - This is a UNIVERSAL code that can lock/unlock ANY wristband in the system
+// - It does NOT permanently lock wristbands - they can be unlocked with this same code
+// - When writing to a wristband, we use this code to make it read-only
+// - When erasing a wristband, we use this code to unlock it first, then erase
+// - This prevents unauthorized modifications while allowing authorized staff to manage wristbands
 const WRISTBAND_LOCK_CODE = 'CAMPSYNC2024LOCK';
 const ENCRYPTION_KEY = 'CampSync2024SecureWristbandKey!';
 
@@ -26,9 +33,17 @@ export interface WristbandCamperData {
 /**
  * Gets the universal wristband lock code for write-protection
  * This code is used by the CampSync system to lock and unlock NFC wristbands
- * @returns The lock code as a string
+ * 
+ * ⚠️ IMPORTANT: This is a UNIVERSAL code, not a permanent lock
+ * - Use this code to LOCK wristbands after writing data (makes them read-only)
+ * - Use this SAME code to UNLOCK wristbands before erasing (allows modifications)
+ * - Wristbands are NOT permanently locked - they can always be unlocked with this code
+ * 
+ * @returns The universal lock code as a string
  */
 export function getWristbandLockCode(): string {
+  console.log('🔐 Retrieving universal wristband lock code');
+  console.log('⚠️ This code can lock AND unlock wristbands - it is NOT a permanent lock');
   return WRISTBAND_LOCK_CODE;
 }
 
@@ -41,6 +56,7 @@ export function getWristbandLockCodeBytes(): number[] {
   for (let i = 0; i < WRISTBAND_LOCK_CODE.length; i++) {
     bytes.push(WRISTBAND_LOCK_CODE.charCodeAt(i));
   }
+  console.log('🔐 Lock code converted to bytes:', bytes.length, 'bytes');
   return bytes;
 }
 

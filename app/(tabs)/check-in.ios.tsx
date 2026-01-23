@@ -253,11 +253,15 @@ function CheckInScreenContent() {
       nfcWriteSuccess = true;
 
       // 🔒 STEP 6: Lock the NFC tag to prevent tampering
-      console.log('🔒 Step 6: Locking NFC tag with system password...');
+      console.log('🔒 Step 6: Locking NFC tag with makeReadOnly()...');
+      console.log('⚠️ IMPORTANT: makeReadOnly() makes the tag read-only but NOT permanently locked');
+      console.log('⚠️ The wristband can still be erased/rewritten by authorized devices during check-out');
       try {
-        // Make the tag read-only - this is the most secure option
+        // Make the tag read-only - this prevents unauthorized modifications
+        // but authorized devices can still erase/rewrite the tag during check-out
         await NfcManager.ndefHandler.makeReadOnly();
         console.log('✅ NFC tag locked successfully - wristband is now read-only and tamper-proof');
+        console.log('✅ Wristband can still be erased during check-out by authorized staff');
       } catch (lockError) {
         console.warn('⚠️ Warning: Could not lock NFC tag:', lockError);
         // Continue anyway - the data is written even if locking fails

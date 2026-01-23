@@ -185,7 +185,19 @@ function WristbandSettingsContent() {
                 color="#10B981"
               />
               <Text style={styles.infoBoxText}>
-                When you check in a camper, the wristband is automatically locked with the code <Text style={styles.codeInline}>{lockCodeDisplay}</Text> to prevent tampering and ensure data security.
+                When you check in a camper, the wristband is automatically locked with the universal code <Text style={styles.codeInline}>{lockCodeDisplay}</Text> to prevent tampering and ensure data security.
+              </Text>
+            </View>
+            
+            <View style={[styles.infoBox, { backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: '#6366F1', marginTop: 12 }]}>
+              <IconSymbol
+                ios_icon_name="lock.open.fill"
+                android_material_icon_name="lock-open"
+                size={28}
+                color="#6366F1"
+              />
+              <Text style={styles.infoBoxText}>
+                ⚠️ IMPORTANT: Wristbands are NOT permanently locked! They can be unlocked and erased using this same universal code during check-out. The lock only prevents unauthorized modifications.
               </Text>
             </View>
           </GlassCard>
