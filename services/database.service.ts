@@ -1,5 +1,4 @@
 
-// Database service for parent-related operations
 import { supabase } from '@/app/integrations/supabase/client';
 
 export interface ParentInvitation {
@@ -30,21 +29,27 @@ export interface ParentCamperLink {
 
 export const parentService = {
   async getInvitationByToken(token: string): Promise<ParentInvitation> {
+    console.log('Fetching invitation by token');
+    
     const { data, error } = await supabase
       .from('parent_invitations')
       .select('*')
-      .eq('token', token)
+      .eq('invitation_token', token)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching invitation:', error);
+      throw error;
+    }
     
+    console.log('Invitation fetched successfully');
     return {
       id: data.id,
       email: data.email,
       fullName: data.full_name,
       relationship: data.relationship,
       camperId: data.camper_id,
-      token: data.token,
+      token: data.invitation_token,
       status: data.status,
       expiresAt: data.expires_at,
       createdAt: data.created_at,
@@ -52,26 +57,43 @@ export const parentService = {
   },
 
   async acceptInvitation(token: string): Promise<void> {
+    console.log('Accepting invitation');
+    
     const { error } = await supabase
       .from('parent_invitations')
-      .update({ status: 'accepted' })
-      .eq('token', token);
+      .update({ 
+        status: 'accepted',
+        accepted_at: new Date().toISOString()
+      })
+      .eq('invitation_token', token);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error accepting invitation:', error);
+      throw error;
+    }
+    
+    console.log('Invitation accepted successfully');
   },
 
   async getByEmail(email: string): Promise<Parent | null> {
+    console.log('Fetching parent by email:', email);
+    
     const { data, error } = await supabase
-      .from('parents')
+      .from('parent_guardians')
       .select('*')
       .eq('email', email)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') return null;
+      if (error.code === 'PGRST116') {
+        console.log('Parent not found');
+        return null;
+      }
+      console.error('Error fetching parent:', error);
       throw error;
     }
 
+    console.log('Parent fetched successfully');
     return {
       id: data.id,
       email: data.email,
@@ -82,8 +104,10 @@ export const parentService = {
   },
 
   async create(parent: Omit<Parent, 'createdAt'>): Promise<Parent> {
+    console.log('Creating parent:', parent.email);
+    
     const { data, error } = await supabase
-      .from('parents')
+      .from('parent_guardians')
       .insert({
         id: parent.id,
         email: parent.email,
@@ -93,8 +117,12 @@ export const parentService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error creating parent:', error);
+      throw error;
+    }
 
+    console.log('Parent created successfully');
     return {
       id: data.id,
       email: data.email,
@@ -105,6 +133,8 @@ export const parentService = {
   },
 
   async linkToCamper(parentId: string, camperId: string, relationship: string): Promise<void> {
+    console.log('Linking parent to camper');
+    
     const { error } = await supabase
       .from('parent_camper_links')
       .insert({
@@ -113,6 +143,11 @@ export const parentService = {
         relationship,
       });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error linking parent to camper:', error);
+      throw error;
+    }
+    
+    console.log('Parent linked to camper successfully');
   },
 };
