@@ -100,7 +100,7 @@ export default function CreateCamperScreen() {
       }
 
       if (!camps) {
-        console.error('No camp found in database - this should not happen in production');
+        console.error('No camp found in database');
         Alert.alert(
           'Setup Required',
           'No camp exists in the system yet. Please contact your administrator to create a camp first before adding campers.',
@@ -112,30 +112,67 @@ export default function CreateCamperScreen() {
 
       console.log('Found camp:', camps.id);
 
-      // Create camper with service role bypass to avoid RLS recursion
-      console.log('Creating camper via RPC function...');
-      const { data: camperId, error: camperError } = await supabase
-        .rpc('create_camper_bypass_rls', {
-          p_camp_id: camps.id,
-          p_first_name: firstName.trim(),
-          p_last_name: lastName.trim(),
-          p_date_of_birth: dateOfBirth.toISOString().split('T')[0],
-          p_wristband_id: wristbandId.trim() || null,
-        });
+      // Try to create camper using RPC function first (bypasses RLS)
+      console.log('Attempting to create camper via RPC function...');
+      let camperId = null;
+      let rpcError = null;
 
-      if (camperError) {
-        console.error('Error creating camper:', camperError);
-        Alert.alert(
-          'Creation Failed',
-          `Failed to create camper: ${camperError.message}. Please try again.`,
-          [{ text: 'OK' }]
-        );
-        setLoading(false);
-        return;
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase
+          .rpc('create_camper_bypass_rls', {
+            p_camp_id: camps.id,
+            p_first_name: firstName.trim(),
+            p_last_name: lastName.trim(),
+            p_date_of_birth: dateOfBirth.toISOString().split('T')[0],
+            p_wristband_id: wristbandId.trim() || null,
+          });
+
+        if (rpcErr) {
+          console.warn('RPC function failed, will try direct insert:', rpcErr.message);
+          rpcError = rpcErr;
+        } else {
+          camperId = rpcData;
+          console.log('Camper created via RPC with ID:', camperId);
+        }
+      } catch (err: any) {
+        console.warn('RPC function not available, will try direct insert:', err.message);
+        rpcError = err;
+      }
+
+      // If RPC failed, try direct insert
+      if (!camperId && rpcError) {
+        console.log('Attempting direct insert into campers table...');
+        const { data: insertData, error: insertError } = await supabase
+          .from('campers')
+          .insert({
+            camp_id: camps.id,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            date_of_birth: dateOfBirth.toISOString().split('T')[0],
+            wristband_id: wristbandId.trim() || null,
+            registration_status: 'registered',
+            check_in_status: 'not-arrived',
+          })
+          .select('id')
+          .single();
+
+        if (insertError) {
+          console.error('Direct insert failed:', insertError);
+          Alert.alert(
+            'Creation Failed',
+            `Failed to create camper: ${insertError.message}. Please check your permissions or contact support.`,
+            [{ text: 'OK' }]
+          );
+          setLoading(false);
+          return;
+        }
+
+        camperId = insertData.id;
+        console.log('Camper created via direct insert with ID:', camperId);
       }
 
       if (!camperId) {
-        console.error('No camper ID returned from RPC function');
+        console.error('No camper ID returned');
         Alert.alert(
           'Creation Failed',
           'Failed to create camper. Please try again.',
@@ -144,8 +181,6 @@ export default function CreateCamperScreen() {
         setLoading(false);
         return;
       }
-
-      console.log('Camper created successfully with ID:', camperId);
 
       // Create medical info if any medical data is provided
       if (allergies || medications || medicalConditions || dietaryRestrictions) {
