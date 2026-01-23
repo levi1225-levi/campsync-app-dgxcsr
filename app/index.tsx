@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { colors } from '@/styles/commonStyles';
 
+// Trigger lint update
 export default function Index() {
   const { user, isLoading } = useAuth();
 
