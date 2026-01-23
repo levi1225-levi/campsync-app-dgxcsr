@@ -1,8 +1,9 @@
 
 import * as Crypto from 'expo-crypto';
 
-// Universal wristband lock code - stored in system
-// In production, this should be stored securely in environment variables or secure storage
+// 🔐 UNIVERSAL WRISTBAND LOCK CODE - CRITICAL FOR SYSTEM OPERATION
+// This code is used to lock and unlock NFC wristbands in the CampSync system
+// ⚠️ IMPORTANT: Keep this code secure and only share with authorized administrators
 const WRISTBAND_LOCK_CODE = 'CAMPSYNC2024LOCK';
 const ENCRYPTION_KEY = 'CampSync2024SecureWristbandKey!';
 
@@ -20,6 +21,27 @@ export interface WristbandCamperData {
   cabin: string | null;
   checkInStatus: string;
   sessionId?: string;
+}
+
+/**
+ * Gets the universal wristband lock code for write-protection
+ * This code is used by the CampSync system to lock and unlock NFC wristbands
+ * @returns The lock code as a string
+ */
+export function getWristbandLockCode(): string {
+  return WRISTBAND_LOCK_CODE;
+}
+
+/**
+ * Gets the wristband lock code as a byte array for NFC operations
+ * @returns The lock code as a byte array
+ */
+export function getWristbandLockCodeBytes(): number[] {
+  const bytes: number[] = [];
+  for (let i = 0; i < WRISTBAND_LOCK_CODE.length; i++) {
+    bytes.push(WRISTBAND_LOCK_CODE.charCodeAt(i));
+  }
+  return bytes;
 }
 
 /**
@@ -153,19 +175,6 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
     console.error('Error decrypting wristband data:', error);
     return null;
   }
-}
-
-/**
- * Gets the universal wristband lock code for write-protection
- * @returns The lock code as a byte array
- */
-export function getWristbandLockCode(): number[] {
-  // Convert lock code to byte array for NFC write protection
-  const bytes: number[] = [];
-  for (let i = 0; i < WRISTBAND_LOCK_CODE.length; i++) {
-    bytes.push(WRISTBAND_LOCK_CODE.charCodeAt(i));
-  }
-  return bytes;
 }
 
 /**

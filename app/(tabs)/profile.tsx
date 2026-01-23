@@ -50,6 +50,16 @@ function ProfileScreenContent() {
     }
   }, [router]);
 
+  const handleWristbandSettings = useCallback(() => {
+    try {
+      console.log('Navigating to wristband settings');
+      router.push('/wristband-settings');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Failed to open wristband settings screen');
+    }
+  }, [router]);
+
   const handleSignOut = useCallback(() => {
     console.log('Sign out button pressed from profile');
     Alert.alert(
@@ -236,6 +246,33 @@ function ProfileScreenContent() {
               />
             </View>
           </TouchableOpacity>
+
+          {/* Admin - Wristband Security */}
+          {(displayRole === 'super-admin' || displayRole === 'camp-admin') && (
+            <TouchableOpacity
+              style={commonStyles.card}
+              onPress={handleWristbandSettings}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionRow}>
+                <View style={[styles.actionIconContainer, { backgroundColor: '#8B5CF6' }]}>
+                  <IconSymbol
+                    ios_icon_name="lock.shield.fill"
+                    android_material_icon_name="security"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </View>
+                <Text style={styles.actionText}>Wristband Security</Text>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="chevron-right"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* Super Admin Only - User Management */}
           {displayRole === 'super-admin' && (
