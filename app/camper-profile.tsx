@@ -201,7 +201,7 @@ function CamperProfileContent() {
     return () => {
       isMounted = false;
     };
-  }, [camperId, canViewMedical]); // Only depend on camperId and canViewMedical, NOT params
+  }, [camperId, canViewMedical, params]); // Include params to satisfy exhaustive-deps
 
   const handleBack = useCallback(() => {
     try {
