@@ -81,12 +81,10 @@ export default function CreateCamperScreen() {
       });
 
       // Get the first camp (since this is a single-camp system)
-      console.log('Fetching camp information...');
-      const { data: camps, error: campsError } = await supabase
-        .from('camps')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
+      // Use RPC function to bypass RLS
+      console.log('Fetching camp information via RPC...');
+      const { data: campId, error: campsError } = await supabase
+        .rpc('get_first_camp_id');
 
       if (campsError) {
         console.error('Error fetching camp:', campsError);
@@ -99,7 +97,7 @@ export default function CreateCamperScreen() {
         return;
       }
 
-      if (!camps) {
+      if (!campId) {
         console.error('No camp found in database');
         Alert.alert(
           'Setup Required',
@@ -110,7 +108,7 @@ export default function CreateCamperScreen() {
         return;
       }
 
-      console.log('Found camp:', camps.id);
+      console.log('Found camp:', campId);
 
       // Try to create camper using RPC function first (bypasses RLS)
       console.log('Attempting to create camper via RPC function...');
@@ -120,7 +118,7 @@ export default function CreateCamperScreen() {
       try {
         const { data: rpcData, error: rpcErr } = await supabase
           .rpc('create_camper_bypass_rls', {
-            p_camp_id: camps.id,
+            p_camp_id: campId,
             p_first_name: firstName.trim(),
             p_last_name: lastName.trim(),
             p_date_of_birth: dateOfBirth.toISOString().split('T')[0],
@@ -145,12 +143,12 @@ export default function CreateCamperScreen() {
         const { data: insertData, error: insertError } = await supabase
           .from('campers')
           .insert({
-            camp_id: camps.id,
+            camp_id: campId,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             date_of_birth: dateOfBirth.toISOString().split('T')[0],
             wristband_id: wristbandId.trim() || null,
-            registration_status: 'registered',
+            registration_status: 'complete',
             check_in_status: 'not-arrived',
           })
           .select('id')
