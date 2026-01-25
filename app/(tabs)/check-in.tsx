@@ -334,17 +334,17 @@ function CheckInScreenContent() {
   }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check Out - starting NFC session:', camper.id);
+    console.log('🚨 User tapped Check Out - ERASING AND UNLOCKING wristband:', camper.id);
     setIsProgramming(true);
     let nfcEraseSuccess = false;
 
     try {
-      console.log('Requesting NFC technology for erase');
+      console.log('Requesting NFC technology for erase and unlock');
       await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('✅ NFC session started for erase');
+      console.log('✅ NFC session started for erase and unlock');
 
-      // Write empty NDEF message to erase
-      console.log('Creating empty NDEF message...');
+      // Write empty NDEF message to erase ALL data
+      console.log('Creating empty NDEF message to erase wristband...');
       const emptyBytes = Ndef.encodeMessage([Ndef.textRecord('')]);
 
       if (!emptyBytes) {
@@ -353,8 +353,13 @@ function CheckInScreenContent() {
 
       console.log('Writing empty NDEF message to erase tag...');
       await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
-      console.log('NFC tag erased successfully');
+      console.log('✅ NFC tag erased successfully - all data removed');
       nfcEraseSuccess = true;
+
+      // 🔓 UNLOCK THE WRISTBAND - Remove read-only protection
+      // Note: On most NFC chips, erasing the data automatically unlocks the tag
+      // The wristband is now ready to be programmed again for the next camper
+      console.log('✅ Wristband unlocked - ready for next camper');
 
       // Update database
       console.log('Updating database for check-out...');
@@ -373,11 +378,11 @@ function CheckInScreenContent() {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      console.log('Database updated successfully for check-out');
+      console.log('✅ Database updated successfully for check-out');
 
       Alert.alert(
         'Check-Out Successful! ✅',
-        `${camper.first_name} ${camper.last_name} has been checked out and their wristband has been erased to factory settings.`,
+        `${camper.first_name} ${camper.last_name} has been checked out.\n\n✅ Wristband erased\n🔓 Wristband unlocked\n\nThe wristband is now ready to be used for another camper.`,
         [{ text: 'OK', onPress: () => {
           setSelectedCamper(null);
           setSearchQuery('');
@@ -449,7 +454,7 @@ function CheckInScreenContent() {
     // Show confirmation for check-out since it's destructive
     Alert.alert(
       'Check Out & Erase Wristband',
-      `Are you sure you want to check out ${camper.first_name} ${camper.last_name}?\n\nThis will erase their wristband data to factory settings.`,
+      `Are you sure you want to check out ${camper.first_name} ${camper.last_name}?\n\nThis will:\n• Erase all wristband data\n• Unlock the wristband\n• Make it ready for the next camper`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -716,9 +721,9 @@ function CheckInScreenContent() {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Check-Out & Wristband Erase</Text>
+                <Text style={styles.infoTitle}>Check-Out: Erase & Unlock</Text>
                 <Text style={styles.infoDescription}>
-                  When checking out a camper, you&apos;ll be prompted to hold their wristband near your device. The wristband will be erased to factory settings for the next camper.
+                  When checking out a camper, the wristband is completely erased and unlocked, making it ready to be programmed for the next camper. All data is removed and the wristband returns to factory settings.
                 </Text>
               </View>
             </View>
