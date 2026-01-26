@@ -131,6 +131,18 @@ export default function RegisterScreen() {
         return;
       }
 
+      // Determine registration_complete based on role
+      // Non-parent roles (super-admin, camp-admin, staff) are complete after account creation
+      // Parent role requires additional parent registration flow
+      const isParent = revalidation.role === 'parent';
+      const registrationComplete = !isParent;
+      
+      console.log('Registration settings:', {
+        role: revalidation.role,
+        isParent,
+        registrationComplete
+      });
+
       // Create user account with Supabase Auth
       console.log('Step 2: Creating Supabase auth user...');
       console.log('Signup data:', {
@@ -210,6 +222,7 @@ export default function RegisterScreen() {
         hasProfile: !!profile,
         profileId: profile?.id,
         profileRole: profile?.role,
+        profileRegistrationComplete: profile?.registration_complete,
         error: profileError ? JSON.stringify(profileError, null, 2) : null
       });
 
@@ -229,25 +242,38 @@ export default function RegisterScreen() {
 
       // Update profile with correct role and registration status
       console.log('Step 5: Updating profile with role and details...');
+      console.log('Setting registration_complete to:', registrationComplete);
+      
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
           full_name: fullName,
           phone: phone || null,
           role: revalidation.role,
-          registration_complete: revalidation.role !== 'parent',
+          registration_complete: registrationComplete,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', authData.user.id);
 
       if (updateError) {
         console.error('Error updating profile:', updateError);
-        // Don't fail registration for this
+        // Don't fail registration for this, but log it
+        console.warn('Profile update failed, but continuing with registration');
       } else {
-        console.log('Profile updated successfully!');
+        console.log('Profile updated successfully with registration_complete:', registrationComplete);
       }
 
+      // Verify the update
+      const { data: updatedProfile } = await supabase
+        .from('user_profiles')
+        .select('registration_complete, role')
+        .eq('id', authData.user.id)
+        .single();
+      
+      console.log('Profile after update:', updatedProfile);
+
       // Handle parent-specific linking
-      if (revalidation.role === 'parent') {
+      if (isParent) {
         console.log('Step 6: Handling parent linking...');
         try {
           await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
@@ -278,9 +304,14 @@ export default function RegisterScreen() {
       setErrorMessage('');
 
       // Show success message
+      const roleDisplay = revalidation.role.replace('-', ' ').toUpperCase();
+      const successMessage = isParent 
+        ? 'Please check your email to verify your account. After verification, you can sign in and complete your parent registration.'
+        : 'Please check your email to verify your account before signing in. The verification link will expire in 24 hours.';
+      
       Alert.alert(
         'Registration Successful! ✓',
-        'Please check your email to verify your account before signing in. The verification link will expire in 24 hours.',
+        successMessage,
         [
           {
             text: 'OK',

@@ -95,20 +95,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('No user data returned');
+      if (authError) {
+        console.error('Auth error:', authError);
+        
+        // Check for email confirmation error
+        if (authError.message.includes('Email not confirmed') || 
+            authError.message.includes('email_not_confirmed') ||
+            authError.status === 400) {
+          throw new Error('Email not confirmed. Please check your inbox for the verification link.');
+        }
+        
+        throw authError;
+      }
+      
+      if (!authData.user) {
+        throw new Error('No user data returned');
+      }
 
-      console.log('Auth successful, fetching profile...');
+      console.log('Auth successful, user ID:', authData.user.id);
+      console.log('Email confirmed:', authData.user.email_confirmed_at ? 'Yes' : 'No');
 
+      // Check if email is confirmed
+      if (!authData.user.email_confirmed_at) {
+        console.error('Email not confirmed for user:', authData.user.email);
+        throw new Error('Email not confirmed. Please check your inbox for the verification link.');
+      }
+
+      console.log('Fetching profile...');
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', authData.user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile error:', profileError);
+        throw new Error('No user profile found. Your account setup is incomplete. Please contact support.');
+      }
 
-      console.log('Profile fetched:', profile);
+      if (!profile) {
+        throw new Error('No user profile found. Your account setup is incomplete. Please contact support.');
+      }
+
+      console.log('Profile fetched:', {
+        id: profile.id,
+        email: profile.email,
+        role: profile.role,
+        registration_complete: profile.registration_complete
+      });
 
       const authenticatedUser: User = {
         id: authData.user.id,

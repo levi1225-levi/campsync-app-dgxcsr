@@ -50,17 +50,21 @@ export default function SignInScreen() {
       
       if (errorMessage.includes('Invalid login credentials')) {
         userMessage = 'Invalid email or password. Please check your credentials and try again.';
-      } else if (errorMessage.includes('Email not confirmed')) {
+      } else if (errorMessage.includes('Email not confirmed') || errorMessage.includes('email_not_confirmed')) {
         alertTitle = 'Email Not Verified';
-        userMessage = 'Please verify your email address before signing in. Check your inbox for the verification link.';
+        userMessage = 'Please verify your email address before signing in. Check your inbox for the verification link we sent when you registered.';
       } else if (errorMessage.includes('User not found')) {
         userMessage = 'No account found with this email. Please register first.';
       } else if (errorMessage.includes('account setup is incomplete')) {
         alertTitle = 'Account Setup Incomplete';
-        userMessage = 'Your account was created but the profile setup failed. Please contact support with your email address to complete the setup.';
+        userMessage = 'Your account was created but the profile setup is incomplete. Please contact support with your email address to complete the setup.';
       } else if (errorMessage.includes('No user profile found')) {
         alertTitle = 'Profile Missing';
         userMessage = 'Your account exists but the profile is missing. Please contact support with your email address to resolve this issue.';
+      } else if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('confirm')) {
+        // Catch any other email confirmation related errors
+        alertTitle = 'Email Not Verified';
+        userMessage = 'Please verify your email address before signing in. Check your inbox for the verification link.';
       }
       
       Alert.alert(alertTitle, userMessage);
