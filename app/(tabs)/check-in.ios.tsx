@@ -225,6 +225,248 @@ function CheckInScreenContent() {
 
       // Verify data size is within NFC chip capacity (540 bytes)
       if (encryptedData.length > 500) {
+        console.warn('⚠️ WARNING: Encrypted data is', encryptedData.length, 'bytes - may be too large for 540 byteNow I can see the issue. Looking at the code, I notice that:
+
+1. **iOS version** uses `makeReadOnly()` to lock the wristband after writing (line 233 in check-in.ios.tsx)
+2. **Android version** does NOT have any locking mechanism - it just writes the data without locking
+3. The `eraseNFCTag` function tries to erase by writing an empty NDEF message, but if the tag is locked (read-only), this will fail
+
+The problem is that **iOS locks the wristband with `makeReadOnly()`**, which makes it permanently read-only. This is NOT the same as using a lock code that can be unlocked. Once `makeReadOnly()` is called, the tag cannot be written to again, even by authorized devices.
+
+The solution is to:
+1. **Remove the `makeReadOnly()` call** from iOS (it's making tags permanently read-only)
+2. **Use proper NFC lock bytes** with the lock code from `getWristbandLockCode()` if we want reversible locking
+3. For now, the simplest fix is to just remove the locking mechanism since the data is already encrypted
+
+Let me fix this:
+
+<write file="app/(tabs)/check-in.ios.tsx">
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { IconSymbol } from '@/components/IconSymbol';
+import { GlassCard } from '@/components/GlassCard';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import NfcManager, { NfcTech, Ndef, NdefRecord } from 'react-native-nfc-manager';
+import { supabase } from '@/app/integrations/supabase/client';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { encryptWristbandData, decryptWristbandData, WristbandCamperData, getWristbandLockCode } from '@/utils/wristbandEncryption';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+interface CamperData {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  check_in_status: string;
+  session_id: string | null;
+  wristband_id: string | null;
+  swim_level: string | null;
+  cabin_assignment: string | null;
+}
+
+function CheckInScreenContent() {
+  const { hasPermission } = useAuth();
+  const insets = useSafeAreaInsets();
+  const [isScanning, setIsScanning] = useState(false);
+  const [isProgramming, setIsProgramming] = useState(false);
+  const [nfcSupported, setNfcSupported] = useState(false);
+  const [nfcEnabled, setNfcEnabled] = useState(false);
+  const [nfcInitialized, setNfcInitialized] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<CamperData[]>([]);
+  const [allCampers, setAllCampers] = useState<CamperData[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedCamper, setSelectedCamper] = useState<CamperData | null>(null);
+  const [scannedData, setScannedData] = useState<any>(null);
+
+  const canCheckIn = hasPermission(['super-admin', 'camp-admin', 'staff']);
+
+  const initNFC = useCallback(async () => {
+    try {
+      console.log('Initializing NFC for check-in on iOS...');
+      
+      const supported = await NfcManager.isSupported();
+      console.log('NFC supported:', supported);
+      setNfcSupported(supported);
+      
+      if (supported) {
+        await NfcManager.start();
+        console.log('NFC manager started');
+        setNfcEnabled(true);
+        setNfcInitialized(true);
+      } else {
+        setNfcInitialized(true);
+      }
+    } catch (error) {
+      console.error('Error initializing NFC:', error);
+      setNfcInitialized(true);
+    }
+  }, []);
+
+  const cleanupNFC = useCallback(async () => {
+    try {
+      await NfcManager.cancelTechnologyRequest();
+      console.log('NFC cleanup complete');
+    } catch (error) {
+      console.error('Error cleaning up NFC:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    initNFC();
+    return () => {
+      cleanupNFC();
+    };
+  }, [initNFC, cleanupNFC]);
+
+  // Load all campers once using RPC function to bypass RLS
+  useEffect(() => {
+    const loadAllCampers = async () => {
+      console.log('Loading all campers for check-in search...');
+      try {
+        const { data, error } = await supabase.rpc('get_all_campers');
+        
+        if (error) {
+          console.error('Error loading campers via RPC:', error);
+          setAllCampers([]);
+          return;
+        }
+
+        console.log('Loaded campers for search:', data?.length || 0);
+        setAllCampers(data || []);
+      } catch (error: any) {
+        console.error('Error in loadAllCampers:', error);
+        setAllCampers([]);
+      }
+    };
+
+    loadAllCampers();
+  }, []);
+
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+
+    searchTimeoutRef.current = setTimeout(() => {
+      console.log('Searching for campers with query:', searchQuery);
+
+      try {
+        const query = searchQuery.toLowerCase().trim();
+        const filtered = allCampers.filter(camper => {
+          const fullName = `${camper.first_name} ${camper.last_name}`.toLowerCase();
+          return fullName.includes(query);
+        });
+
+        console.log('Search results found:', filtered.length, 'campers');
+        setSearchResults(filtered);
+      } catch (error: any) {
+        console.error('Error in search:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, allCampers]);
+
+  const fetchComprehensiveCamperData = async (camperId: string): Promise<WristbandCamperData | null> => {
+    try {
+      console.log('Fetching comprehensive camper data for NFC write using RPC:', camperId);
+      
+      // Use RPC function to bypass RLS and get all data in one call
+      const { data, error } = await supabase
+        .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
+      
+      if (error) {
+        console.error('Error fetching comprehensive camper data via RPC:', error);
+        return null;
+      }
+      
+      if (!data || data.length === 0) {
+        console.error('No camper data returned from RPC');
+        return null;
+      }
+      
+      const camperData = data[0];
+      
+      const allergiesArray = Array.isArray(camperData.allergies) ? camperData.allergies : [];
+      const medicationsArray = Array.isArray(camperData.medications) ? camperData.medications : [];
+      
+      console.log('Comprehensive data fetched via RPC:');
+      console.log('- Name:', camperData.first_name, camperData.last_name);
+      console.log('- Allergies:', allergiesArray.length);
+      console.log('- Medications:', medicationsArray.length);
+      console.log('- Swim Level:', camperData.swim_level || 'Not set');
+      console.log('- Cabin:', camperData.cabin_assignment || 'Not assigned');
+      
+      return {
+        id: camperData.id,
+        firstName: camperData.first_name,
+        lastName: camperData.last_name,
+        dateOfBirth: camperData.date_of_birth,
+        allergies: allergiesArray,
+        medications: medicationsArray,
+        swimLevel: camperData.swim_level,
+        cabin: camperData.cabin_assignment,
+        checkInStatus: 'checked-in',
+        sessionId: camperData.session_id || undefined,
+      };
+    } catch (error) {
+      console.error('Error in fetchComprehensiveCamperData:', error);
+      return null;
+    }
+  };
+
+  const writeNFCTag = useCallback(async (camper: CamperData) => {
+    console.log('🚀 User tapped Check In - Starting check-in process for:', camper.id);
+    setIsProgramming(true);
+    let nfcWriteSuccess = false;
+    let wristbandId = '';
+
+    try {
+      // 🚨 STEP 1: Fetch and prepare ALL data BEFORE starting NFC session
+      console.log('📊 Step 1: Fetching comprehensive camper data BEFORE NFC session...');
+      const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
+      
+      if (!comprehensiveData) {
+        throw new Error('Failed to fetch comprehensive camper data');
+      }
+      
+      // 🔐 STEP 2: Encrypt the comprehensive camper data
+      console.log('🔐 Step 2: Encrypting comprehensive camper data...');
+      const encryptedData = await encryptWristbandData(comprehensiveData);
+      console.log('✅ Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
+
+      // Verify data size is within NFC chip capacity (540 bytes)
+      if (encryptedData.length > 500) {
         console.warn('⚠️ WARNING: Encrypted data is', encryptedData.length, 'bytes - may be too large for 540 byte chip');
         throw new Error(`Data too large (${encryptedData.length} bytes). Maximum is 500 bytes for reliable writing.`);
       }
@@ -252,23 +494,15 @@ function CheckInScreenContent() {
       console.log('✅ NFC tag written successfully with offline data');
       nfcWriteSuccess = true;
 
-      // 🔒 STEP 6: Lock the NFC tag to prevent tampering
-      console.log('🔒 Step 6: Locking NFC tag with makeReadOnly()...');
-      console.log('⚠️ IMPORTANT: makeReadOnly() makes the tag read-only but NOT permanently locked');
-      console.log('⚠️ The wristband can still be erased/rewritten by authorized devices during check-out');
-      try {
-        // Make the tag read-only - this prevents unauthorized modifications
-        // but authorized devices can still erase/rewrite the tag during check-out
-        await NfcManager.ndefHandler.makeReadOnly();
-        console.log('✅ NFC tag locked successfully - wristband is now read-only and tamper-proof');
-        console.log('✅ Wristband can still be erased during check-out by authorized staff');
-      } catch (lockError) {
-        console.warn('⚠️ Warning: Could not lock NFC tag:', lockError);
-        // Continue anyway - the data is written even if locking fails
-      }
+      // 🚨 CRITICAL FIX: DO NOT LOCK THE TAG WITH makeReadOnly()
+      // makeReadOnly() makes the tag PERMANENTLY read-only and cannot be unlocked
+      // This prevents check-out from erasing the wristband
+      // The data is already encrypted, so it's secure without locking
+      console.log('ℹ️ Skipping makeReadOnly() - wristband remains writable for check-out');
+      console.log('✅ Data is encrypted and secure without hardware locking');
 
-      // 🏷️ STEP 7: Generate wristband ID from tag
-      console.log('🏷️ Step 7: Getting tag ID...');
+      // 🏷️ STEP 6: Generate wristband ID from tag
+      console.log('🏷️ Step 6: Getting tag ID...');
       const tag = await NfcManager.getTag();
       wristbandId = tag?.id || `WB-${Date.now()}`;
       console.log('✅ Wristband ID:', wristbandId);
@@ -277,8 +511,8 @@ function CheckInScreenContent() {
       await NfcManager.cancelTechnologyRequest();
       console.log('✅ NFC session closed');
 
-      // 💾 STEP 8: 🚨 CRITICAL FIX - Update database with check-in status AND wristband ID
-      console.log('💾 Step 8: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
+      // 💾 STEP 7: 🚨 CRITICAL FIX - Update database with check-in status AND wristband ID
+      console.log('💾 Step 7: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -304,7 +538,7 @@ function CheckInScreenContent() {
 • Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
 • Cabin: ${comprehensiveData.cabin || 'Not assigned'}
 
-🔒 Security: Wristband locked and tamper-proof
+🔒 Security: Data encrypted and secure
 ✅ Database: Camper marked as checked-in
       `.trim();
 
@@ -381,6 +615,10 @@ function CheckInScreenContent() {
       console.log('NFC tag erased successfully');
       nfcEraseSuccess = true;
 
+      // Cancel NFC session before database update
+      await NfcManager.cancelTechnologyRequest();
+      console.log('✅ NFC session closed');
+
       // 💾 🚨 CRITICAL FIX - Update database with check-out status
       console.log('💾 Updating database for check-out...');
       const { error: dbError } = await supabase
@@ -421,12 +659,12 @@ function CheckInScreenContent() {
         errorMessage = 'NFC scan was canceled. Please try again.';
       } else if (error.message?.includes('timeout')) {
         errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
-      } else if (error.message?.includes('read-only') || error.message?.includes('readonly')) {
-        errorMessage = 'This wristband is locked and cannot be erased. This is normal for security. The wristband can be reused by programming it with new data in the Check-In screen.';
+      } else if (error.message?.includes('read-only') || error.message?.includes('readonly') || error.message?.includes('not writable')) {
+        errorMessage = 'This wristband appears to be locked. This should not happen with the updated system. Please contact support if this persists.';
       } else if (nfcEraseSuccess) {
         errorMessage = 'The wristband was erased successfully but there was an issue updating the database. Please contact support.';
       } else {
-        errorMessage += 'Please make sure the wristband is writable and try again.';
+        errorMessage += `Please make sure the wristband is near your device and try again.\n\nError: ${error.message || 'Unknown error'}`;
       }
       
       Alert.alert(
@@ -681,7 +919,7 @@ function CheckInScreenContent() {
                       size={24}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.actionButtonText}>Check In & Lock Wristband</Text>
+                    <Text style={styles.actionButtonText}>Check In & Program Wristband</Text>
                   </LinearGradient>
                 </TouchableOpacity>
 
@@ -726,7 +964,7 @@ function CheckInScreenContent() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Secure Encrypted Wristbands</Text>
                 <Text style={styles.infoDescription}>
-                  Wristbands are automatically encrypted and locked after programming to prevent tampering. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
+                  Wristbands are automatically encrypted after programming. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
                 </Text>
               </View>
             </View>

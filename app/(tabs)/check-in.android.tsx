@@ -285,7 +285,7 @@ function CheckInScreenContent() {
 • Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
 • Cabin: ${comprehensiveData.cabin || 'Not assigned'}
 
-🔒 Security: Data encrypted
+🔒 Security: Data encrypted and secure
 ✅ Database: Camper marked as checked-in
       `.trim();
 
@@ -359,6 +359,10 @@ function CheckInScreenContent() {
       console.log('NFC tag erased successfully');
       nfcEraseSuccess = true;
 
+      // Cancel NFC session before database update
+      await NfcManager.cancelTechnologyRequest();
+      console.log('✅ NFC session closed');
+
       // 💾 🚨 CRITICAL FIX - Update database with check-out status
       console.log('💾 Updating database for check-out...');
       const { error: dbError } = await supabase
@@ -399,10 +403,12 @@ function CheckInScreenContent() {
         errorMessage = 'NFC scan was canceled. Please try again.';
       } else if (error.message?.includes('timeout')) {
         errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
+      } else if (error.message?.includes('read-only') || error.message?.includes('readonly') || error.message?.includes('not writable')) {
+        errorMessage = 'This wristband appears to be locked. This should not happen with the updated system. Please contact support if this persists.';
       } else if (nfcEraseSuccess) {
         errorMessage = 'The wristband was erased successfully but there was an issue updating the database. Please contact support.';
       } else {
-        errorMessage += 'Please make sure the wristband is writable and try again.';
+        errorMessage += `Please make sure the wristband is near your device and try again.\n\nError: ${error.message || 'Unknown error'}`;
       }
       
       Alert.alert(
@@ -702,7 +708,7 @@ function CheckInScreenContent() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Secure Encrypted Wristbands</Text>
                 <Text style={styles.infoDescription}>
-                  Wristbands are automatically encrypted after programming to prevent tampering. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
+                  Wristbands are automatically encrypted after programming. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
                 </Text>
               </View>
             </View>
