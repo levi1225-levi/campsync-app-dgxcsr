@@ -72,11 +72,11 @@ export default function ResetPasswordScreen() {
     } finally {
       setIsCheckingToken(false);
     }
-  }, [params, router]);
+  }, [params]); // FIXED: Removed router from dependencies as it's stable
 
   useEffect(() => {
     checkResetToken();
-  }, [checkResetToken]); // FIXED: Added checkResetToken to dependencies
+  }, [checkResetToken]);
 
   const validatePassword = (password: string): { valid: boolean; message?: string } => {
     if (password.length < 8) {

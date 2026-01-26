@@ -1,18 +1,15 @@
 
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
+import { supabase } from '@/app/integrations/supabase/client';
 
-// 🔐 UNIVERSAL WRISTBAND LOCK CODE - CRITICAL FOR SYSTEM OPERATION
-// This code is used to lock and unlock NFC wristbands in the CampSync system
-// ⚠️ IMPORTANT: Keep this code secure and only share with authorized administrators
-// 
-// 🔓 HOW IT WORKS:
-// - This is a UNIVERSAL code that can lock/unlock ANY wristband in the system
-// - It does NOT permanently lock wristbands - they can be unlocked with this same code
-// - When writing to a wristband, we use this code to make it read-only
-// - When erasing a wristband, we use this code to unlock it first, then erase
-// - This prevents unauthorized modifications while allowing authorized staff to manage wristbands
-const WRISTBAND_LOCK_CODE = 'CAMPSYNC2024LOCK';
+// 🔐 DEFAULT WRISTBAND LOCK CODE - Can be customized by administrators
+// This is the fallback code if no custom code is set
+const DEFAULT_LOCK_CODE = 'CAMPSYNC2024LOCK';
 const ENCRYPTION_KEY = 'CampSync2024SecureWristbandKey!';
+
+// Cache for the lock code to avoid repeated database/secure store calls
+let cachedLockCode: string | null = null;
 
 /**
  * Comprehensive camper data for offline wristband storage
@@ -31,33 +28,158 @@ export interface WristbandCamperData {
 }
 
 /**
- * Gets the universal wristband lock code for write-protection
- * This code is used by the CampSync system to lock and unlock NFC wristbands
+ * Gets the current wristband lock code (custom or default)
+ * This code is used to lock and unlock NFC wristbands
  * 
- * ⚠️ IMPORTANT: This is a UNIVERSAL code, not a permanent lock
+ * ⚠️ IMPORTANT: This is NOT a permanent lock
  * - Use this code to LOCK wristbands after writing data (makes them read-only)
  * - Use this SAME code to UNLOCK wristbands before erasing (allows modifications)
  * - Wristbands are NOT permanently locked - they can always be unlocked with this code
  * 
- * @returns The universal lock code as a string
+ * @returns The current lock code as a string
  */
-export function getWristbandLockCode(): string {
-  console.log('🔐 Retrieving universal wristband lock code');
-  console.log('⚠️ This code can lock AND unlock wristbands - it is NOT a permanent lock');
-  return WRISTBAND_LOCK_CODE;
+export async function getWristbandLockCode(): Promise<string> {
+  try {
+    // Return cached code if available
+    if (cachedLockCode) {
+      console.log('🔐 Using cached wristband lock code');
+      return cachedLockCode;
+    }
+
+    console.log('🔐 Fetching wristband lock code from database...');
+    
+    // Try to get custom lock code from database
+    const { data, error } = await supabase
+      .from('camp_settings')
+      .select('wristband_lock_code')
+      .single();
+    
+    if (error) {
+      console.log('No custom lock code found in database, using default');
+      cachedLockCode = DEFAULT_LOCK_CODE;
+      return DEFAULT_LOCK_CODE;
+    }
+    
+    if (data?.wristband_lock_code) {
+      console.log('✅ Custom lock code loaded from database');
+      cachedLockCode = data.wristband_lock_code;
+      return data.wristband_lock_code;
+    }
+    
+    console.log('No custom lock code set, using default');
+    cachedLockCode = DEFAULT_LOCK_CODE;
+    return DEFAULT_LOCK_CODE;
+  } catch (error) {
+    console.error('Error fetching lock code:', error);
+    console.log('Falling back to default lock code');
+    return DEFAULT_LOCK_CODE;
+  }
+}
+
+/**
+ * Sets a custom wristband lock code (admin only)
+ * This will be used for all future wristband operations
+ * 
+ * @param newCode - The new lock code (must be 8-32 characters)
+ * @returns Success status
+ */
+export async function setWristbandLockCode(newCode: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('🔐 Setting new wristband lock code...');
+    
+    // Validate code
+    if (!newCode || newCode.length < 8) {
+      return { success: false, error: 'Lock code must be at least 8 characters long' };
+    }
+    
+    if (newCode.length > 32) {
+      return { success: false, error: 'Lock code must be 32 characters or less' };
+    }
+    
+    // Only allow alphanumeric characters and basic symbols
+    // FIXED: Removed unnecessary escape for [ and ]
+    const validCodeRegex = /^[A-Za-z0-9!@#$%^&*()_+\-=[\]{}|;:,.<>?]+$/;
+    if (!validCodeRegex.test(newCode)) {
+      return { success: false, error: 'Lock code can only contain letters, numbers, and basic symbols' };
+    }
+    
+    // Update in database
+    const { error } = await supabase
+      .from('camp_settings')
+      .upsert({
+        id: 1, // Single row for camp settings
+        wristband_lock_code: newCode,
+        updated_at: new Date().toISOString(),
+      });
+    
+    if (error) {
+      console.error('Error saving lock code to database:', error);
+      return { success: false, error: 'Failed to save lock code to database' };
+    }
+    
+    // Clear cache so next call fetches the new code
+    cachedLockCode = null;
+    
+    console.log('✅ Wristband lock code updated successfully');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error setting lock code:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * Resets the wristband lock code to the default
+ * @returns Success status
+ */
+export async function resetWristbandLockCode(): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('🔐 Resetting wristband lock code to default...');
+    
+    const { error } = await supabase
+      .from('camp_settings')
+      .upsert({
+        id: 1,
+        wristband_lock_code: DEFAULT_LOCK_CODE,
+        updated_at: new Date().toISOString(),
+      });
+    
+    if (error) {
+      console.error('Error resetting lock code:', error);
+      return { success: false, error: 'Failed to reset lock code' };
+    }
+    
+    // Clear cache
+    cachedLockCode = null;
+    
+    console.log('✅ Lock code reset to default');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error resetting lock code:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
 }
 
 /**
  * Gets the wristband lock code as a byte array for NFC operations
  * @returns The lock code as a byte array
  */
-export function getWristbandLockCodeBytes(): number[] {
+export async function getWristbandLockCodeBytes(): Promise<number[]> {
+  const lockCode = await getWristbandLockCode();
   const bytes: number[] = [];
-  for (let i = 0; i < WRISTBAND_LOCK_CODE.length; i++) {
-    bytes.push(WRISTBAND_LOCK_CODE.charCodeAt(i));
+  for (let i = 0; i < lockCode.length; i++) {
+    bytes.push(lockCode.charCodeAt(i));
   }
   console.log('🔐 Lock code converted to bytes:', bytes.length, 'bytes');
   return bytes;
+}
+
+/**
+ * Clears the cached lock code (useful after changing the code)
+ */
+export function clearLockCodeCache(): void {
+  cachedLockCode = null;
+  console.log('🔐 Lock code cache cleared');
 }
 
 /**

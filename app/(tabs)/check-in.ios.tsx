@@ -19,7 +19,7 @@ import NfcManager, { NfcTech, Ndef, NdefRecord } from 'react-native-nfc-manager'
 import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { encryptWristbandData, decryptWristbandData, WristbandCamperData, getWristbandLockCode } from '@/utils/wristbandEncryption';
+import { encryptWristbandData, decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CamperData {
