@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,11 +27,7 @@ export default function ResetPasswordScreen() {
   const [isValidToken, setIsValidToken] = useState(false);
   const [isCheckingToken, setIsCheckingToken] = useState(true);
 
-  useEffect(() => {
-    checkResetToken();
-  }, []);
-
-  const checkResetToken = async () => {
+  const checkResetToken = useCallback(async () => {
     console.log('=== Checking Password Reset Token ===');
     console.log('URL params:', params);
 
@@ -76,7 +72,11 @@ export default function ResetPasswordScreen() {
     } finally {
       setIsCheckingToken(false);
     }
-  };
+  }, [params, router]);
+
+  useEffect(() => {
+    checkResetToken();
+  }, [checkResetToken]); // FIXED: Added checkResetToken to dependencies
 
   const validatePassword = (password: string): { valid: boolean; message?: string } => {
     if (password.length < 8) {
