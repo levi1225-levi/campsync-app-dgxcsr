@@ -32,36 +32,49 @@ export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleValidateCode = async () => {
     console.log('=== Validating Authorization Code ===');
+    setErrorMessage('');
+    
     if (!authCode.trim()) {
-      Alert.alert('Error', 'Please enter an authorization code');
+      const errorMsg = 'Please enter an authorization code';
+      console.log('Validation error:', errorMsg);
+      setErrorMessage(errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log('Code entered:', authCode.trim().toUpperCase());
-      const result = await validateAuthorizationCode(authCode.trim().toUpperCase());
-      console.log('Validation result:', result);
+      const codeToValidate = authCode.trim().toUpperCase();
+      console.log('Code entered:', codeToValidate);
+      
+      const result = await validateAuthorizationCode(codeToValidate);
+      console.log('Validation result:', JSON.stringify(result, null, 2));
 
-      if (!result.valid) {
-        console.log('Code validation failed:', result.error);
-        Alert.alert('Invalid Code', result.error || 'The authorization code is invalid or expired');
+      if (!result || !result.valid) {
+        const errorMsg = result?.error || 'The authorization code is invalid or expired';
+        console.log('Code validation failed:', errorMsg);
+        setErrorMessage(errorMsg);
+        Alert.alert('Invalid Code', errorMsg);
         return;
       }
 
       console.log('Code validated successfully! Role:', result.role);
       setValidatedCode(result);
       setStep('details');
+      setErrorMessage('');
       Alert.alert(
         'Code Validated ✓',
         `You will be registered as: ${result.role?.replace('-', ' ').toUpperCase()}`
       );
     } catch (error) {
       console.error('Error validating code:', error);
-      Alert.alert('Error', 'Failed to validate authorization code. Please try again.');
+      const errorMsg = `Failed to validate authorization code: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      setErrorMessage(errorMsg);
+      Alert.alert('Error', errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -72,23 +85,30 @@ export default function RegisterScreen() {
     console.log('Email:', email);
     console.log('Full name:', fullName);
     console.log('Role:', validatedCode?.role);
+    setErrorMessage('');
 
     // Validation
     if (!email || !password || !confirmPassword || !fullName) {
-      console.log('Validation failed: missing required fields');
-      Alert.alert('Error', 'Please fill in all required fields');
+      const errorMsg = 'Please fill in all required fields';
+      console.log('Validation failed:', errorMsg);
+      setErrorMessage(errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
     if (password !== confirmPassword) {
-      console.log('Validation failed: passwords do not match');
-      Alert.alert('Error', 'Passwords do not match');
+      const errorMsg = 'Passwords do not match';
+      console.log('Validation failed:', errorMsg);
+      setErrorMessage(errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
     if (password.length < 6) {
-      console.log('Validation failed: password too short');
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      const errorMsg = 'Password must be at least 6 characters';
+      console.log('Validation failed:', errorMsg);
+      setErrorMessage(errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
@@ -99,19 +119,29 @@ export default function RegisterScreen() {
       // Re-validate the authorization code
       console.log('Step 1: Re-validating authorization code...');
       const revalidation = await validateAuthorizationCode(authCode.trim().toUpperCase());
-      console.log('Revalidation result:', revalidation);
+      console.log('Revalidation result:', JSON.stringify(revalidation, null, 2));
       
-      if (!revalidation.valid) {
-        console.log('Revalidation failed:', revalidation.error);
-        Alert.alert('Error', 'Authorization code is no longer valid. Please start over.');
+      if (!revalidation || !revalidation.valid) {
+        const errorMsg = revalidation?.error || 'Authorization code is no longer valid';
+        console.log('Revalidation failed:', errorMsg);
+        setErrorMessage(errorMsg);
+        Alert.alert('Error', `${errorMsg}. Please start over.`);
         setStep('code');
         setIsLoading(false);
         return;
       }
 
       // Create user account with Supabase Auth
-      // The database trigger will automatically create the user profile
       console.log('Step 2: Creating Supabase auth user...');
+      console.log('Signup data:', {
+        email: email.toLowerCase().trim(),
+        metadata: {
+          full_name: fullName,
+          phone: phone || null,
+          role: revalidation.role,
+        }
+      });
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
@@ -129,7 +159,8 @@ export default function RegisterScreen() {
         hasUser: !!authData?.user, 
         userId: authData?.user?.id,
         hasSession: !!authData?.session,
-        error: authError 
+        userEmail: authData?.user?.email,
+        error: authError ? JSON.stringify(authError, null, 2) : null
       });
 
       if (authError) {
@@ -137,18 +168,26 @@ export default function RegisterScreen() {
         let errorMessage = authError.message;
         
         // Provide more helpful error messages
-        if (errorMessage.includes('already registered')) {
+        if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
           errorMessage = 'This email is already registered. Please sign in instead.';
+        } else if (errorMessage.includes('invalid email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (errorMessage.includes('password')) {
+          errorMessage = 'Password does not meet requirements. Please use at least 6 characters.';
         }
         
+        console.log('Formatted error message:', errorMessage);
+        setErrorMessage(errorMessage);
         Alert.alert('Registration Failed', errorMessage);
         setIsLoading(false);
         return;
       }
 
       if (!authData.user) {
-        console.error('No user returned from Supabase');
-        Alert.alert('Error', 'Failed to create user account. Please try again.');
+        const errorMsg = 'Failed to create user account. No user returned from Supabase.';
+        console.error(errorMsg);
+        setErrorMessage(errorMsg);
+        Alert.alert('Error', `${errorMsg} Please try again.`);
         setIsLoading(false);
         return;
       }
@@ -160,26 +199,36 @@ export default function RegisterScreen() {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Verify profile was created
+      console.log('Step 4: Verifying profile creation...');
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', authData.user.id)
         .single();
 
+      console.log('Profile verification:', {
+        hasProfile: !!profile,
+        profileId: profile?.id,
+        profileRole: profile?.role,
+        error: profileError ? JSON.stringify(profileError, null, 2) : null
+      });
+
       if (profileError || !profile) {
         console.error('Profile not found after trigger:', profileError);
+        const errorMsg = 'Your account was created but there was an issue setting up your profile.';
+        setErrorMessage(errorMsg);
         Alert.alert(
           'Profile Creation Issue',
-          'Your account was created but there was an issue setting up your profile. Please contact support.'
+          `${errorMsg} Please contact support.`
         );
         setIsLoading(false);
         return;
       }
 
-      console.log('Profile verified:', profile);
+      console.log('Profile verified:', JSON.stringify(profile, null, 2));
 
       // Update profile with correct role and registration status
-      console.log('Step 4: Updating profile with role and details...');
+      console.log('Step 5: Updating profile with role and details...');
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
@@ -193,11 +242,13 @@ export default function RegisterScreen() {
       if (updateError) {
         console.error('Error updating profile:', updateError);
         // Don't fail registration for this
+      } else {
+        console.log('Profile updated successfully!');
       }
 
       // Handle parent-specific linking
       if (revalidation.role === 'parent') {
-        console.log('Step 5: Handling parent linking...');
+        console.log('Step 6: Handling parent linking...');
         try {
           await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
           console.log('Parent linking completed successfully!');
@@ -213,7 +264,7 @@ export default function RegisterScreen() {
 
       // Increment code usage atomically
       if (revalidation.code_id) {
-        console.log('Step 6: Incrementing code usage...');
+        console.log('Step 7: Incrementing code usage...');
         try {
           await incrementCodeUsage(revalidation.code_id);
           console.log('Code usage incremented successfully!');
@@ -224,6 +275,7 @@ export default function RegisterScreen() {
       }
 
       console.log('=== Registration Completed Successfully! ===');
+      setErrorMessage('');
 
       // Show success message
       Alert.alert(
@@ -241,9 +293,11 @@ export default function RegisterScreen() {
       );
     } catch (error) {
       console.error('Unexpected registration error:', error);
+      const errorMsg = `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      setErrorMessage(errorMsg);
       Alert.alert(
         'Registration Error', 
-        `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support.`
+        `${errorMsg}\n\nPlease try again or contact support.`
       );
     } finally {
       console.log('Setting isLoading to false');
@@ -335,6 +389,7 @@ export default function RegisterScreen() {
               console.log('Back button pressed, current step:', step);
               if (step === 'details') {
                 setStep('code');
+                setErrorMessage('');
               } else {
                 router.back();
               }
@@ -355,7 +410,7 @@ export default function RegisterScreen() {
           >
             <IconSymbol
               ios_icon_name="tent.fill"
-              android_material_icon_name="camping"
+              android_material_icon_name="terrain"
               size={48}
               color="#FFFFFF"
             />
@@ -365,6 +420,19 @@ export default function RegisterScreen() {
             {step === 'code' ? 'Enter your authorization code' : 'Complete your profile'}
           </Text>
         </View>
+
+        {/* Error Message Display */}
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="error"
+              size={20}
+              color={colors.error}
+            />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
 
         {/* Step Indicator */}
         <View style={styles.stepIndicator}>
@@ -393,7 +461,10 @@ export default function RegisterScreen() {
                 placeholder="XXXX-XXXX-XXXX"
                 placeholderTextColor={colors.textSecondary}
                 value={authCode}
-                onChangeText={setAuthCode}
+                onChangeText={(text) => {
+                  setAuthCode(text);
+                  setErrorMessage('');
+                }}
                 autoCapitalize="characters"
                 editable={!isLoading}
               />
@@ -451,7 +522,10 @@ export default function RegisterScreen() {
                 placeholder="Full Name *"
                 placeholderTextColor={colors.textSecondary}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(text) => {
+                  setFullName(text);
+                  setErrorMessage('');
+                }}
                 autoCapitalize="words"
                 editable={!isLoading}
               />
@@ -469,7 +543,10 @@ export default function RegisterScreen() {
                 placeholder="Email *"
                 placeholderTextColor={colors.textSecondary}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setErrorMessage('');
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -489,7 +566,10 @@ export default function RegisterScreen() {
                 placeholder="Phone (optional)"
                 placeholderTextColor={colors.textSecondary}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(text) => {
+                  setPhone(text);
+                  setErrorMessage('');
+                }}
                 keyboardType="phone-pad"
                 editable={!isLoading}
               />
@@ -507,7 +587,10 @@ export default function RegisterScreen() {
                 placeholder="Password *"
                 placeholderTextColor={colors.textSecondary}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setErrorMessage('');
+                }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 editable={!isLoading}
@@ -537,7 +620,10 @@ export default function RegisterScreen() {
                 placeholder="Confirm Password *"
                 placeholderTextColor={colors.textSecondary}
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  setErrorMessage('');
+                }}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
                 editable={!isLoading}
@@ -623,6 +709,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.error + '15',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.error + '30',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.error,
+    fontWeight: '500',
   },
   stepIndicator: {
     flexDirection: 'row',
