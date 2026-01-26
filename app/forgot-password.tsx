@@ -40,10 +40,12 @@ export default function ForgotPasswordScreen() {
 
     setIsLoading(true);
     try {
+      // Use the app's deep link URL for password reset
+      // This will open the reset-password screen in the app
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.toLowerCase().trim(),
         {
-          redirectTo: 'https://natively.dev/email-confirmed',
+          redirectTo: 'natively://reset-password',
         }
       );
 
@@ -57,7 +59,7 @@ export default function ForgotPasswordScreen() {
       
       Alert.alert(
         'Check Your Email',
-        'If an account exists with this email, you will receive a password reset link shortly. Please check your inbox and spam folder.',
+        'If an account exists with this email, you will receive a password reset link shortly. Please check your inbox and spam folder. Click the link in the email to reset your password.',
         [
           {
             text: 'OK',
@@ -75,7 +77,7 @@ export default function ForgotPasswordScreen() {
       // So we show a generic success message even on error
       Alert.alert(
         'Check Your Email',
-        'If an account exists with this email, you will receive a password reset link shortly. Please check your inbox and spam folder.',
+        'If an account exists with this email, you will receive a password reset link shortly. Please check your inbox and spam folder. Click the link in the email to reset your password.',
         [
           {
             text: 'OK',
@@ -138,7 +140,7 @@ export default function ForgotPasswordScreen() {
           />
           <View style={styles.infoTextContainer}>
             <Text style={commonStyles.textSecondary}>
-              You&apos;ll receive an email with instructions to reset your password. The link will expire in 24 hours.
+              You&apos;ll receive an email with a link to reset your password. Click the link in the email to open the app and set a new password. The link will expire in 24 hours.
             </Text>
           </View>
         </View>
@@ -232,7 +234,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     elevation: 4,
   },
   title: {

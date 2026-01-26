@@ -93,8 +93,9 @@ function UserManagementContent() {
             try {
               console.log('Sending password reset to:', user.email);
               
+              // Use the app's deep link URL for password reset
               const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-                redirectTo: 'https://natively.dev/reset-password',
+                redirectTo: 'natively://reset-password',
               });
 
               if (error) {
@@ -105,7 +106,7 @@ function UserManagementContent() {
 
               Alert.alert(
                 'Success',
-                `Password reset link sent to ${user.email}. The user will receive an email with instructions to reset their password.`
+                `Password reset link sent to ${user.email}. The user will receive an email with a link to reset their password in the app.`
               );
             } catch (error) {
               console.error('Error sending password reset:', error);
