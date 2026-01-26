@@ -30,6 +30,9 @@ interface CamperData {
   wristband_id: string | null;
   check_in_status: string;
   session_id: string | null;
+  swim_level: string | null;
+  cabin_assignment: string | null;
+  photo_url: string | null;
 }
 
 function EditCamperContent() {
@@ -48,6 +51,9 @@ function EditCamperContent() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [wristbandId, setWristbandId] = useState('');
   const [checkInStatus, setCheckInStatus] = useState('not-arrived');
+  const [swimLevel, setSwimLevel] = useState<string>('');
+  const [cabinAssignment, setCabinAssignment] = useState('');
+  const [registrationStatus, setRegistrationStatus] = useState('pending');
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
 
@@ -96,6 +102,9 @@ function EditCamperContent() {
       setDateOfBirth(new Date(data.date_of_birth));
       setWristbandId(data.wristband_id || '');
       setCheckInStatus(data.check_in_status || 'not-arrived');
+      setSwimLevel(data.swim_level || '');
+      setCabinAssignment(data.cabin_assignment || '');
+      setRegistrationStatus(data.registration_status || 'pending');
     } catch (error: any) {
       console.error('Error in loadCamper:', error);
       Alert.alert(
@@ -153,6 +162,9 @@ function EditCamperContent() {
         last_name: lastName.trim(),
         date_of_birth: dateOfBirth.toISOString().split('T')[0],
         check_in_status: checkInStatus,
+        registration_status: registrationStatus,
+        swim_level: swimLevel || null,
+        cabin_assignment: cabinAssignment.trim() || null,
       };
 
       if (wristbandId.trim()) {
@@ -312,6 +324,132 @@ function EditCamperContent() {
                 setWristbandId(text);
               }}
             />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Swim Level</Text>
+            <View style={styles.swimLevelButtons}>
+              {['non-swimmer', 'beginner', 'intermediate', 'advanced', 'lifeguard'].map((level) => (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.swimLevelButton,
+                    swimLevel === level && styles.swimLevelButtonActive,
+                  ]}
+                  onPress={() => {
+                    console.log('User selected swim level:', level);
+                    setSwimLevel(level);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.swimLevelButtonText,
+                      swimLevel === level && styles.swimLevelButtonTextActive,
+                    ]}
+                  >
+                    {level.charAt(0).toUpperCase() + level.slice(1).replace('-', ' ')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Cabin Assignment</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter cabin assignment (optional)"
+              placeholderTextColor={colors.textSecondary}
+              value={cabinAssignment}
+              onChangeText={(text) => {
+                console.log('User typing cabin assignment:', text);
+                setCabinAssignment(text);
+              }}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Registration Status</Text>
+            <View style={styles.statusButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.statusButton,
+                  registrationStatus === 'pending' && styles.statusButtonActive,
+                ]}
+                onPress={() => {
+                  console.log('User selected registration status: pending');
+                  setRegistrationStatus('pending');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.statusButtonText,
+                    registrationStatus === 'pending' && styles.statusButtonTextActive,
+                  ]}
+                >
+                  Pending
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statusButton,
+                  registrationStatus === 'incomplete' && styles.statusButtonActive,
+                ]}
+                onPress={() => {
+                  console.log('User selected registration status: incomplete');
+                  setRegistrationStatus('incomplete');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.statusButtonText,
+                    registrationStatus === 'incomplete' && styles.statusButtonTextActive,
+                  ]}
+                >
+                  Incomplete
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statusButton,
+                  registrationStatus === 'complete' && styles.statusButtonActive,
+                ]}
+                onPress={() => {
+                  console.log('User selected registration status: complete');
+                  setRegistrationStatus('complete');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.statusButtonText,
+                    registrationStatus === 'complete' && styles.statusButtonTextActive,
+                  ]}
+                >
+                  Complete
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statusButton,
+                  registrationStatus === 'cancelled' && styles.statusButtonActive,
+                ]}
+                onPress={() => {
+                  console.log('User selected registration status: cancelled');
+                  setRegistrationStatus('cancelled');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.statusButtonText,
+                    registrationStatus === 'cancelled' && styles.statusButtonTextActive,
+                  ]}
+                >
+                  Cancelled
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <Text style={[styles.label, { marginTop: 16 }]}>Check-In Status</Text>
             <View style={styles.statusButtons}>
@@ -516,9 +654,11 @@ const styles = StyleSheet.create({
   statusButtons: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   statusButton: {
     flex: 1,
+    minWidth: 100,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -537,6 +677,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   statusButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  swimLevelButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  swimLevelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  swimLevelButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  swimLevelButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  swimLevelButtonTextActive: {
     color: '#FFFFFF',
   },
   saveButton: {
