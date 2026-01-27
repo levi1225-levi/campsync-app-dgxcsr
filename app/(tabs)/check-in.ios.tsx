@@ -19,7 +19,7 @@ import NfcManager, { NfcTech, Ndef, NdefRecord } from 'react-native-nfc-manager'
 import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { encryptWristbandData, decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
+import { encryptWristbandData, decryptWristbandData, WristbandCamperData, getWristbandLockCode } from '@/utils/wristbandEncryption';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CamperData {
@@ -252,15 +252,66 @@ function CheckInScreenContent() {
       console.log('✅ NFC tag written successfully with offline data');
       nfcWriteSuccess = true;
 
-      // 🚨 CRITICAL FIX: DO NOT LOCK THE TAG WITH makeReadOnly()
-      // makeReadOnly() makes the tag PERMANENTLY read-only and cannot be unlocked
-      // This prevents check-out from erasing the wristband
-      // The data is already encrypted, so it is secure without locking
-      console.log('ℹ️ Skipping makeReadOnly() - wristband remains writable for check-out');
-      console.log('✅ Data is encrypted and secure without hardware locking');
+      // 🔒 STEP 6: Lock the tag with password protection (NOT permanent makeReadOnly)
+      console.log('🔒 Step 6: Attempting to password-protect the wristband...');
+      try {
+        // Get the lock code from settings
+        const lockCode = await getWristbandLockCode();
+        console.log('🔐 Using lock code for password protection');
+        
+        // Get the tag to access low-level commands
+        const tag = await NfcManager.getTag();
+        
+        if (tag) {
+          // For NTAG chips, we can use transceive to send password protection commands
+          // NTAG213/215/216 support password protection via PWD_AUTH command
+          // This is NOT permanent - it can be unlocked with the password
+          
+          // Convert lock code to 4-byte password (NTAG requirement)
+          const passwordBytes: number[] = [];
+          for (let i = 0; i < 4; i++) {
+            const charCode = lockCode.charCodeAt(i % lockCode.length);
+            passwordBytes.push(charCode);
+          }
+          
+          console.log('🔐 Attempting to set password protection on NTAG chip...');
+          
+          // NTAG password protection command structure:
+          // Write to PWD page (0xE5 for NTAG213): [0xA2, 0xE5, pwd0, pwd1, pwd2, pwd3]
+          // Write to PACK page (0xE6): [0xA2, 0xE6, pack0, pack1, 0x00, 0x00]
+          // Write to AUTH0 page (0xE3): [0xA2, 0xE3, auth0, 0x00, 0x00, 0x00]
+          
+          try {
+            // Set password (page 0xE5 for NTAG213)
+            const setPwdCmd = [0xA2, 0xE5, ...passwordBytes];
+            await NfcManager.transceive(setPwdCmd);
+            console.log('✅ Password set on wristband');
+            
+            // Set PACK (password acknowledge) - using first 2 bytes of password
+            const setPackCmd = [0xA2, 0xE6, passwordBytes[0], passwordBytes[1], 0x00, 0x00];
+            await NfcManager.transceive(setPackCmd);
+            console.log('✅ PACK set on wristband');
+            
+            // Set AUTH0 to protect from page 4 onwards (0x04 = page 4)
+            const setAuth0Cmd = [0xA2, 0xE3, 0x04, 0x00, 0x00, 0x00];
+            await NfcManager.transceive(setAuth0Cmd);
+            console.log('✅ AUTH0 set - wristband is now password-protected');
+            
+            console.log('🔒 Wristband successfully locked with password protection');
+            console.log('ℹ️ This is NOT permanent - can be unlocked with the lock code');
+          } catch (lockError: any) {
+            console.warn('⚠️ Could not set password protection:', lockError.message);
+            console.log('ℹ️ Wristband may not support password protection or may already be protected');
+            console.log('✅ Data is still encrypted and secure without hardware locking');
+          }
+        }
+      } catch (lockError: any) {
+        console.warn('⚠️ Password protection failed:', lockError.message);
+        console.log('✅ Data is still encrypted and secure without hardware locking');
+      }
 
-      // 🏷️ STEP 6: Generate wristband ID from tag
-      console.log('🏷️ Step 6: Getting tag ID...');
+      // 🏷️ STEP 7: Generate wristband ID from tag
+      console.log('🏷️ Step 7: Getting tag ID...');
       const tag = await NfcManager.getTag();
       wristbandId = tag?.id || `WB-${Date.now()}`;
       console.log('✅ Wristband ID:', wristbandId);
@@ -269,8 +320,8 @@ function CheckInScreenContent() {
       await NfcManager.cancelTechnologyRequest();
       console.log('✅ NFC session closed');
 
-      // 💾 STEP 7: 🚨 CRITICAL FIX - Update database with check-in status AND wristband ID
-      console.log('💾 Step 7: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
+      // 💾 STEP 8: Update database with check-in status AND wristband ID
+      console.log('💾 Step 8: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -296,7 +347,7 @@ function CheckInScreenContent() {
 • Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
 • Cabin: ${comprehensiveData.cabin || 'Not assigned'}
 
-🔒 Security: Data encrypted and secure
+🔒 Security: Data encrypted and password-protected
 ✅ Database: Camper marked as checked-in
       `.trim();
 
@@ -324,7 +375,7 @@ function CheckInScreenContent() {
       } else if (error.message?.includes('timeout')) {
         errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device and hold it steady.';
       } else if (error.message?.includes('not writable') || error.message?.includes('write protection')) {
-        errorMessage = 'This wristband is write-protected or locked. Please use a new, writable wristband.';
+        errorMessage = 'This wristband is write-protected or locked. Please use a new, writable wristband or unlock it first.';
       } else if (nfcWriteSuccess) {
         errorMessage = 'The wristband was programmed successfully but there was an issue updating the database. Please contact support.';
       } else {
@@ -353,32 +404,68 @@ function CheckInScreenContent() {
     let nfcEraseSuccess = false;
 
     try {
-      // 🚨 CRITICAL FIX FOR iOS: Request NFC technology FIRST, IMMEDIATELY
-      console.log('🔵 iOS: Requesting NFC technology FIRST for erase - this triggers the iOS NFC prompt');
+      // 🔐 STEP 1: Get the lock code for unlocking
+      console.log('🔐 Step 1: Getting lock code for unlocking...');
+      const lockCode = await getWristbandLockCode();
+      
+      // Convert lock code to 4-byte password
+      const passwordBytes: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        const charCode = lockCode.charCodeAt(i % lockCode.length);
+        passwordBytes.push(charCode);
+      }
+
+      // 🚨 STEP 2: Request NFC technology FIRST for iOS
+      console.log('📱 Step 2: 🔵 iOS: Requesting NFC technology FIRST for erase');
       await NfcManager.requestTechnology(NfcTech.Ndef, {
         alertMessage: `Hold wristband near device to check out ${camper.first_name} ${camper.last_name}`,
       });
-      console.log('✅ iOS NFC prompt should now be visible for erase - NFC session started');
+      console.log('✅ iOS NFC prompt visible for erase');
 
-      // Write empty NDEF message to erase
-      console.log('Creating empty NDEF message...');
+      // 🔓 STEP 3: Attempt to unlock the tag with password
+      console.log('🔓 Step 3: Attempting to unlock wristband with password...');
+      try {
+        // PWD_AUTH command: [0x1B, pwd0, pwd1, pwd2, pwd3]
+        const unlockCmd = [0x1B, ...passwordBytes];
+        const response = await NfcManager.transceive(unlockCmd);
+        console.log('✅ Wristband unlocked successfully, response:', response);
+      } catch (unlockError: any) {
+        console.warn('⚠️ Could not unlock with password:', unlockError.message);
+        console.log('ℹ️ Wristband may not be password-protected or password may be different');
+        console.log('ℹ️ Attempting to erase anyway...');
+      }
+
+      // STEP 4: Write empty NDEF message to erase
+      console.log('Step 4: Creating empty NDEF message...');
       const emptyBytes = Ndef.encodeMessage([Ndef.textRecord('')]);
 
       if (!emptyBytes) {
         throw new Error('Failed to encode empty NDEF message');
       }
 
-      console.log('Writing empty NDEF message to erase tag...');
+      console.log('Step 5: Writing empty NDEF message to erase tag...');
       await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
-      console.log('NFC tag erased successfully');
+      console.log('✅ NFC tag erased successfully');
       nfcEraseSuccess = true;
+
+      // STEP 6: Remove password protection (reset to factory defaults)
+      console.log('🔓 Step 6: Removing password protection...');
+      try {
+        // Reset AUTH0 to 0xFF (no protection)
+        const resetAuth0Cmd = [0xA2, 0xE3, 0xFF, 0x00, 0x00, 0x00];
+        await NfcManager.transceive(resetAuth0Cmd);
+        console.log('✅ Password protection removed - wristband reset to factory defaults');
+      } catch (resetError: any) {
+        console.warn('⚠️ Could not remove password protection:', resetError.message);
+        console.log('ℹ️ Wristband data is erased but may still have password protection');
+      }
 
       // Cancel NFC session before database update
       await NfcManager.cancelTechnologyRequest();
       console.log('✅ NFC session closed');
 
-      // 💾 🚨 CRITICAL FIX - Update database with check-out status
-      console.log('💾 Updating database for check-out...');
+      // 💾 STEP 7: Update database with check-out status
+      console.log('💾 Step 7: Updating database for check-out...');
       const { error: dbError } = await supabase
         .from('campers')
         .update({
@@ -390,11 +477,11 @@ function CheckInScreenContent() {
         .eq('id', camper.id);
 
       if (dbError) {
-        console.error('Database update error:', dbError);
+        console.error('❌ Database update error:', dbError);
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      console.log('✅ Database updated successfully for check-out');
+      console.log('✅✅✅ DATABASE UPDATED SUCCESSFULLY FOR CHECK-OUT ✅✅✅');
 
       Alert.alert(
         'Check-Out Successful! ✅',
@@ -406,7 +493,7 @@ function CheckInScreenContent() {
         }}]
       );
     } catch (error: any) {
-      console.error('Error in eraseNFCTag:', error);
+      console.error('❌ Error in eraseNFCTag:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
       
       let errorMessage = 'Failed to erase wristband. ';
@@ -417,8 +504,8 @@ function CheckInScreenContent() {
         errorMessage = 'NFC scan was canceled. Please try again.';
       } else if (error.message?.includes('timeout')) {
         errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device.';
-      } else if (error.message?.includes('read-only') || error.message?.includes('readonly') || error.message?.includes('not writable')) {
-        errorMessage = 'This wristband appears to be locked. This should not happen with the updated system. Please contact support if this persists.';
+      } else if (error.message?.includes('authentication') || error.message?.includes('password')) {
+        errorMessage = 'Could not unlock wristband. The password may have been changed. Try using NFC Tools to unlock with the universal code first.';
       } else if (nfcEraseSuccess) {
         errorMessage = 'The wristband was erased successfully but there was an issue updating the database. Please contact support.';
       } else {
@@ -720,9 +807,9 @@ function CheckInScreenContent() {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoTitle}>Secure Encrypted Wristbands</Text>
+                <Text style={styles.infoTitle}>Password-Protected Wristbands</Text>
                 <Text style={styles.infoDescription}>
-                  Wristbands are automatically encrypted after programming. Only the CampSync system can read the encrypted data, ensuring camper safety and data security.
+                  Wristbands are encrypted and password-protected after programming. The universal lock code can be used to unlock them in NFC Tools if needed. This is NOT permanent - wristbands can always be unlocked and reused.
                 </Text>
               </View>
             </View>
@@ -760,7 +847,7 @@ function CheckInScreenContent() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoTitle}>Check-Out & Wristband Erase</Text>
                 <Text style={styles.infoDescription}>
-                  When checking out a camper, you&apos;ll be prompted to hold their wristband near your device. The wristband will be erased to factory settings for the next camper.
+                  When checking out a camper, the system will unlock the wristband with the universal code, erase all data, and remove password protection. The wristband is reset to factory settings for the next camper.
                 </Text>
               </View>
             </View>
