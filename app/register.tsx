@@ -11,6 +11,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
+  ImageSourcePropType,
 } from 'react-native';
 import { router } from 'expo-router';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
@@ -19,6 +21,13 @@ import { validateAuthorizationCode } from '@/services/authorizationCode.service'
 import { supabase } from '@/app/integrations/supabase/client';
 import { incrementCodeUsage, findCampersByParentEmail } from '@/services/authorizationCode.service';
 import { LinearGradient } from 'expo-linear-gradient';
+
+// Helper to resolve image sources (handles both local require() and remote URLs)
+function resolveImageSource(source: string | number | ImageSourcePropType | undefined): ImageSourcePropType {
+  if (!source) return { uri: '' };
+  if (typeof source === 'string') return { uri: source };
+  return source as ImageSourcePropType;
+}
 
 export default function RegisterScreen() {
   const [step, setStep] = useState<'code' | 'details'>('code');
@@ -439,11 +448,10 @@ export default function RegisterScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.logoContainer}
           >
-            <IconSymbol
-              ios_icon_name="tent.fill"
-              android_material_icon_name="terrain"
-              size={48}
-              color="#FFFFFF"
+            <Image
+              source={resolveImageSource(require('@/assets/images/ab23ec0a-a7bd-406b-b915-7c9d5b3dffb6.png'))}
+              style={styles.logoImage}
+              resizeMode="contain"
             />
           </LinearGradient>
           <Text style={styles.title}>Create Account</Text>
@@ -720,14 +728,19 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   logoContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
     boxShadow: '0px 4px 16px rgba(99, 102, 241, 0.3)',
     elevation: 4,
+    padding: 10,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 32,

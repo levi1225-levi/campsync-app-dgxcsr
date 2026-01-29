@@ -11,11 +11,20 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
+  ImageSourcePropType,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
+
+// Helper to resolve image sources (handles both local require() and remote URLs)
+function resolveImageSource(source: string | number | ImageSourcePropType | undefined): ImageSourcePropType {
+  if (!source) return { uri: '' };
+  if (typeof source === 'string') return { uri: source };
+  return source as ImageSourcePropType;
+}
 
 export default function SignInScreen() {
   const { signIn } = useAuth();
@@ -91,7 +100,11 @@ export default function SignInScreen() {
           style={styles.header}
         >
           <View style={styles.logoContainer}>
-            <Text style={styles.logoEmoji}>⛺</Text>
+            <Image
+              source={resolveImageSource(require('@/assets/images/ab23ec0a-a7bd-406b-b915-7c9d5b3dffb6.png'))}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.title}>CampSync</Text>
           <Text style={styles.subtitle}>Summer Camp Management</Text>
@@ -202,18 +215,20 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    padding: 10,
   },
-  logoEmoji: {
-    fontSize: 64,
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 36,
