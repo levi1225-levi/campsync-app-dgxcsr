@@ -49,22 +49,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="wristband-updates"
-        options={{
-          title: 'Updates',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>🔄</Text>;
-          },
-        }}
-      />
-      <Tabs.Screen
         name="nfc-scanner"
         options={{
           title: 'NFC',
           tabBarIcon: ({ color }) => {
             return <Text style={{ fontSize: 24 }}>📱</Text>;
           },
-          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="wristband-updates"
+        options={{
+          title: 'Updates',
+          tabBarIcon: ({ color }) => {
+            return <Text style={{ fontSize: 24 }}>🔄</Text>;
+          },
         }}
       />
       <Tabs.Screen
