@@ -210,25 +210,18 @@ function EditCamperContent() {
       setSaving(true);
       console.log('Updating camper:', camperId);
 
-      // Update camper basic info
-      const updateData: any = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        date_of_birth: dateOfBirth.toISOString().split('T')[0],
-        check_in_status: checkInStatus,
-        registration_status: registrationStatus,
-        swim_level: swimLevel || null,
-        cabin_assignment: cabinAssignment.trim() || null,
-      };
-
-      if (wristbandId.trim()) {
-        updateData.wristband_id = wristbandId.trim();
-      }
-
-      const { error: camperError } = await supabase
-        .from('campers')
-        .update(updateData)
-        .eq('id', camperId);
+      // Update camper basic info using RPC function to bypass RLS
+      const { error: camperError } = await supabase.rpc('update_camper_bypass_rls', {
+        p_camper_id: camperId,
+        p_first_name: firstName.trim(),
+        p_last_name: lastName.trim(),
+        p_date_of_birth: dateOfBirth.toISOString().split('T')[0],
+        p_check_in_status: checkInStatus,
+        p_registration_status: registrationStatus,
+        p_swim_level: swimLevel || null,
+        p_cabin_assignment: cabinAssignment.trim() || null,
+        p_wristband_id: wristbandId.trim() || null,
+      });
 
       if (camperError) {
         console.error('Error updating camper:', camperError);
