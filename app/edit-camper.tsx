@@ -68,7 +68,6 @@ function EditCamperContent() {
   const [cabinAssignment, setCabinAssignment] = useState('');
   const [registrationStatus, setRegistrationStatus] = useState('pending');
 
-  // Medical info states
   const [allergiesText, setAllergiesText] = useState('');
   const [medicationsText, setMedicationsText] = useState('');
   const [dietaryRestrictionsText, setDietaryRestrictionsText] = useState('');
@@ -92,14 +91,14 @@ function EditCamperContent() {
     }
 
     try {
-      console.log('Loading camper data for editing:', camperId);
+      console.log('=== LOADING CAMPER FOR EDITING ===');
+      console.log('Camper ID:', camperId);
       setLoading(true);
 
-      // Use RPC function to bypass RLS
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
 
       if (rpcError) {
-        console.error('Error loading campers via RPC:', rpcError);
+        console.error('RPC Error:', rpcError);
         Alert.alert(
           'Database Error',
           `Failed to load camper: ${rpcError.message}. Please try again.`,
@@ -108,7 +107,8 @@ function EditCamperContent() {
         return;
       }
 
-      // Find the specific camper from the list
+      console.log('Total campers loaded:', allCampers?.length || 0);
+
       const data = allCampers?.find((c: any) => c.id === camperId);
 
       if (!data) {
@@ -121,7 +121,12 @@ function EditCamperContent() {
         return;
       }
 
-      console.log('Camper data loaded:', data.first_name, data.last_name);
+      console.log('=== CAMPER DATA LOADED FOR EDITING ===');
+      console.log('Name:', data.first_name, data.last_name);
+      console.log('Swim Level:', data.swim_level);
+      console.log('Cabin:', data.cabin_assignment);
+      console.log('Check-in Status:', data.check_in_status);
+
       setFirstName(data.first_name);
       setLastName(data.last_name);
       setDateOfBirth(new Date(data.date_of_birth));
@@ -131,7 +136,6 @@ function EditCamperContent() {
       setCabinAssignment(data.cabin_assignment || '');
       setRegistrationStatus(data.registration_status || 'pending');
 
-      // Load medical info
       console.log('Loading medical info for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
         .from('camper_medical_info')
@@ -140,9 +144,11 @@ function EditCamperContent() {
         .maybeSingle();
 
       if (medicalError) {
-        console.error('Error loading medical info:', medicalError);
+        console.error('Medical info error:', medicalError);
       } else if (medicalData) {
-        console.log('Medical info loaded successfully');
+        console.log('=== MEDICAL INFO LOADED ===');
+        console.log('Allergies:', medicalData.allergies);
+        console.log('Medications:', medicalData.medications);
         setHasMedicalInfo(true);
         setAllergiesText((medicalData.allergies || []).join(', '));
         setMedicationsText((medicalData.medications || []).join(', '));
@@ -158,8 +164,11 @@ function EditCamperContent() {
         console.log('No medical info found for camper');
         setHasMedicalInfo(false);
       }
+
+      console.log('=== LOAD COMPLETE ===');
     } catch (error: any) {
-      console.error('Error in loadCamper:', error);
+      console.error('=== ERROR IN LOAD CAMPER ===');
+      console.error('Error:', error);
       Alert.alert(
         'Error',
         error?.message || 'Failed to load camper data',
@@ -195,7 +204,7 @@ function EditCamperContent() {
   };
 
   const handleSave = async () => {
-    console.log('User tapped Save button');
+    console.log('=== SAVE BUTTON PRESSED ===');
     
     if (!validateForm()) {
       return;
@@ -208,10 +217,15 @@ function EditCamperContent() {
 
     try {
       setSaving(true);
-      console.log('Updating camper:', camperId);
+      console.log('=== STARTING SAVE PROCESS ===');
+      console.log('Camper ID:', camperId);
+      console.log('First Name:', firstName);
+      console.log('Last Name:', lastName);
+      console.log('Swim Level:', swimLevel);
+      console.log('Cabin:', cabinAssignment);
 
-      // Update camper basic info using RPC function to bypass RLS
-      const { error: camperError } = await supabase.rpc('update_camper_bypass_rls', {
+      console.log('Calling update_camper_bypass_rls RPC function...');
+      const { data: updateResult, error: camperError } = await supabase.rpc('update_camper_bypass_rls', {
         p_camper_id: camperId,
         p_first_name: firstName.trim(),
         p_last_name: lastName.trim(),
@@ -224,20 +238,32 @@ function EditCamperContent() {
       });
 
       if (camperError) {
-        console.error('Error updating camper:', camperError);
+        console.error('=== CAMPER UPDATE ERROR ===');
+        console.error('Error:', camperError);
+        console.error('Error message:', camperError.message);
+        console.error('Error details:', camperError.details);
+        console.error('Error hint:', camperError.hint);
         throw new Error(`Failed to update camper: ${camperError.message}`);
       }
 
-      console.log('Camper basic info updated successfully');
+      console.log('✅ Camper basic info updated successfully');
+      console.log('Update result:', updateResult);
 
-      // Update or insert medical info using RPC function to bypass RLS
-      console.log('Saving medical info via RPC function');
-      const { error: medicalError } = await supabase.rpc('upsert_camper_medical_info_bypass_rls', {
+      const allergiesArray = allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [];
+      const medicationsArray = medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [];
+      const dietaryArray = dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [];
+      const conditionsArray = medicalConditionsText.trim() ? medicalConditionsText.split(',').map(s => s.trim()).filter(s => s) : [];
+
+      console.log('Calling upsert_camper_medical_info_bypass_rls RPC function...');
+      console.log('Allergies array:', allergiesArray);
+      console.log('Medications array:', medicationsArray);
+
+      const { data: medicalResult, error: medicalError } = await supabase.rpc('upsert_camper_medical_info_bypass_rls', {
         p_camper_id: camperId,
-        p_allergies: allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [],
-        p_medications: medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [],
-        p_dietary_restrictions: dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [],
-        p_medical_conditions: medicalConditionsText.trim() ? medicalConditionsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        p_allergies: allergiesArray,
+        p_medications: medicationsArray,
+        p_dietary_restrictions: dietaryArray,
+        p_medical_conditions: conditionsArray,
         p_special_care_instructions: specialCareInstructions.trim() || null,
         p_doctor_name: doctorName.trim() || null,
         p_doctor_phone: doctorPhone.trim() || null,
@@ -247,15 +273,22 @@ function EditCamperContent() {
       });
 
       if (medicalError) {
-        console.error('Error saving medical info:', medicalError);
+        console.error('=== MEDICAL INFO UPDATE ERROR ===');
+        console.error('Error:', medicalError);
+        console.error('Error message:', medicalError.message);
+        console.error('Error details:', medicalError.details);
+        console.error('Error hint:', medicalError.hint);
         throw new Error(`Failed to save medical info: ${medicalError.message}`);
       }
 
-      console.log('Medical info saved successfully');
+      console.log('✅ Medical info saved successfully');
+      console.log('Medical result:', medicalResult);
+
+      console.log('=== SAVE COMPLETE - ALL DATA UPDATED ===');
 
       Alert.alert(
         'Success! ✅',
-        'Camper information has been updated',
+        'Camper information has been updated successfully',
         [
           {
             text: 'OK',
@@ -267,7 +300,10 @@ function EditCamperContent() {
         ]
       );
     } catch (error: any) {
-      console.error('Error in handleSave:', error);
+      console.error('=== SAVE ERROR ===');
+      console.error('Error:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
       Alert.alert('Error', error?.message || 'Failed to update camper');
     } finally {
       setSaving(false);
@@ -292,7 +328,6 @@ function EditCamperContent() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
-      {/* Header with Gradient */}
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
         start={{ x: 0, y: 0 }}
@@ -323,7 +358,6 @@ function EditCamperContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Basic Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
           
@@ -590,7 +624,6 @@ function EditCamperContent() {
           </View>
         </View>
 
-        {/* Medical Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Medical Information</Text>
           
@@ -704,7 +737,6 @@ function EditCamperContent() {
           </View>
         </View>
 
-        {/* Save Button */}
         <View style={styles.section}>
           <TouchableOpacity
             style={[styles.saveButton, saving && styles.saveButtonDisabled]}

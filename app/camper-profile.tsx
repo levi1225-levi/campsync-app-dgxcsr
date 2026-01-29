@@ -62,7 +62,6 @@ function CamperProfileContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get the camper ID from params - handle both string and array cases
   const camperId = Array.isArray(params.id) ? params.id[0] : params.id;
   
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
@@ -92,7 +91,6 @@ function CamperProfileContent() {
     }
   };
 
-  // Load camper profile function - memoized to prevent recreation
   const loadCamperProfile = useCallback(async () => {
     if (!camperId) {
       console.error('No camper ID provided in params:', params);
@@ -102,32 +100,35 @@ function CamperProfileContent() {
     }
 
     try {
-      console.log('Loading camper profile for ID:', camperId);
+      console.log('=== LOADING CAMPER PROFILE ===');
+      console.log('Camper ID:', camperId);
       setIsLoading(true);
       setError(null);
 
-      // First, try to get the camper using RPC function to bypass RLS
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
       
       if (rpcError) {
-        console.error('Error loading campers via RPC:', rpcError);
+        console.error('RPC Error:', rpcError);
         throw new Error(`Failed to load campers: ${rpcError.message}`);
       }
 
-      // Find the specific camper from the list
+      console.log('Total campers loaded:', allCampers?.length || 0);
+
       const camperData = allCampers?.find((c: any) => c.id === camperId);
 
       if (!camperData) {
         console.error('Camper not found with ID:', camperId);
-        console.log('Available campers:', allCampers?.map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
         throw new Error('Camper not found');
       }
 
-      console.log('Camper data loaded successfully:', camperData.first_name, camperData.last_name);
-      console.log('Swim level:', camperData.swim_level);
-      console.log('Cabin assignment:', camperData.cabin_assignment);
+      console.log('=== CAMPER DATA LOADED ===');
+      console.log('Name:', camperData.first_name, camperData.last_name);
+      console.log('Swim Level:', camperData.swim_level);
+      console.log('Cabin:', camperData.cabin_assignment);
+      console.log('Check-in Status:', camperData.check_in_status);
+      console.log('Last Check-in:', camperData.last_check_in);
+      console.log('Updated At:', camperData.updated_at);
 
-      // Load session name separately if session_id exists
       let sessionName = null;
       if (camperData.session_id) {
         const { data: sessionData, error: sessionError } = await supabase
@@ -142,9 +143,9 @@ function CamperProfileContent() {
         }
       }
 
-      // Load medical info if permitted
       let medicalInfo = null;
       if (canViewMedical) {
+        console.log('Loading medical info...');
         const { data: medicalData, error: medicalError } = await supabase
           .from('camper_medical_info')
           .select('*')
@@ -152,24 +153,26 @@ function CamperProfileContent() {
           .maybeSingle();
         
         if (medicalError) {
-          console.error('Error loading medical info:', medicalError);
+          console.error('Medical info error:', medicalError);
         } else if (medicalData) {
           medicalInfo = medicalData;
-          console.log('Medical info loaded successfully');
-          console.log('Allergies:', medicalData.allergies);
-          console.log('Medications:', medicalData.medications);
+          console.log('Medical info loaded - Allergies:', medicalData.allergies?.length || 0);
+          console.log('Medical info loaded - Medications:', medicalData.medications?.length || 0);
+        } else {
+          console.log('No medical info found');
         }
       }
 
-      // Load emergency contacts
+      console.log('Loading emergency contacts...');
       const { data: contactsData, error: contactsError } = await supabase
         .from('emergency_contacts')
-        .select('*')
         .eq('camper_id', camperId)
         .order('priority_order');
 
       if (contactsError) {
-        console.error('Error loading emergency contacts:', contactsError);
+        console.error('Emergency contacts error:', contactsError);
+      } else {
+        console.log('Emergency contacts loaded:', contactsData?.length || 0);
       }
 
       const profile: CamperProfile = {
@@ -178,11 +181,11 @@ function CamperProfileContent() {
         last_name: camperData.last_name,
         date_of_birth: camperData.date_of_birth,
         registration_status: camperData.registration_status || 'pending',
-        wristband_id: camperData.wristband_id,
-        check_in_status: camperData.check_in_status,
+        wristband_id: camperData.wristband_id || null,
+        check_in_status: camperData.check_in_status || 'not-arrived',
         last_check_in: camperData.last_check_in || null,
         last_check_out: camperData.last_check_out || null,
-        session_id: camperData.session_id,
+        session_id: camperData.session_id || null,
         session_name: sessionName,
         swim_level: camperData.swim_level || null,
         cabin_assignment: camperData.cabin_assignment || null,
@@ -190,32 +193,31 @@ function CamperProfileContent() {
         emergency_contacts: contactsData || [],
       };
 
-      console.log('Profile assembled successfully');
+      console.log('=== PROFILE ASSEMBLED SUCCESSFULLY ===');
+      console.log('Final swim level:', profile.swim_level);
+      console.log('Final cabin:', profile.cabin_assignment);
+      
       setCamper(profile);
       setIsLoading(false);
     } catch (error: any) {
-      console.error('Error loading camper profile:', error);
+      console.error('=== ERROR LOADING PROFILE ===');
+      console.error('Error:', error);
+      console.error('Error message:', error?.message);
       setError(error?.message || 'Failed to load camper profile');
       setIsLoading(false);
     }
   }, [camperId, canViewMedical, params]);
 
-  // FIXED: Use useFocusEffect to reload data when screen comes into focus
-  // This ensures data is refreshed when navigating back from edit screen
   useFocusEffect(
     useCallback(() => {
-      console.log('Camper profile screen focused - reloading data');
+      console.log('Screen focused - reloading camper profile');
       loadCamperProfile();
     }, [loadCamperProfile])
   );
 
   const handleBack = useCallback(() => {
-    try {
-      console.log('Navigating back from camper profile');
-      router.back();
-    } catch (error) {
-      console.error('Navigation error:', error);
-    }
+    console.log('User tapped Back button');
+    router.back();
   }, [router]);
 
   const handleEdit = useCallback(() => {
@@ -237,6 +239,11 @@ function CamperProfileContent() {
   }
 
   if (error || !camper) {
+    const errorMessage = error || 'Camper not found';
+    const errorDescription = error 
+      ? 'Please try again or contact support if the problem persists.' 
+      : 'The camper you are looking for could not be found. They may have been removed from the system.';
+
     return (
       <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
         <IconSymbol
@@ -246,10 +253,10 @@ function CamperProfileContent() {
           color={colors.error}
         />
         <Text style={[commonStyles.text, { marginTop: 16, fontSize: 18, fontWeight: '600' }]}>
-          {error || 'Camper not found'}
+          {errorMessage}
         </Text>
         <Text style={[commonStyles.textSecondary, { marginTop: 8, textAlign: 'center', paddingHorizontal: 32 }]}>
-          {error ? 'Please try again or contact support if the problem persists.' : 'The camper you\'re looking for could not be found. They may have been removed from the system.'}
+          {errorDescription}
         </Text>
         <TouchableOpacity
           style={[commonStyles.button, { marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 }]}
@@ -275,7 +282,6 @@ function CamperProfileContent() {
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
-      {/* Header with Gradient */}
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
         start={{ x: 0, y: 0 }}
@@ -341,7 +347,6 @@ function CamperProfileContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Basic Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
           <View style={commonStyles.card}>
@@ -438,7 +443,6 @@ function CamperProfileContent() {
           </View>
         </View>
 
-        {/* Medical Information */}
         {canViewMedical && camper.medical_info && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Medical Information</Text>
@@ -591,7 +595,6 @@ function CamperProfileContent() {
           </View>
         )}
 
-        {/* Emergency Contacts */}
         {camper.emergency_contacts.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Emergency Contacts</Text>
