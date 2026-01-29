@@ -25,10 +25,10 @@ export default function TabLayout() {
       label: 'Check-In',
     },
     {
-      name: 'nfc-scanner',
-      route: '/(tabs)/nfc-scanner',
-      icon: 'contactless',
-      label: 'NFC',
+      name: 'wristband-updates',
+      route: '/(tabs)/wristband-updates',
+      icon: 'sync',
+      label: 'Updates',
     },
     {
       name: 'profile',
@@ -49,6 +49,7 @@ export default function TabLayout() {
         <Stack.Screen name="(home)" />
         <Stack.Screen name="campers" />
         <Stack.Screen name="check-in" />
+        <Stack.Screen name="wristband-updates" />
         <Stack.Screen name="nfc-scanner" />
         <Stack.Screen name="profile" />
       </Stack>

@@ -35,6 +35,19 @@ interface CamperData {
   photo_url: string | null;
 }
 
+interface MedicalInfo {
+  allergies: string[];
+  medications: string[];
+  dietary_restrictions: string[];
+  medical_conditions: string[];
+  special_care_instructions: string | null;
+  doctor_name: string | null;
+  doctor_phone: string | null;
+  insurance_provider: string | null;
+  insurance_number: string | null;
+  notes: string | null;
+}
+
 function EditCamperContent() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -55,6 +68,19 @@ function EditCamperContent() {
   const [cabinAssignment, setCabinAssignment] = useState('');
   const [registrationStatus, setRegistrationStatus] = useState('pending');
 
+  // Medical info states
+  const [allergiesText, setAllergiesText] = useState('');
+  const [medicationsText, setMedicationsText] = useState('');
+  const [dietaryRestrictionsText, setDietaryRestrictionsText] = useState('');
+  const [medicalConditionsText, setMedicalConditionsText] = useState('');
+  const [specialCareInstructions, setSpecialCareInstructions] = useState('');
+  const [doctorName, setDoctorName] = useState('');
+  const [doctorPhone, setDoctorPhone] = useState('');
+  const [insuranceProvider, setInsuranceProvider] = useState('');
+  const [insuranceNumber, setInsuranceNumber] = useState('');
+  const [medicalNotes, setMedicalNotes] = useState('');
+  const [hasMedicalInfo, setHasMedicalInfo] = useState(false);
+
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
 
   const loadCamper = useCallback(async () => {
@@ -69,7 +95,7 @@ function EditCamperContent() {
       console.log('Loading camper data for editing:', camperId);
       setLoading(true);
 
-      // FIXED: Use RPC function to bypass RLS, same as campers screen
+      // Use RPC function to bypass RLS
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
 
       if (rpcError) {
@@ -87,10 +113,9 @@ function EditCamperContent() {
 
       if (!data) {
         console.error('Camper not found with ID:', camperId);
-        console.log('Available campers:', allCampers?.map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}` })));
         Alert.alert(
           'Camper Not Found',
-          'The camper you are trying to edit could not be found. They may have been deleted.',
+          'The camper you are trying to edit could not be found.',
           [{ text: 'OK', onPress: () => router.back() }]
         );
         return;
@@ -105,6 +130,34 @@ function EditCamperContent() {
       setSwimLevel(data.swim_level || '');
       setCabinAssignment(data.cabin_assignment || '');
       setRegistrationStatus(data.registration_status || 'pending');
+
+      // Load medical info
+      console.log('Loading medical info for camper:', camperId);
+      const { data: medicalData, error: medicalError } = await supabase
+        .from('camper_medical_info')
+        .select('*')
+        .eq('camper_id', camperId)
+        .maybeSingle();
+
+      if (medicalError) {
+        console.error('Error loading medical info:', medicalError);
+      } else if (medicalData) {
+        console.log('Medical info loaded successfully');
+        setHasMedicalInfo(true);
+        setAllergiesText((medicalData.allergies || []).join(', '));
+        setMedicationsText((medicalData.medications || []).join(', '));
+        setDietaryRestrictionsText((medicalData.dietary_restrictions || []).join(', '));
+        setMedicalConditionsText((medicalData.medical_conditions || []).join(', '));
+        setSpecialCareInstructions(medicalData.special_care_instructions || '');
+        setDoctorName(medicalData.doctor_name || '');
+        setDoctorPhone(medicalData.doctor_phone || '');
+        setInsuranceProvider(medicalData.insurance_provider || '');
+        setInsuranceNumber(medicalData.insurance_number || '');
+        setMedicalNotes(medicalData.notes || '');
+      } else {
+        console.log('No medical info found for camper');
+        setHasMedicalInfo(false);
+      }
     } catch (error: any) {
       console.error('Error in loadCamper:', error);
       Alert.alert(
@@ -157,6 +210,7 @@ function EditCamperContent() {
       setSaving(true);
       console.log('Updating camper:', camperId);
 
+      // Update camper basic info
       const updateData: any = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -171,17 +225,61 @@ function EditCamperContent() {
         updateData.wristband_id = wristbandId.trim();
       }
 
-      const { error } = await supabase
+      const { error: camperError } = await supabase
         .from('campers')
         .update(updateData)
         .eq('id', camperId);
 
-      if (error) {
-        console.error('Error updating camper:', error);
-        throw new Error(`Failed to update camper: ${error.message}`);
+      if (camperError) {
+        console.error('Error updating camper:', camperError);
+        throw new Error(`Failed to update camper: ${camperError.message}`);
       }
 
-      console.log('Camper updated successfully');
+      console.log('Camper basic info updated successfully');
+
+      // Update or insert medical info
+      const medicalData: any = {
+        camper_id: camperId,
+        allergies: allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [],
+        medications: medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        dietary_restrictions: dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        medical_conditions: medicalConditionsText.trim() ? medicalConditionsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        special_care_instructions: specialCareInstructions.trim() || null,
+        doctor_name: doctorName.trim() || null,
+        doctor_phone: doctorPhone.trim() || null,
+        insurance_provider: insuranceProvider.trim() || null,
+        insurance_number: insuranceNumber.trim() || null,
+        notes: medicalNotes.trim() || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (hasMedicalInfo) {
+        // Update existing medical info
+        console.log('Updating existing medical info');
+        const { error: medicalError } = await supabase
+          .from('camper_medical_info')
+          .update(medicalData)
+          .eq('camper_id', camperId);
+
+        if (medicalError) {
+          console.error('Error updating medical info:', medicalError);
+          throw new Error(`Failed to update medical info: ${medicalError.message}`);
+        }
+      } else {
+        // Insert new medical info
+        console.log('Inserting new medical info');
+        const { error: medicalError } = await supabase
+          .from('camper_medical_info')
+          .insert(medicalData);
+
+        if (medicalError) {
+          console.error('Error inserting medical info:', medicalError);
+          throw new Error(`Failed to insert medical info: ${medicalError.message}`);
+        }
+      }
+
+      console.log('Medical info saved successfully');
+
       Alert.alert(
         'Success! ✅',
         'Camper information has been updated',
@@ -252,7 +350,7 @@ function EditCamperContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Form */}
+        {/* Basic Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
           
@@ -519,6 +617,120 @@ function EditCamperContent() {
           </View>
         </View>
 
+        {/* Medical Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Medical Information</Text>
+          
+          <View style={commonStyles.card}>
+            <Text style={styles.label}>Allergies</Text>
+            <Text style={styles.helperText}>Separate multiple items with commas</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="e.g., Peanuts, Tree nuts, Shellfish"
+              placeholderTextColor={colors.textSecondary}
+              value={allergiesText}
+              onChangeText={setAllergiesText}
+              multiline
+              numberOfLines={2}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Medications</Text>
+            <Text style={styles.helperText}>Separate multiple items with commas</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="e.g., Albuterol inhaler, EpiPen"
+              placeholderTextColor={colors.textSecondary}
+              value={medicationsText}
+              onChangeText={setMedicationsText}
+              multiline
+              numberOfLines={2}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Dietary Restrictions</Text>
+            <Text style={styles.helperText}>Separate multiple items with commas</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="e.g., Vegetarian, Gluten-free"
+              placeholderTextColor={colors.textSecondary}
+              value={dietaryRestrictionsText}
+              onChangeText={setDietaryRestrictionsText}
+              multiline
+              numberOfLines={2}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Medical Conditions</Text>
+            <Text style={styles.helperText}>Separate multiple items with commas</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="e.g., Asthma, Diabetes"
+              placeholderTextColor={colors.textSecondary}
+              value={medicalConditionsText}
+              onChangeText={setMedicalConditionsText}
+              multiline
+              numberOfLines={2}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Special Care Instructions</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="Any special care instructions..."
+              placeholderTextColor={colors.textSecondary}
+              value={specialCareInstructions}
+              onChangeText={setSpecialCareInstructions}
+              multiline
+              numberOfLines={3}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Doctor Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Primary care physician"
+              placeholderTextColor={colors.textSecondary}
+              value={doctorName}
+              onChangeText={setDoctorName}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Doctor Phone</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Doctor's phone number"
+              placeholderTextColor={colors.textSecondary}
+              value={doctorPhone}
+              onChangeText={setDoctorPhone}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Insurance Provider</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Insurance company name"
+              placeholderTextColor={colors.textSecondary}
+              value={insuranceProvider}
+              onChangeText={setInsuranceProvider}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Insurance Number</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Policy or member number"
+              placeholderTextColor={colors.textSecondary}
+              value={insuranceNumber}
+              onChangeText={setInsuranceNumber}
+            />
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Additional Notes</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="Any additional medical notes..."
+              placeholderTextColor={colors.textSecondary}
+              value={medicalNotes}
+              onChangeText={setMedicalNotes}
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+        </View>
+
         {/* Save Button */}
         <View style={styles.section}>
           <TouchableOpacity
@@ -625,6 +837,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 8,
   },
+  helperText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
   input: {
     backgroundColor: colors.background,
     borderWidth: 1,
@@ -634,6 +853,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: colors.text,
+  },
+  multilineInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   dateButton: {
     flexDirection: 'row',
