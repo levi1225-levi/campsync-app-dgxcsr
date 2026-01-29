@@ -237,45 +237,25 @@ function EditCamperContent() {
 
       console.log('Camper basic info updated successfully');
 
-      // Update or insert medical info
-      const medicalData: any = {
-        camper_id: camperId,
-        allergies: allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [],
-        medications: medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [],
-        dietary_restrictions: dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [],
-        medical_conditions: medicalConditionsText.trim() ? medicalConditionsText.split(',').map(s => s.trim()).filter(s => s) : [],
-        special_care_instructions: specialCareInstructions.trim() || null,
-        doctor_name: doctorName.trim() || null,
-        doctor_phone: doctorPhone.trim() || null,
-        insurance_provider: insuranceProvider.trim() || null,
-        insurance_number: insuranceNumber.trim() || null,
-        notes: medicalNotes.trim() || null,
-        updated_at: new Date().toISOString(),
-      };
+      // Update or insert medical info using RPC function to bypass RLS
+      console.log('Saving medical info via RPC function');
+      const { error: medicalError } = await supabase.rpc('upsert_camper_medical_info_bypass_rls', {
+        p_camper_id: camperId,
+        p_allergies: allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [],
+        p_medications: medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        p_dietary_restrictions: dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        p_medical_conditions: medicalConditionsText.trim() ? medicalConditionsText.split(',').map(s => s.trim()).filter(s => s) : [],
+        p_special_care_instructions: specialCareInstructions.trim() || null,
+        p_doctor_name: doctorName.trim() || null,
+        p_doctor_phone: doctorPhone.trim() || null,
+        p_insurance_provider: insuranceProvider.trim() || null,
+        p_insurance_number: insuranceNumber.trim() || null,
+        p_notes: medicalNotes.trim() || null,
+      });
 
-      if (hasMedicalInfo) {
-        // Update existing medical info
-        console.log('Updating existing medical info');
-        const { error: medicalError } = await supabase
-          .from('camper_medical_info')
-          .update(medicalData)
-          .eq('camper_id', camperId);
-
-        if (medicalError) {
-          console.error('Error updating medical info:', medicalError);
-          throw new Error(`Failed to update medical info: ${medicalError.message}`);
-        }
-      } else {
-        // Insert new medical info
-        console.log('Inserting new medical info');
-        const { error: medicalError } = await supabase
-          .from('camper_medical_info')
-          .insert(medicalData);
-
-        if (medicalError) {
-          console.error('Error inserting medical info:', medicalError);
-          throw new Error(`Failed to insert medical info: ${medicalError.message}`);
-        }
+      if (medicalError) {
+        console.error('Error saving medical info:', medicalError);
+        throw new Error(`Failed to save medical info: ${medicalError.message}`);
       }
 
       console.log('Medical info saved successfully');

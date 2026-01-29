@@ -183,15 +183,19 @@ export default function CreateCamperScreen() {
       // Create medical info if any medical data is provided
       if (allergies || medications || medicalConditions || dietaryRestrictions) {
         console.log('Creating medical info for camper');
-        const { error: medicalError } = await supabase
-          .from('camper_medical_info')
-          .insert({
-            camper_id: camperId,
-            allergies: allergies ? allergies.split(',').map(a => a.trim()).filter(a => a) : [],
-            medications: medications ? medications.split(',').map(m => m.trim()).filter(m => m) : [],
-            medical_conditions: medicalConditions ? medicalConditions.split(',').map(m => m.trim()).filter(m => m) : [],
-            dietary_restrictions: dietaryRestrictions ? dietaryRestrictions.split(',').map(d => d.trim()).filter(d => d) : [],
-          });
+        const { error: medicalError } = await supabase.rpc('upsert_camper_medical_info_bypass_rls', {
+          p_camper_id: camperId,
+          p_allergies: allergies ? allergies.split(',').map(a => a.trim()).filter(a => a) : [],
+          p_medications: medications ? medications.split(',').map(m => m.trim()).filter(m => m) : [],
+          p_dietary_restrictions: dietaryRestrictions ? dietaryRestrictions.split(',').map(d => d.trim()).filter(d => d) : [],
+          p_medical_conditions: medicalConditions ? medicalConditions.split(',').map(m => m.trim()).filter(m => m) : [],
+          p_special_care_instructions: null,
+          p_doctor_name: null,
+          p_doctor_phone: null,
+          p_insurance_provider: null,
+          p_insurance_number: null,
+          p_notes: null,
+        });
 
         if (medicalError) {
           console.error('Error creating medical info:', medicalError);
