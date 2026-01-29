@@ -442,18 +442,13 @@ export default function RegisterScreen() {
               color={colors.primary}
             />
           </TouchableOpacity>
-          <LinearGradient
-            colors={[colors.primary, colors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoContainer}
-          >
+          <View style={styles.logoContainer}>
             <Image
               source={resolveImageSource(require('@/assets/images/ab23ec0a-a7bd-406b-b915-7c9d5b3dffb6.png'))}
               style={styles.logoImage}
               resizeMode="contain"
             />
-          </LinearGradient>
+          </View>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>
             {step === 'code' ? 'Enter your authorization code' : 'Complete your profile'}
@@ -525,6 +520,7 @@ export default function RegisterScreen() {
             <View style={[commonStyles.card, styles.demoCard]}>
               <Text style={styles.demoTitle}>Demo Authorization Codes</Text>
               <Text style={styles.demoItem}>• SUPER_ADMIN_2024 - Super Admin</Text>
+              <Text style={styles.demoItem}>• CAMP_ADMIN_2024 - Camp Admin</Text>
               <Text style={styles.demoItem}>• DEMO_PARENT_2024 - Parent</Text>
             </View>
 
@@ -728,15 +724,11 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 180,
+    height: 180,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    boxShadow: '0px 4px 16px rgba(99, 102, 241, 0.3)',
-    elevation: 4,
-    padding: 10,
   },
   logoImage: {
     width: '100%',
