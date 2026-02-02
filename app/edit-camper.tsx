@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -179,9 +179,12 @@ function EditCamperContent() {
     }
   }, [camperId, router]);
 
-  useEffect(() => {
-    loadCamper();
-  }, [loadCamper]);
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Edit camper screen focused - reloading data');
+      loadCamper();
+    }, [loadCamper])
+  );
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
