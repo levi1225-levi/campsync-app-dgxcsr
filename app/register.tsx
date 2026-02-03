@@ -1,5 +1,7 @@
 
-import React, { useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { incrementCodeUsage, findCampersByParentEmail } from '@/services/authorizationCode.service';
+import { supabase } from '@/app/integrations/supabase/client';
 import {
   View,
   Text,
@@ -16,13 +18,183 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
 import { validateAuthorizationCode } from '@/services/authorizationCode.service';
-import { supabase } from '@/app/integrations/supabase/client';
-import { incrementCodeUsage, findCampersByParentEmail } from '@/services/authorizationCode.service';
-import { LinearGradient } from 'expo-linear-gradient';
+import { IconSymbol } from '@/components/IconSymbol';
+import React, { useState } from 'react';
 
-// Helper to resolve image sources (handles both local require() and remote URLs)
+const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'android' ? 60 : 40,
+    paddingBottom: 40,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+  },
+  logoContainer: {
+    width: 140,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 70,
+    padding: 20,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    opacity: 0.9,
+  },
+  infoCard: {
+    backgroundColor: colors.info + '15',
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 12,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  demoCodesCard: {
+    backgroundColor: colors.warning + '15',
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 12,
+  },
+  demoCodesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  demoCodeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  demoCodeLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  demoCode: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  formContainer: {
+    marginBottom: 24,
+  },
+  formTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 20,
+    letterSpacing: -0.3,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 12,
+  },
+  inputIcon: {
+    fontSize: 20,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+  },
+  validateButton: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  validatedCard: {
+    backgroundColor: colors.success + '15',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.success + '30',
+  },
+  validatedTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.success,
+    marginBottom: 8,
+  },
+  validatedText: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  registerButton: {
+    marginTop: 8,
+  },
+  signInContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  signInText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  signInLink: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 'auto',
+  },
+  footerIcon: {
+    fontSize: 16,
+  },
+  footerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+});
+
 function resolveImageSource(source: string | number | ImageSourcePropType | undefined): ImageSourcePropType {
   if (!source) return { uri: '' };
   if (typeof source === 'string') return { uri: source };
@@ -30,383 +202,179 @@ function resolveImageSource(source: string | number | ImageSourcePropType | unde
 }
 
 export default function RegisterScreen() {
-  const [step, setStep] = useState<'code' | 'details'>('code');
   const [authCode, setAuthCode] = useState('');
-  const [validatedCode, setValidatedCode] = useState<any>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [validatedCode, setValidatedCode] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
 
   const handleValidateCode = async () => {
-    console.log('=== Validating Authorization Code ===');
-    setErrorMessage('');
-    
+    console.log('Validating authorization code:', authCode);
+
     if (!authCode.trim()) {
-      const errorMsg = 'Please enter an authorization code';
-      console.log('Validation error:', errorMsg);
-      setErrorMessage(errorMsg);
-      Alert.alert('Error', errorMsg);
+      Alert.alert('Error', 'Please enter an authorization code');
       return;
     }
 
-    setIsLoading(true);
+    setIsValidating(true);
     try {
-      const codeToValidate = authCode.trim().toUpperCase();
-      console.log('Code entered:', codeToValidate);
-      
-      const result = await validateAuthorizationCode(codeToValidate);
-      console.log('Validation result:', JSON.stringify(result, null, 2));
+      const result = await validateAuthorizationCode(authCode.trim().toUpperCase());
+      console.log('Validation result:', result);
 
-      if (!result || !result.valid) {
-        const errorMsg = result?.error || 'The authorization code is invalid or expired';
-        console.log('Code validation failed:', errorMsg);
-        setErrorMessage(errorMsg);
-        Alert.alert('Invalid Code', errorMsg);
-        return;
+      if (result.valid) {
+        setValidatedCode(result);
+        Alert.alert('Success', `Valid ${result.role} authorization code!`);
+      } else {
+        Alert.alert('Invalid Code', result.message || 'This authorization code is not valid');
       }
-
-      console.log('Code validated successfully! Role:', result.role);
-      setValidatedCode(result);
-      setStep('details');
-      setErrorMessage('');
-      Alert.alert(
-        'Code Validated ✓',
-        `You will be registered as: ${result.role?.replace('-', ' ').toUpperCase()}`
-      );
     } catch (error) {
-      console.error('Error validating code:', error);
-      const errorMsg = `Failed to validate authorization code: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      setErrorMessage(errorMsg);
-      Alert.alert('Error', errorMsg);
+      console.error('Validation error:', error);
+      Alert.alert('Error', 'Failed to validate authorization code');
     } finally {
-      setIsLoading(false);
+      setIsValidating(false);
     }
   };
 
   const handleRegister = async () => {
-    console.log('=== Starting Registration Process ===');
+    console.log('=== Registration Attempt ===');
     console.log('Email:', email);
-    console.log('Full name:', fullName);
+    console.log('Full Name:', fullName);
     console.log('Role:', validatedCode?.role);
-    setErrorMessage('');
 
-    // Validation
     if (!email || !password || !confirmPassword || !fullName) {
-      const errorMsg = 'Please fill in all required fields';
-      console.log('Validation failed:', errorMsg);
-      setErrorMessage(errorMsg);
-      Alert.alert('Error', errorMsg);
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      const errorMsg = 'Passwords do not match';
-      console.log('Validation failed:', errorMsg);
-      setErrorMessage(errorMsg);
-      Alert.alert('Error', errorMsg);
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      const errorMsg = 'Password must be at least 6 characters';
-      console.log('Validation failed:', errorMsg);
-      setErrorMessage(errorMsg);
-      Alert.alert('Error', errorMsg);
+      Alert.alert('Error', 'Password must be at least 6 characters long');
       return;
     }
 
-    console.log('Validation passed, proceeding with registration...');
-    setIsLoading(true);
-    
+    setIsRegistering(true);
     try {
-      // Re-validate the authorization code
-      console.log('Step 1: Re-validating authorization code...');
-      const revalidation = await validateAuthorizationCode(authCode.trim().toUpperCase());
-      console.log('Revalidation result:', JSON.stringify(revalidation, null, 2));
-      
-      if (!revalidation || !revalidation.valid) {
-        const errorMsg = revalidation?.error || 'Authorization code is no longer valid';
-        console.log('Revalidation failed:', errorMsg);
-        setErrorMessage(errorMsg);
-        Alert.alert('Error', `${errorMsg}. Please start over.`);
-        setStep('code');
-        setIsLoading(false);
-        return;
-      }
-
-      // Determine registration_complete based on role
-      // Non-parent roles (super-admin, camp-admin, staff) are complete after account creation
-      // Parent role requires additional parent registration flow
-      const isParent = revalidation.role === 'parent';
-      const registrationComplete = !isParent;
-      
-      console.log('Registration settings:', {
-        role: revalidation.role,
-        isParent,
-        registrationComplete
-      });
-
-      // Create user account with Supabase Auth
-      console.log('Step 2: Creating Supabase auth user...');
-      console.log('Signup data:', {
-        email: email.toLowerCase().trim(),
-        metadata: {
-          full_name: fullName,
-          phone: phone || null,
-          role: revalidation.role,
-        }
-      });
-
+      console.log('Creating Supabase auth user...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
-        password,
+        password: password,
         options: {
-          emailRedirectTo: 'https://natively.dev/email-confirmed',
           data: {
-            full_name: fullName,
-            phone: phone || null,
-            role: revalidation.role,
-          }
-        }
-      });
-
-      console.log('Auth response:', { 
-        hasUser: !!authData?.user, 
-        userId: authData?.user?.id,
-        hasSession: !!authData?.session,
-        userEmail: authData?.user?.email,
-        error: authError ? JSON.stringify(authError, null, 2) : null
+            full_name: fullName.trim(),
+            phone: phone.trim() || null,
+          },
+        },
       });
 
       if (authError) {
-        console.error('Supabase auth error:', authError);
-        let errorMessage = authError.message;
-        
-        // Provide more helpful error messages
-        if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
-          errorMessage = 'This email is already registered. Please sign in instead.';
-        } else if (errorMessage.includes('invalid email')) {
-          errorMessage = 'Please enter a valid email address.';
-        } else if (errorMessage.includes('password')) {
-          errorMessage = 'Password does not meet requirements. Please use at least 6 characters.';
-        }
-        
-        console.log('Formatted error message:', errorMessage);
-        setErrorMessage(errorMessage);
-        Alert.alert('Registration Failed', errorMessage);
-        setIsLoading(false);
-        return;
+        console.error('Auth error:', authError);
+        throw authError;
       }
 
       if (!authData.user) {
-        const errorMsg = 'Failed to create user account. No user returned from Supabase.';
-        console.error(errorMsg);
-        setErrorMessage(errorMsg);
-        Alert.alert('Error', `${errorMsg} Please try again.`);
-        setIsLoading(false);
-        return;
+        throw new Error('No user data returned from signup');
       }
 
-      console.log('User created successfully! User ID:', authData.user.id);
+      console.log('Auth user created:', authData.user.id);
 
-      // Wait for trigger to create profile
-      console.log('Step 3: Waiting for profile creation...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Verify profile was created
-      console.log('Step 4: Verifying profile creation...');
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
-
-      console.log('Profile verification:', {
-        hasProfile: !!profile,
-        profileId: profile?.id,
-        profileRole: profile?.role,
-        profileRegistrationComplete: profile?.registration_complete,
-        error: profileError ? JSON.stringify(profileError, null, 2) : null
+      console.log('Creating user profile...');
+      const { error: profileError } = await supabase.from('user_profiles').insert({
+        id: authData.user.id,
+        email: email.toLowerCase().trim(),
+        full_name: fullName.trim(),
+        phone: phone.trim() || null,
+        role: validatedCode.role,
+        registration_complete: validatedCode.role !== 'parent',
       });
 
-      if (profileError || !profile) {
-        console.error('Profile not found after trigger:', profileError);
-        const errorMsg = 'Your account was created but there was an issue setting up your profile.';
-        setErrorMessage(errorMsg);
-        Alert.alert(
-          'Profile Creation Issue',
-          `${errorMsg} Please contact support.`
-        );
-        setIsLoading(false);
-        return;
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        throw profileError;
       }
 
-      console.log('Profile verified:', JSON.stringify(profile, null, 2));
+      console.log('User profile created successfully');
 
-      // Update profile with correct role and registration status
-      console.log('Step 5: Updating profile with role and details...');
-      console.log('Setting registration_complete to:', registrationComplete);
-      
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({
-          full_name: fullName,
-          phone: phone || null,
-          role: revalidation.role,
-          registration_complete: registrationComplete,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', authData.user.id);
+      await incrementCodeUsage(validatedCode.code);
+      console.log('Authorization code usage incremented');
 
-      if (updateError) {
-        console.error('Error updating profile:', updateError);
-        // Don't fail registration for this, but log it
-        console.warn('Profile update failed, but continuing with registration');
-      } else {
-        console.log('Profile updated successfully with registration_complete:', registrationComplete);
+      if (validatedCode.role === 'parent') {
+        console.log('Parent role detected, handling parent linking...');
+        await handleParentLinking(authData.user.id, email.toLowerCase().trim(), validatedCode);
       }
 
-      // Verify the update
-      const { data: updatedProfile } = await supabase
-        .from('user_profiles')
-        .select('registration_complete, role')
-        .eq('id', authData.user.id)
-        .single();
-      
-      console.log('Profile after update:', updatedProfile);
-
-      // Handle parent-specific linking
-      if (isParent) {
-        console.log('Step 6: Handling parent linking...');
-        try {
-          await handleParentLinking(authData.user.id, email.toLowerCase().trim(), revalidation);
-          console.log('Parent linking completed successfully!');
-        } catch (linkError) {
-          console.error('Parent linking error:', linkError);
-          // Don't fail the entire registration if linking fails
-          Alert.alert(
-            'Warning',
-            'Account created but there was an issue linking to campers. Please contact support.'
-          );
-        }
-      }
-
-      // Increment code usage atomically
-      if (revalidation.code_id) {
-        console.log('Step 7: Incrementing code usage...');
-        try {
-          await incrementCodeUsage(revalidation.code_id);
-          console.log('Code usage incremented successfully!');
-        } catch (codeError) {
-          console.error('Error incrementing code usage:', codeError);
-          // Don't fail registration if this fails
-        }
-      }
-
-      console.log('=== Registration Completed Successfully! ===');
-      setErrorMessage('');
-
-      // Show success message
-      const roleDisplay = revalidation.role.replace('-', ' ').toUpperCase();
-      const successMessage = isParent 
-        ? 'Please check your email to verify your account. After verification, you can sign in and complete your parent registration.'
-        : 'Please check your email to verify your account before signing in. The verification link will expire in 24 hours.';
-      
       Alert.alert(
-        'Registration Successful! ✓',
-        successMessage,
+        'Success',
+        'Account created successfully! Please check your email to verify your account before signing in.',
         [
           {
             text: 'OK',
-            onPress: () => {
-              console.log('Navigating to sign-in...');
-              router.replace('/sign-in');
-            }
-          }
+            onPress: () => router.replace('/sign-in'),
+          },
         ]
       );
     } catch (error) {
-      console.error('Unexpected registration error:', error);
-      const errorMsg = `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      setErrorMessage(errorMsg);
-      Alert.alert(
-        'Registration Error', 
-        `${errorMsg}\n\nPlease try again or contact support.`
-      );
+      console.error('Registration error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during registration';
+      Alert.alert('Registration Failed', errorMessage);
     } finally {
-      console.log('Setting isLoading to false');
-      setIsLoading(false);
+      setIsRegistering(false);
     }
   };
 
-  const handleParentLinking = async (
-    userId: string,
-    email: string,
-    validatedCode: any
-  ) => {
+  const handleParentLinking = async (userId: string, email: string, validatedCode: any) => {
+    console.log('=== Parent Linking Process ===');
+    console.log('User ID:', userId);
+    console.log('Email:', email);
+    console.log('Validated Code:', validatedCode);
+
     try {
-      console.log('Starting parent linking for user:', userId);
-      
-      // A) Code-based linking
-      const codeCamperIds = validatedCode.linked_camper_ids || [];
-      console.log('Code-based camper IDs:', codeCamperIds);
-
-      // B) Email-based auto-matching
-      const emailCamperIds = await findCampersByParentEmail(email);
-      console.log('Email-based camper IDs:', emailCamperIds);
-
-      // Union of both (no duplicates)
-      const allCamperIds = Array.from(new Set([...codeCamperIds, ...emailCamperIds]));
-      console.log('All linked camper IDs:', allCamperIds);
-
-      // Create parent_guardian record
-      console.log('Creating parent_guardian record...');
-      const { error: parentError } = await supabase
-        .from('parent_guardians')
-        .insert({
-          id: userId,
-          email,
-          full_name: fullName,
-          phone: phone || null,
-        });
+      console.log('Creating parent_guardians record...');
+      const { error: parentError } = await supabase.from('parent_guardians').insert({
+        id: userId,
+        email: email,
+        full_name: fullName.trim(),
+        phone: phone.trim() || null,
+      });
 
       if (parentError) {
-        console.error('Error creating parent guardian:', parentError);
+        console.error('Parent guardian creation error:', parentError);
         throw parentError;
       }
 
-      console.log('Parent guardian record created successfully!');
+      console.log('Parent guardian record created successfully');
 
-      // Create parent-camper links
-      if (allCamperIds.length > 0) {
-        console.log('Creating parent-camper links for', allCamperIds.length, 'campers...');
-        const links = allCamperIds.map(camperId => ({
+      if (validatedCode.linked_camper_ids && validatedCode.linked_camper_ids.length > 0) {
+        console.log('Linking to campers:', validatedCode.linked_camper_ids);
+
+        const camperLinks = validatedCode.linked_camper_ids.map((camperId: string) => ({
           parent_id: userId,
           camper_id: camperId,
           relationship: 'Parent/Guardian',
         }));
 
-        const { error: linkError } = await supabase
-          .from('parent_camper_links')
-          .insert(links);
+        const { error: linkError } = await supabase.from('parent_camper_links').insert(camperLinks);
 
         if (linkError) {
-          console.error('Error creating parent-camper links:', linkError);
+          console.error('Camper linking error:', linkError);
           throw linkError;
         }
 
-        console.log('Parent-camper links created successfully!');
+        console.log('Camper links created successfully');
       } else {
-        console.log('No campers to link');
+        console.log('No linked campers found in authorization code');
       }
     } catch (error) {
-      console.error('Error in parent linking:', error);
+      console.error('Parent linking error:', error);
       throw error;
     }
   };
@@ -421,27 +389,12 @@ export default function RegisterScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              console.log('Back button pressed, current step:', step);
-              if (step === 'details') {
-                setStep('code');
-                setErrorMessage('');
-              } else {
-                router.back();
-              }
-            }}
-          >
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow-back"
-              size={24}
-              color={colors.primary}
-            />
-          </TouchableOpacity>
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
           <View style={styles.logoContainer}>
             <Image
               source={resolveImageSource(require('@/assets/images/ab23ec0a-a7bd-406b-b915-7c9d5b3dffb6.png'))}
@@ -449,414 +402,192 @@ export default function RegisterScreen() {
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>
-            {step === 'code' ? 'Enter your authorization code' : 'Complete your profile'}
+          <Text style={styles.title}>CampSync</Text>
+          <Text style={styles.subtitle}>Create Your Account</Text>
+        </LinearGradient>
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>Authorization Required</Text>
+          <Text style={styles.infoText}>
+            You need a valid authorization code from your camp administrator to create an account. This ensures only authorized users can access the system.
           </Text>
         </View>
 
-        {/* Error Message Display */}
-        {errorMessage ? (
-          <View style={styles.errorContainer}>
-            <IconSymbol
-              ios_icon_name="exclamationmark.triangle.fill"
-              android_material_icon_name="error"
-              size={20}
-              color={colors.error}
-            />
-            <Text style={styles.errorText}>{errorMessage}</Text>
+        <View style={styles.demoCodesCard}>
+          <Text style={styles.demoCodesTitle}>🎯 Demo Authorization Codes</Text>
+          <View style={styles.demoCodeRow}>
+            <Text style={styles.demoCodeLabel}>Super Admin:</Text>
+            <Text style={styles.demoCode}>SUPER_ADMIN_2024</Text>
           </View>
-        ) : null}
-
-        {/* Step Indicator */}
-        <View style={styles.stepIndicator}>
-          <View style={[styles.stepDot, step === 'code' && styles.stepDotActive]} />
-          <View style={styles.stepLine} />
-          <View style={[styles.stepDot, step === 'details' && styles.stepDotActive]} />
+          <View style={styles.demoCodeRow}>
+            <Text style={styles.demoCodeLabel}>Camp Admin:</Text>
+            <Text style={styles.demoCode}>CAMP_ADMIN_2024</Text>
+          </View>
+          <View style={styles.demoCodeRow}>
+            <Text style={styles.demoCodeLabel}>Staff:</Text>
+            <Text style={styles.demoCode}>STAFF_2024</Text>
+          </View>
+          <View style={styles.demoCodeRow}>
+            <Text style={styles.demoCodeLabel}>Parent:</Text>
+            <Text style={styles.demoCode}>PARENT_2024</Text>
+          </View>
         </View>
 
-        {/* Step 1: Authorization Code */}
-        {step === 'code' && (
-          <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Authorization Code</Text>
-            <Text style={commonStyles.textSecondary}>
-              Enter the authorization code provided by your camp administrator
-            </Text>
+        <View style={styles.formContainer}>
+          <Text style={styles.formTitle}>Step 1: Validate Code</Text>
 
-            <View style={styles.inputContainer}>
-              <IconSymbol
-                ios_icon_name="key.fill"
-                android_material_icon_name="vpn-key"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="XXXX-XXXX-XXXX"
-                placeholderTextColor={colors.textSecondary}
-                value={authCode}
-                onChangeText={(text) => {
-                  setAuthCode(text);
-                  setErrorMessage('');
-                }}
-                autoCapitalize="characters"
-                editable={!isLoading}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[buttonStyles.primary, styles.button]}
-              onPress={handleValidateCode}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={buttonStyles.text}>Validate Code</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Demo Codes */}
-            <View style={[commonStyles.card, styles.demoCard]}>
-              <Text style={styles.demoTitle}>Demo Authorization Codes</Text>
-              <Text style={styles.demoItem}>• SUPER_ADMIN_2024 - Super Admin</Text>
-              <Text style={styles.demoItem}>• CAMP_ADMIN_2024 - Camp Admin</Text>
-              <Text style={styles.demoItem}>• DEMO_PARENT_2024 - Parent</Text>
-            </View>
-
-            {/* Help Link */}
-            <TouchableOpacity
-              style={styles.helpLink}
-              onPress={() => router.push('/request-access' as any)}
-            >
-              <IconSymbol
-                ios_icon_name="questionmark.circle.fill"
-                android_material_icon_name="help"
-                size={20}
-                color={colors.primary}
-              />
-              <Text style={styles.helpLinkText}>Don&apos;t have a code?</Text>
-            </TouchableOpacity>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputIcon}>🔑</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Authorization Code"
+              placeholderTextColor={colors.textSecondary}
+              value={authCode}
+              onChangeText={setAuthCode}
+              autoCapitalize="characters"
+              editable={!validatedCode && !isValidating}
+            />
           </View>
-        )}
 
-        {/* Step 2: User Details */}
-        {step === 'details' && (
-          <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Your Information</Text>
-
-            <View style={styles.inputContainer}>
-              <IconSymbol
-                ios_icon_name="person.fill"
-                android_material_icon_name="person"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Full Name *"
-                placeholderTextColor={colors.textSecondary}
-                value={fullName}
-                onChangeText={(text) => {
-                  setFullName(text);
-                  setErrorMessage('');
-                }}
-                autoCapitalize="words"
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <IconSymbol
-                ios_icon_name="envelope.fill"
-                android_material_icon_name="email"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Email *"
-                placeholderTextColor={colors.textSecondary}
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  setErrorMessage('');
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <IconSymbol
-                ios_icon_name="phone.fill"
-                android_material_icon_name="phone"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Phone (optional)"
-                placeholderTextColor={colors.textSecondary}
-                value={phone}
-                onChangeText={(text) => {
-                  setPhone(text);
-                  setErrorMessage('');
-                }}
-                keyboardType="phone-pad"
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <IconSymbol
-                ios_icon_name="lock.fill"
-                android_material_icon_name="lock"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Password *"
-                placeholderTextColor={colors.textSecondary}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  setErrorMessage('');
-                }}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                editable={!isLoading}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-              >
-                <IconSymbol
-                  ios_icon_name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
-                  android_material_icon_name={showPassword ? 'visibility-off' : 'visibility'}
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <IconSymbol
-                ios_icon_name="lock.fill"
-                android_material_icon_name="lock"
-                size={20}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm Password *"
-                placeholderTextColor={colors.textSecondary}
-                value={confirmPassword}
-                onChangeText={(text) => {
-                  setConfirmPassword(text);
-                  setErrorMessage('');
-                }}
-                secureTextEntry={!showConfirmPassword}
-                autoCapitalize="none"
-                editable={!isLoading}
-              />
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={isLoading}
-              >
-                <IconSymbol
-                  ios_icon_name={showConfirmPassword ? 'eye.slash.fill' : 'eye.fill'}
-                  android_material_icon_name={showConfirmPassword ? 'visibility-off' : 'visibility'}
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[buttonStyles.primary, styles.button]}
-              onPress={() => {
-                console.log('Create Account button pressed!');
-                handleRegister();
-              }}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={buttonStyles.text}>Create Account</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.replace('/sign-in')}>
-            <Text style={styles.footerLink}>Sign In</Text>
+          <TouchableOpacity
+            style={[buttonStyles.primary, styles.validateButton]}
+            onPress={handleValidateCode}
+            disabled={isValidating || !!validatedCode}
+          >
+            {isValidating ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={buttonStyles.text}>
+                {validatedCode ? '✓ Code Validated' : 'Validate Code'}
+              </Text>
+            )}
           </TouchableOpacity>
+        </View>
+
+        {validatedCode && (
+          <>
+            <View style={styles.validatedCard}>
+              <Text style={styles.validatedTitle}>✓ Code Validated</Text>
+              <Text style={styles.validatedText}>Role: {validatedCode.role}</Text>
+              <Text style={styles.validatedText}>
+                You can now complete your registration below.
+              </Text>
+            </View>
+
+            <View style={styles.formContainer}>
+              <Text style={styles.formTitle}>Step 2: Account Details</Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>👤</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Full Name"
+                  placeholderTextColor={colors.textSecondary}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  autoCapitalize="words"
+                  editable={!isRegistering}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>✉️</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor={colors.textSecondary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  editable={!isRegistering}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>📱</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Phone (Optional)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  editable={!isRegistering}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>🔒</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor={colors.textSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="password"
+                  editable={!isRegistering}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  disabled={isRegistering}
+                >
+                  <Text style={styles.inputIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>🔒</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirm Password"
+                  placeholderTextColor={colors.textSecondary}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  editable={!isRegistering}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isRegistering}
+                >
+                  <Text style={styles.inputIcon}>{showConfirmPassword ? '👁️' : '🙈'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[buttonStyles.primary, styles.registerButton]}
+                onPress={handleRegister}
+                disabled={isRegistering}
+              >
+                {isRegistering ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={buttonStyles.text}>Create Account</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        <View style={styles.signInContainer}>
+          <Text style={styles.signInText}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.push('/sign-in')}>
+            <Text style={styles.signInLink}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerIcon}>🔒</Text>
+          <Text style={styles.footerText}>
+            Secure registration with role-based access
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'android' ? 60 : 40,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    padding: 8,
-    zIndex: 10,
-  },
-  logoContainer: {
-    width: 180,
-    height: 180,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.error + '15',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.error + '30',
-  },
-  errorText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.error,
-    fontWeight: '500',
-  },
-  stepIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.border,
-  },
-  stepDotActive: {
-    backgroundColor: colors.primary,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  stepLine: {
-    width: 60,
-    height: 2,
-    backgroundColor: colors.border,
-    marginHorizontal: 8,
-  },
-  formContainer: {
-    marginBottom: 24,
-  },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-    letterSpacing: -0.3,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-  },
-  button: {
-    marginTop: 20,
-  },
-  demoCard: {
-    backgroundColor: colors.info + '15',
-    marginTop: 24,
-  },
-  demoTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  demoItem: {
-    fontSize: 13,
-    color: colors.text,
-    marginVertical: 2,
-  },
-  helpLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    gap: 8,
-  },
-  helpLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 'auto',
-  },
-  footerText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  footerLink: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-});

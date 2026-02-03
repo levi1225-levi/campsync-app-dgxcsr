@@ -215,11 +215,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   logoContainer: {
-    width: 200,
-    height: 200,
+    width: 140,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 70,
+    padding: 20,
   },
   logoImage: {
     width: '100%',
