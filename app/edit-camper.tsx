@@ -126,15 +126,24 @@ function EditCamperContent() {
       console.log('Swim Level:', data.swim_level);
       console.log('Cabin:', data.cabin_assignment);
       console.log('Check-in Status:', data.check_in_status);
+      console.log('Registration Status:', data.registration_status);
+      console.log('Wristband ID:', data.wristband_id);
+      console.log('Date of Birth:', data.date_of_birth);
 
-      setFirstName(data.first_name);
-      setLastName(data.last_name);
+      // Set all basic info state
+      setFirstName(data.first_name || '');
+      setLastName(data.last_name || '');
       setDateOfBirth(new Date(data.date_of_birth));
       setWristbandId(data.wristband_id || '');
       setCheckInStatus(data.check_in_status || 'not-arrived');
       setSwimLevel(data.swim_level || '');
       setCabinAssignment(data.cabin_assignment || '');
       setRegistrationStatus(data.registration_status || 'pending');
+
+      console.log('State updated with basic info');
+      console.log('First Name state:', data.first_name);
+      console.log('Last Name state:', data.last_name);
+      console.log('Swim Level state:', data.swim_level);
 
       console.log('Loading medical info for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
@@ -166,6 +175,8 @@ function EditCamperContent() {
       }
 
       console.log('=== LOAD COMPLETE ===');
+      console.log('Final state check - First Name:', data.first_name);
+      console.log('Final state check - Last Name:', data.last_name);
     } catch (error: any) {
       console.error('=== ERROR IN LOAD CAMPER ===');
       console.error('Error:', error);
@@ -328,6 +339,12 @@ function EditCamperContent() {
       </View>
     );
   }
+
+  console.log('=== RENDERING FORM ===');
+  console.log('First Name value:', firstName);
+  console.log('Last Name value:', lastName);
+  console.log('Swim Level value:', swimLevel);
+  console.log('Cabin Assignment value:', cabinAssignment);
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
