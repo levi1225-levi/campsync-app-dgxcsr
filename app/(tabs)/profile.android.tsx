@@ -14,6 +14,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SessionMonitor } from '@/components/SessionMonitor';
 
 function ProfileScreenContent() {
   const router = useRouter();
@@ -135,6 +136,8 @@ function ProfileScreenContent() {
             </Text>
           </View>
         </LinearGradient>
+
+        <SessionMonitor showDetails={true} />
 
         {/* Profile Information */}
         <View style={styles.section}>

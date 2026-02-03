@@ -1,10 +1,11 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, AuthSession, UserRole } from '@/types/user';
-import { supabase } from '@/app/integrations/supabase/client';
+import { supabase, sessionManager } from '@/app/integrations/supabase/client';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -14,6 +15,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   hasPermission: (requiredRoles: UserRole[]) => boolean;
   updateUser: (user: User) => Promise<void>;
+  refreshSession: () => Promise<void>;
+  sessionExpiresAt: number | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,6 +34,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
 
   const saveSession = useCallback(async (session: AuthSession) => {
     try {
@@ -41,27 +45,154 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const loadSession = useCallback(async () => {
+  const loadUserProfile = useCallback(async (userId: string, email: string) => {
     try {
-      console.log('Loading session...');
-      const sessionData = await SecureStore.getItemAsync(SESSION_KEY);
-      if (sessionData) {
-        const session: AuthSession = JSON.parse(sessionData);
-        console.log('Session loaded:', session.user.email);
-        setUser(session.user);
-      } else {
-        console.log('No session found');
+      console.log('Fetching user profile for:', userId);
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile error:', profileError);
+        return null;
       }
+
+      const authenticatedUser: User = {
+        id: userId,
+        email: email,
+        fullName: profile.full_name || '',
+        full_name: profile.full_name || '',
+        phone: profile.phone || '',
+        role: profile.role as UserRole,
+        registrationComplete: profile.registration_complete || false,
+      };
+
+      return authenticatedUser;
     } catch (error) {
-      console.error('Failed to load session:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to load user profile:', error);
+      return null;
     }
   }, []);
 
+  const handleAuthStateChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
+    console.log('Auth state changed:', event);
+
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session?.user) {
+        console.log('Session active, loading user profile...');
+        const userProfile = await loadUserProfile(session.user.id, session.user.email!);
+        
+        if (userProfile) {
+          setUser(userProfile);
+          setSessionExpiresAt(session.expires_at || null);
+
+          // Save session to secure storage
+          const authSession: AuthSession = {
+            user: userProfile,
+            accessToken: session.access_token,
+            refreshToken: session.refresh_token,
+          };
+          await saveSession(authSession);
+
+          if (event === 'SIGNED_IN') {
+            redirectAfterLogin(userProfile);
+          }
+        } else {
+          console.error('Failed to load user profile');
+          setUser(null);
+          setSessionExpiresAt(null);
+        }
+      }
+    } else if (event === 'SIGNED_OUT') {
+      console.log('User signed out');
+      setUser(null);
+      setSessionExpiresAt(null);
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+    } else if (event === 'USER_UPDATED') {
+      console.log('User updated');
+      if (session?.user) {
+        const userProfile = await loadUserProfile(session.user.id, session.user.email!);
+        if (userProfile) {
+          setUser(userProfile);
+        }
+      }
+    }
+  }, [loadUserProfile, saveSession]);
+
+  // Initialize auth state and set up listener
   useEffect(() => {
-    loadSession();
-  }, [loadSession]);
+    console.log('Initializing auth state...');
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        console.log('Initial session found');
+        loadUserProfile(session.user.id, session.user.email!).then((userProfile) => {
+          if (userProfile) {
+            setUser(userProfile);
+            setSessionExpiresAt(session.expires_at || null);
+          }
+          setIsLoading(false);
+        });
+      } else {
+        console.log('No initial session found');
+        setIsLoading(false);
+      }
+    });
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    return () => {
+      console.log('Cleaning up auth listener');
+      subscription.unsubscribe();
+    };
+  }, [handleAuthStateChange, loadUserProfile]);
+
+  // Monitor app state and refresh session when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && user) {
+        console.log('App became active, checking session validity...');
+        const isValid = await sessionManager.isSessionValid();
+        if (!isValid) {
+          console.log('Session invalid, signing out...');
+          await signOut();
+        } else {
+          console.log('Session is valid');
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [user]);
+
+  // Periodic session check (every 5 minutes)
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(async () => {
+      console.log('Periodic session check...');
+      const timeRemaining = await sessionManager.getTimeUntilExpiry();
+      
+      if (timeRemaining <= 0) {
+        console.log('Session expired, signing out...');
+        await signOut();
+      } else if (timeRemaining < 300) {
+        // Less than 5 minutes remaining, refresh proactively
+        console.log('Session expiring soon, refreshing...');
+        await sessionManager.refreshSession();
+      } else {
+        console.log(`Session valid, expires in ${Math.floor(timeRemaining / 60)} minutes`);
+      }
+    }, 5 * 60 * 1000); // Check every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const redirectAfterLogin = useCallback((authenticatedUser: User) => {
     console.log('Redirecting after login, role:', authenticatedUser.role);
@@ -121,58 +252,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Email not confirmed. Please check your inbox for the verification link.');
       }
 
-      console.log('Fetching profile...');
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Profile error:', profileError);
-        throw new Error('No user profile found. Your account setup is incomplete. Please contact support.');
-      }
-
-      if (!profile) {
-        throw new Error('No user profile found. Your account setup is incomplete. Please contact support.');
-      }
-
-      console.log('Profile fetched:', {
-        id: profile.id,
-        email: profile.email,
-        role: profile.role,
-        registration_complete: profile.registration_complete
-      });
-
-      const authenticatedUser: User = {
-        id: authData.user.id,
-        email: authData.user.email!,
-        fullName: profile.full_name || '',
-        full_name: profile.full_name || '',
-        phone: profile.phone || '',
-        role: profile.role as UserRole,
-        registrationComplete: profile.registration_complete || false,
-      };
-
-      const session: AuthSession = {
-        user: authenticatedUser,
-        accessToken: authData.session.access_token,
-        refreshToken: authData.session.refresh_token,
-      };
-
-      console.log('Saving session...');
-      await saveSession(session);
-      
-      console.log('Setting user state...');
-      setUser(authenticatedUser);
-
-      console.log('Sign in complete, redirecting...');
-      redirectAfterLogin(authenticatedUser);
+      // The auth state change listener will handle the rest
+      console.log('Sign in complete, waiting for auth state change...');
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
     }
-  }, [saveSession, redirectAfterLogin]);
+  }, []);
 
   const signOut = useCallback(async () => {
     try {
@@ -180,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       await SecureStore.deleteItemAsync(SESSION_KEY);
       setUser(null);
+      setSessionExpiresAt(null);
       
       // Use a longer timeout for iOS
       const timeout = Platform.OS === 'ios' ? 300 : 100;
@@ -192,7 +279,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, timeout);
     } catch (error) {
       console.error('Sign out error:', error);
-      throw error;
+      // Always clear local state even if API call fails
+      setUser(null);
+      setSessionExpiresAt(null);
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+      router.replace('/sign-in');
     }
   }, []);
 
@@ -211,6 +302,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [saveSession]);
 
+  const refreshSession = useCallback(async () => {
+    try {
+      console.log('Manually refreshing session...');
+      const session = await sessionManager.refreshSession();
+      if (session) {
+        setSessionExpiresAt(session.expires_at || null);
+        console.log('Session refreshed successfully');
+      } else {
+        console.log('Failed to refresh session, signing out...');
+        await signOut();
+      }
+    } catch (error) {
+      console.error('Failed to refresh session:', error);
+      await signOut();
+    }
+  }, [signOut]);
+
   const hasPermission = useCallback((requiredRoles: UserRole[]): boolean => {
     if (!user) return false;
     return requiredRoles.includes(user.role);
@@ -226,6 +334,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         hasPermission,
         updateUser,
+        refreshSession,
+        sessionExpiresAt,
       }}
     >
       {children}

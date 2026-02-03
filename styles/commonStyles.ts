@@ -8,6 +8,7 @@ export const colors = {
   backgroundDark: '#1A1B1E',
   card: '#FFFFFF',
   cardDark: '#25262B',
+  cardBackground: '#FFFFFF',
   
   // Text
   text: '#1A1B1E',
