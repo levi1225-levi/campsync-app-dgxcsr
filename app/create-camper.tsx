@@ -15,7 +15,7 @@ import { router } from 'expo-router';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { supabase } from '@/app/integrations/supabase/client';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 export default function CreateCamperScreen() {
   const [loading, setLoading] = useState(false);
@@ -42,9 +42,17 @@ export default function CreateCamperScreen() {
   const [emergency2Phone, setEmergency2Phone] = useState('');
   const [emergency2Relationship, setEmergency2Relationship] = useState('');
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
+  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    console.log('Date picker event:', event.type);
+    
+    // On Android, close the picker after selection or dismissal
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    
+    // Update the date if user selected one (not dismissed)
+    if (event.type === 'set' && selectedDate) {
+      console.log('User selected date:', selectedDate.toISOString());
       setDateOfBirth(selectedDate);
     }
   };
@@ -263,6 +271,8 @@ export default function CreateCamperScreen() {
     }
   };
 
+  const dateDisplayText = dateOfBirth.toLocaleDateString();
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -311,10 +321,13 @@ export default function CreateCamperScreen() {
             <Text style={[styles.label, { marginTop: 16 }]}>Date of Birth *</Text>
             <TouchableOpacity
               style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
+              onPress={() => {
+                console.log('User tapped date picker');
+                setShowDatePicker(true);
+              }}
             >
               <Text style={styles.dateButtonText}>
-                {dateOfBirth.toLocaleDateString()}
+                {dateDisplayText}
               </Text>
               <IconSymbol
                 ios_icon_name="calendar"

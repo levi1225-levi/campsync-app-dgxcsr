@@ -18,7 +18,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CamperData {
@@ -197,9 +197,16 @@ function EditCamperContent() {
     }, [loadCamper])
   );
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) {
+  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    console.log('Date picker event:', event.type);
+    
+    // On Android, close the picker after selection or dismissal
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    
+    // Update the date if user selected one (not dismissed)
+    if (event.type === 'set' && selectedDate) {
       console.log('User selected date:', selectedDate.toISOString());
       setDateOfBirth(selectedDate);
     }
@@ -346,6 +353,8 @@ function EditCamperContent() {
   console.log('Swim Level value:', swimLevel);
   console.log('Cabin Assignment value:', cabinAssignment);
 
+  const dateDisplayText = dateOfBirth.toLocaleDateString();
+
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
       <LinearGradient
@@ -424,7 +433,7 @@ function EditCamperContent() {
                 color={colors.primary}
               />
               <Text style={styles.dateButtonText}>
-                {dateOfBirth.toLocaleDateString()}
+                {dateDisplayText}
               </Text>
             </TouchableOpacity>
 
@@ -452,29 +461,34 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Swim Level</Text>
             <View style={styles.swimLevelButtons}>
-              {['non-swimmer', 'beginner', 'intermediate', 'advanced', 'lifeguard'].map((level) => (
-                <TouchableOpacity
-                  key={level}
-                  style={[
-                    styles.swimLevelButton,
-                    swimLevel === level && styles.swimLevelButtonActive,
-                  ]}
-                  onPress={() => {
-                    console.log('User selected swim level:', level);
-                    setSwimLevel(level);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
+              {['non-swimmer', 'beginner', 'intermediate', 'advanced', 'lifeguard'].map((level) => {
+                const isActive = swimLevel === level;
+                const levelDisplay = level.charAt(0).toUpperCase() + level.slice(1).replace('-', ' ');
+                
+                return (
+                  <TouchableOpacity
+                    key={level}
                     style={[
-                      styles.swimLevelButtonText,
-                      swimLevel === level && styles.swimLevelButtonTextActive,
+                      styles.swimLevelButton,
+                      isActive && styles.swimLevelButtonActive,
                     ]}
+                    onPress={() => {
+                      console.log('User selected swim level:', level);
+                      setSwimLevel(level);
+                    }}
+                    activeOpacity={0.7}
                   >
-                    {level.charAt(0).toUpperCase() + level.slice(1).replace('-', ' ')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.swimLevelButtonText,
+                        isActive && styles.swimLevelButtonTextActive,
+                      ]}
+                    >
+                      {levelDisplay}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={[styles.label, { marginTop: 16 }]}>Cabin Assignment</Text>
