@@ -288,23 +288,20 @@ function CheckInScreenContent() {
 
       await NfcManager.cancelTechnologyRequest();
 
-      // STEP 8: Update database
+      // STEP 8: Update database using RPC to bypass RLS
       console.log('💾 Step 8: Updating database...');
-      const { error: dbError } = await supabase
-        .from('campers')
-        .update({
-          check_in_status: 'checked-in',
-          last_check_in: new Date().toISOString(),
-          wristband_id: wristbandId,
-          wristband_assigned: true,
-        })
-        .eq('id', camper.id);
+      const { data: dbResult, error: dbError } = await supabase
+        .rpc('check_in_camper_bypass_rls', {
+          p_camper_id: camper.id,
+          p_wristband_id: wristbandId,
+        });
 
       if (dbError) {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
       console.log('✅✅✅ CHECK-IN COMPLETE ✅✅✅');
+      console.log('Database result:', dbResult);
 
       Alert.alert(
         'Check-In Successful! ✅',
@@ -385,20 +382,17 @@ function CheckInScreenContent() {
 
       await NfcManager.cancelTechnologyRequest();
 
-      // Update database
-      const { error: dbError } = await supabase
-        .from('campers')
-        .update({
-          check_in_status: 'checked-out',
-          last_check_out: new Date().toISOString(),
-          wristband_id: null,
-          wristband_assigned: false,
-        })
-        .eq('id', camper.id);
+      // Update database using RPC to bypass RLS
+      const { data: dbResult, error: dbError } = await supabase
+        .rpc('check_out_camper_bypass_rls', {
+          p_camper_id: camper.id,
+        });
 
       if (dbError) {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
+
+      console.log('Database result:', dbResult);
 
       Alert.alert(
         'Check-Out Successful! ✅',

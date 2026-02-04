@@ -320,17 +320,13 @@ function CheckInScreenContent() {
       await NfcManager.cancelTechnologyRequest();
       console.log('✅ NFC session closed');
 
-      // 💾 STEP 8: Update database with check-in status AND wristband ID
+      // 💾 STEP 8: Update database with check-in status AND wristband ID using RPC to bypass RLS
       console.log('💾 Step 8: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
-      const { error: dbError } = await supabase
-        .from('campers')
-        .update({
-          check_in_status: 'checked-in',
-          last_check_in: new Date().toISOString(),
-          wristband_id: wristbandId,
-          wristband_assigned: true,
-        })
-        .eq('id', camper.id);
+      const { data: dbResult, error: dbError } = await supabase
+        .rpc('check_in_camper_bypass_rls', {
+          p_camper_id: camper.id,
+          p_wristband_id: wristbandId,
+        });
 
       if (dbError) {
         console.error('❌ Database update error:', dbError);
@@ -338,6 +334,7 @@ function CheckInScreenContent() {
       }
 
       console.log('✅✅✅ DATABASE UPDATED SUCCESSFULLY - CAMPER IS NOW CHECKED IN ✅✅✅');
+      console.log('Database result:', dbResult);
 
       const offlineDataSummary = `
 ✅ Offline Data Written:
@@ -464,17 +461,12 @@ function CheckInScreenContent() {
       await NfcManager.cancelTechnologyRequest();
       console.log('✅ NFC session closed');
 
-      // 💾 STEP 7: Update database with check-out status
+      // 💾 STEP 7: Update database with check-out status using RPC to bypass RLS
       console.log('💾 Step 7: Updating database for check-out...');
-      const { error: dbError } = await supabase
-        .from('campers')
-        .update({
-          check_in_status: 'checked-out',
-          last_check_out: new Date().toISOString(),
-          wristband_id: null,
-          wristband_assigned: false,
-        })
-        .eq('id', camper.id);
+      const { data: dbResult, error: dbError } = await supabase
+        .rpc('check_out_camper_bypass_rls', {
+          p_camper_id: camper.id,
+        });
 
       if (dbError) {
         console.error('❌ Database update error:', dbError);
@@ -482,6 +474,7 @@ function CheckInScreenContent() {
       }
 
       console.log('✅✅✅ DATABASE UPDATED SUCCESSFULLY FOR CHECK-OUT ✅✅✅');
+      console.log('Database result:', dbResult);
 
       Alert.alert(
         'Check-Out Successful! ✅',
