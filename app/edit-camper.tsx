@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -104,6 +104,7 @@ function EditCamperContent() {
           `Failed to load camper: ${rpcError.message}. Please try again.`,
           [{ text: 'OK', onPress: () => router.back() }]
         );
+        setLoading(false);
         return;
       }
 
@@ -118,6 +119,7 @@ function EditCamperContent() {
           'The camper you are trying to edit could not be found.',
           [{ text: 'OK', onPress: () => router.back() }]
         );
+        setLoading(false);
         return;
       }
 
@@ -131,10 +133,23 @@ function EditCamperContent() {
       console.log('Wristband ID:', data.wristband_id);
       console.log('Date of Birth:', data.date_of_birth);
 
-      // FIXED: Parse date properly and set all state in one batch
-      const parsedDate = data.date_of_birth ? new Date(data.date_of_birth) : new Date();
+      // FIXED: Parse date properly - handle both date strings and Date objects
+      let parsedDate = new Date();
+      try {
+        if (data.date_of_birth) {
+          parsedDate = new Date(data.date_of_birth);
+          // Validate the date
+          if (isNaN(parsedDate.getTime())) {
+            console.error('Invalid date:', data.date_of_birth);
+            parsedDate = new Date();
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing date:', error);
+        parsedDate = new Date();
+      }
       
-      // Set all state values
+      // Set all state values in one batch
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setDateOfBirth(parsedDate);
@@ -181,7 +196,7 @@ function EditCamperContent() {
         setHasMedicalInfo(false);
       }
 
-      console.log('=== LOAD COMPLETE ===');
+      console.log('=== LOAD COMPLETE - Setting loading to false ===');
       setLoading(false);
     } catch (error: any) {
       console.error('=== ERROR IN LOAD CAMPER ===');
@@ -205,7 +220,7 @@ function EditCamperContent() {
     }, [camperId, loadCamper])
   );
 
-  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+  const handleDateChange = useCallback((event: DateTimePickerEvent, selectedDate?: Date) => {
     console.log('Date picker event:', event.type);
     
     // On Android, close the picker after selection or dismissal
@@ -226,9 +241,9 @@ function EditCamperContent() {
       console.log('Date picker dismissed');
       setShowDatePicker(false);
     }
-  };
+  }, []);
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     if (!firstName.trim()) {
       Alert.alert('Validation Error', 'Please enter a first name');
       return false;
@@ -238,9 +253,9 @@ function EditCamperContent() {
       return false;
     }
     return true;
-  };
+  }, [firstName, lastName]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     console.log('=== SAVE BUTTON PRESSED ===');
     
     if (!validateForm()) {
@@ -345,7 +360,30 @@ function EditCamperContent() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    validateForm,
+    canEdit,
+    camperId,
+    firstName,
+    lastName,
+    dateOfBirth,
+    checkInStatus,
+    registrationStatus,
+    swimLevel,
+    cabinAssignment,
+    wristbandId,
+    allergiesText,
+    medicationsText,
+    dietaryRestrictionsText,
+    medicalConditionsText,
+    specialCareInstructions,
+    doctorName,
+    doctorPhone,
+    insuranceProvider,
+    insuranceNumber,
+    medicalNotes,
+    router,
+  ]);
 
   const handleBack = useCallback(() => {
     console.log('User tapped Back button');
@@ -371,7 +409,12 @@ function EditCamperContent() {
   console.log('- Cabin Assignment:', cabinAssignment);
   console.log('- Wristband ID:', wristbandId);
 
-  const dateDisplayText = dateOfBirth.toLocaleDateString();
+  let dateDisplayText = 'Select date';
+  try {
+    dateDisplayText = dateOfBirth.toLocaleDateString();
+  } catch (error) {
+    console.error('Error formatting date:', error);
+  }
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>

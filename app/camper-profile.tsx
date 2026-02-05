@@ -67,18 +67,23 @@ function CamperProfileContent() {
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  const calculateAge = (dateOfBirth: string) => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+  const calculateAge = useCallback((dateOfBirth: string) => {
+    try {
+      const today = new Date();
+      const birthDate = new Date(dateOfBirth);
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    } catch (error) {
+      console.error('Error calculating age:', error);
+      return 0;
     }
-    return age;
-  };
+  }, []);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'checked-in':
       case 'checked_in':
@@ -89,7 +94,7 @@ function CamperProfileContent() {
       default:
         return colors.textSecondary;
     }
-  };
+  }, []);
 
   const loadCamperProfile = useCallback(async () => {
     if (!camperId) {
@@ -166,6 +171,7 @@ function CamperProfileContent() {
       console.log('Loading emergency contacts...');
       const { data: contactsData, error: contactsError } = await supabase
         .from('emergency_contacts')
+        .select('*')
         .eq('camper_id', camperId)
         .order('priority_order');
 
@@ -277,13 +283,31 @@ function CamperProfileContent() {
     camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? 'Checked In' : 
     camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Checked Out' : 'Not Arrived';
 
-  const dateOfBirthDisplay = new Date(camper.date_of_birth).toLocaleDateString();
-  const lastCheckInDisplay = camper.last_check_in ? new Date(camper.last_check_in).toLocaleString() : null;
+  let dateOfBirthDisplay = 'N/A';
+  try {
+    dateOfBirthDisplay = new Date(camper.date_of_birth).toLocaleDateString();
+  } catch (error) {
+    console.error('Error formatting date of birth:', error);
+  }
+
+  let lastCheckInDisplay = null;
+  if (camper.last_check_in) {
+    try {
+      lastCheckInDisplay = new Date(camper.last_check_in).toLocaleString();
+    } catch (error) {
+      console.error('Error formatting last check-in:', error);
+    }
+  }
 
   // FIXED: Defensive swim level display - check if swim_level exists AND is a string before calling methods
   let swimLevelDisplay = null;
   if (camper.swim_level && typeof camper.swim_level === 'string' && camper.swim_level.length > 0) {
-    swimLevelDisplay = camper.swim_level.charAt(0).toUpperCase() + camper.swim_level.slice(1).replace('-', ' ');
+    try {
+      swimLevelDisplay = camper.swim_level.charAt(0).toUpperCase() + camper.swim_level.slice(1).replace('-', ' ');
+    } catch (error) {
+      console.error('Error formatting swim level:', error);
+      swimLevelDisplay = camper.swim_level;
+    }
   }
 
   return (
