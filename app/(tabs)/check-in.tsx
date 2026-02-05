@@ -21,6 +21,7 @@ import { supabase } from '@/app/integrations/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { encryptWristbandData, decryptWristbandData, WristbandCamperData, getWristbandLockCode } from '@/utils/wristbandEncryption';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 interface CamperData {
   id: string;
@@ -46,6 +47,7 @@ function CheckInScreenContent() {
   const [allCampers, setAllCampers] = useState<CamperData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCamper, setSelectedCamper] = useState<CamperData | null>(null);
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
 
   const canCheckIn = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
@@ -382,21 +384,26 @@ function CheckInScreenContent() {
     writeNFCTag(camper);
   }, [nfcSupported, nfcEnabled, writeNFCTag]);
 
-  const handleCheckOut = useCallback(async (camper: CamperData) => {
+  const handleCheckOutPress = useCallback((camper: CamperData) => {
     if (!nfcSupported || !nfcEnabled) {
       Alert.alert('NFC Not Available', 'NFC is not supported or enabled.', [{ text: 'OK' }]);
       return;
     }
+    setShowCheckOutModal(true);
+  }, [nfcSupported, nfcEnabled]);
 
-    Alert.alert(
-      'Check Out & Erase Wristband',
-      `Check out ${camper.first_name} ${camper.last_name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Check Out', style: 'destructive', onPress: () => eraseNFCTag(camper) },
-      ]
-    );
-  }, [nfcSupported, nfcEnabled, eraseNFCTag]);
+  const handleConfirmCheckOut = useCallback(() => {
+    setShowCheckOutModal(false);
+    if (selectedCamper) {
+      eraseNFCTag(selectedCamper);
+    }
+  }, [selectedCamper, eraseNFCTag]);
+
+  const handleCancelCheckOut = useCallback(() => {
+    setShowCheckOutModal(false);
+  }, []);
+
+  const camperFullName = selectedCamper ? `${selectedCamper.first_name} ${selectedCamper.last_name}` : '';
 
   return (
     <View style={commonStyles.container}>
@@ -481,7 +488,7 @@ function CheckInScreenContent() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionButton} onPress={() => handleCheckOut(selectedCamper)} disabled={isProgramming}>
+              <TouchableOpacity style={styles.actionButton} onPress={() => handleCheckOutPress(selectedCamper)} disabled={isProgramming}>
                 <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.buttonGradient}>
                   <Text style={styles.actionButtonText}>Check Out</Text>
                 </LinearGradient>
@@ -490,6 +497,17 @@ function CheckInScreenContent() {
           </View>
         )}
       </ScrollView>
+
+      <ConfirmModal
+        visible={showCheckOutModal}
+        title="Check Out & Erase Wristband"
+        message={`Check out ${camperFullName}?`}
+        confirmText="Check Out"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={handleConfirmCheckOut}
+        onCancel={handleCancelCheckOut}
+      />
     </View>
   );
 }
