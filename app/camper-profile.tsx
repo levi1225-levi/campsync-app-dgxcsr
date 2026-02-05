@@ -280,10 +280,11 @@ function CamperProfileContent() {
   const dateOfBirthDisplay = new Date(camper.date_of_birth).toLocaleDateString();
   const lastCheckInDisplay = camper.last_check_in ? new Date(camper.last_check_in).toLocaleString() : null;
 
-  // Defensive swim level display
-  const swimLevelDisplay = camper.swim_level 
-    ? camper.swim_level.charAt(0).toUpperCase() + camper.swim_level.slice(1).replace('-', ' ')
-    : null;
+  // FIXED: Defensive swim level display - check if swim_level exists AND is a string before calling methods
+  let swimLevelDisplay = null;
+  if (camper.swim_level && typeof camper.swim_level === 'string' && camper.swim_level.length > 0) {
+    swimLevelDisplay = camper.swim_level.charAt(0).toUpperCase() + camper.swim_level.slice(1).replace('-', ' ');
+  }
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
