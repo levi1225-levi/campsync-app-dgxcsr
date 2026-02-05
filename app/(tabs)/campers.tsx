@@ -4,7 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   Platform,
@@ -19,6 +19,9 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
+import * as Haptics from 'expo-haptics';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { Toast } from '@/components/Toast';
 
 interface Camper {
   id: string;
@@ -40,40 +43,72 @@ function CampersScreenContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('info');
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  const loadCampers = useCallback(async () => {
-    console.log('Loading campers from database...');
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 3000);
+  }, []);
+
+  const loadCampers = useCallback(async (isRetry = false) => {
+    console.log('Loading campers from database...', isRetry ? `(Retry ${retryCount + 1})` : '');
     setError(null);
     
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out after 15 seconds')), 15000)
+    );
+    
     try {
-      // Use the RPC function to bypass RLS
-      const { data, error: rpcError } = await supabase
-        .rpc('get_all_campers');
+      // Use the RPC function to bypass RLS with timeout
+      const rpcPromise = supabase.rpc('get_all_campers');
+      const { data, error: rpcError } = await Promise.race([
+        rpcPromise,
+        timeoutPromise,
+      ]) as any;
 
       if (rpcError) {
         console.error('Error loading campers via RPC:', rpcError);
-        setError('Failed to load campers. Please try again.');
-        setCampers([]);
-        setFilteredCampers([]);
-        return;
+        throw new Error(rpcError.message || 'Failed to load campers');
       }
 
       console.log('Loaded campers via RPC:', data?.length || 0);
       setCampers(data || []);
       setFilteredCampers(data || []);
+      setRetryCount(0);
+      
+      if (isRetry) {
+        showToast('Campers loaded successfully', 'success');
+      }
     } catch (error: any) {
       console.error('Error in loadCampers:', error);
-      setError(`Failed to load campers: ${error?.message || 'Unknown error'}`);
+      const errorMessage = error?.message || 'Unknown error';
+      setError(`Failed to load campers: ${errorMessage}`);
       setCampers([]);
       setFilteredCampers([]);
+      
+      // Auto-retry logic (max 3 retries)
+      if (retryCount < 3 && !isRetry) {
+        console.log('Auto-retrying in 2 seconds...');
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          loadCampers(true);
+        }, 2000);
+      } else {
+        showToast('Failed to load campers', 'error');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [retryCount, showToast]);
 
   useEffect(() => {
     loadCampers();
@@ -125,32 +160,35 @@ function CampersScreenContent() {
   const handleViewFullProfile = useCallback((camper: Camper) => {
     try {
       console.log('User tapped View Full Profile for camper:', camper.id);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       router.push(`/camper-profile?id=${camper.id}`);
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open camper profile');
+      showToast('Failed to open camper profile', 'error');
     }
-  }, [router]);
+  }, [router, showToast]);
 
   const handleEditCamper = useCallback((camper: Camper) => {
     try {
       console.log('User tapped Edit Camper for:', camper.id);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       router.push(`/edit-camper?id=${camper.id}`);
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open edit camper screen');
+      showToast('Failed to open edit camper screen', 'error');
     }
-  }, [router]);
+  }, [router, showToast]);
 
   const handleCreateCamper = useCallback(() => {
     try {
       console.log('User tapped Create Camper button');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.push('/create-camper');
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open create camper screen');
+      showToast('Failed to open create camper screen', 'error');
     }
-  }, [router]);
+  }, [router, showToast]);
 
   const handleClearSearch = useCallback(() => {
     console.log('User cleared search');
@@ -161,18 +199,114 @@ function CampersScreenContent() {
     setSelectedCamper(prev => prev?.id === camper.id ? null : camper);
   }, []);
 
-  if (loading) {
-    return (
-      <View style={[commonStyles.container, styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[commonStyles.text, { marginTop: 16 }]}>Loading campers...</Text>
-      </View>
-    );
-  }
+  const renderCamperItem = useCallback(({ item: camper }: { item: Camper }) => {
+    const ageDisplay = calculateAge(camper.date_of_birth);
+    const statusColor = getStatusColor(camper.check_in_status);
+    const statusText = camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? 'In' : 
+                       camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Out' : 'N/A';
+    const wristbandText = camper.wristband_id ? `NFC ID: ${camper.wristband_id}` : 'No wristband assigned';
+    const isExpanded = selectedCamper?.id === camper.id;
 
-  return (
-    <View style={[commonStyles.container, styles.container]}>
-      {/* Fixed Header with Gradient */}
+    return (
+      <TouchableOpacity
+        style={commonStyles.card}
+        onPress={() => handleToggleCamper(camper)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.camperHeader}>
+          <View style={styles.camperAvatar}>
+            <IconSymbol
+              ios_icon_name="person.fill"
+              android_material_icon_name="person"
+              size={28}
+              color={colors.primary}
+            />
+          </View>
+          <View style={styles.camperInfo}>
+            <Text style={commonStyles.cardTitle}>
+              {camper.first_name} {camper.last_name}
+            </Text>
+            <Text style={commonStyles.textSecondary}>
+              Age {ageDisplay}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+            <Text style={styles.statusText}>
+              {statusText}
+            </Text>
+          </View>
+        </View>
+
+        {isExpanded && (
+          <>
+            <View style={commonStyles.divider} />
+            
+            <View style={styles.detailRow}>
+              <IconSymbol
+                ios_icon_name="wave.3.right"
+                android_material_icon_name="nfc"
+                size={20}
+                color={colors.accent}
+              />
+              <Text style={commonStyles.textSecondary}>
+                {wristbandText}
+              </Text>
+            </View>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                onPress={() => handleViewFullProfile(camper)}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  ios_icon_name="doc.text.fill"
+                  android_material_icon_name="description"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>View Full Profile</Text>
+              </TouchableOpacity>
+
+              {canEdit && (
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+                  onPress={() => handleEditCamper(camper)}
+                  activeOpacity={0.8}
+                >
+                  <IconSymbol
+                    ios_icon_name="pencil"
+                    android_material_icon_name="edit"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                  <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Edit</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
+      </TouchableOpacity>
+    );
+  }, [selectedCamper, canEdit, handleToggleCamper, handleViewFullProfile, handleEditCamper]);
+
+  const renderEmptyComponent = useCallback(() => (
+    <View style={styles.emptyState}>
+      <IconSymbol
+        ios_icon_name="person.slash.fill"
+        android_material_icon_name="person-off"
+        size={64}
+        color={colors.textSecondary}
+      />
+      <Text style={styles.emptyText}>No campers found</Text>
+      <Text style={commonStyles.textSecondary}>
+        {searchQuery ? 'Try a different search term' : 'Create a camper to get started'}
+      </Text>
+    </View>
+  ), [searchQuery]);
+
+  const renderListHeader = useCallback(() => (
+    <>
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
         start={{ x: 0, y: 0 }}
@@ -185,7 +319,6 @@ function CampersScreenContent() {
         </Text>
       </LinearGradient>
 
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <IconSymbol
           ios_icon_name="magnifyingglass"
@@ -219,7 +352,6 @@ function CampersScreenContent() {
         )}
       </View>
 
-      {/* Add Camper Button (Admin only) */}
       {canEdit && (
         <View style={styles.addButtonContainer}>
           <TouchableOpacity 
@@ -238,7 +370,6 @@ function CampersScreenContent() {
         </View>
       )}
 
-      {/* Error Message */}
       {error && (
         <View style={styles.errorContainer}>
           <IconSymbol
@@ -248,15 +379,41 @@ function CampersScreenContent() {
             color={colors.error}
           />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={loadCampers} style={styles.retryButton}>
+          <TouchableOpacity onPress={() => loadCampers()} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       )}
+    </>
+  ), [filteredCampers.length, searchQuery, canEdit, error, handleClearSearch, handleCreateCamper, loadCampers]);
 
-      {/* Campers List */}
-      <ScrollView
-        style={styles.scrollView}
+  if (loading) {
+    return (
+      <View style={[commonStyles.container, styles.container]}>
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Text style={styles.headerTitle}>Campers</Text>
+          <Text style={styles.headerSubtitle}>Loading...</Text>
+        </LinearGradient>
+        <View style={styles.skeletonContainer}>
+          <SkeletonLoader count={5} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[commonStyles.container, styles.container]}>
+      <FlatList
+        data={filteredCampers}
+        renderItem={renderCamperItem}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={!error ? renderEmptyComponent : null}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -267,110 +424,18 @@ function CampersScreenContent() {
             colors={[colors.primary]}
           />
         }
-      >
-        {filteredCampers.length === 0 && !error ? (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="person.slash.fill"
-              android_material_icon_name="person-off"
-              size={64}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.emptyText}>No campers found</Text>
-            <Text style={commonStyles.textSecondary}>
-              {searchQuery ? 'Try a different search term' : 'Create a camper to get started'}
-            </Text>
-          </View>
-        ) : (
-          filteredCampers.map((camper) => (
-            <React.Fragment key={camper.id}>
-              <TouchableOpacity
-                style={commonStyles.card}
-                onPress={() => handleToggleCamper(camper)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.camperHeader}>
-                  <View style={styles.camperAvatar}>
-                    <IconSymbol
-                      ios_icon_name="person.fill"
-                      android_material_icon_name="person"
-                      size={28}
-                      color={colors.primary}
-                    />
-                  </View>
-                  <View style={styles.camperInfo}>
-                    <Text style={commonStyles.cardTitle}>
-                      {camper.first_name} {camper.last_name}
-                    </Text>
-                    <Text style={commonStyles.textSecondary}>
-                      Age {calculateAge(camper.date_of_birth)}
-                    </Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(camper.check_in_status) }]}>
-                    <Text style={styles.statusText}>
-                      {camper.check_in_status === 'checked-in' || camper.check_in_status === 'checked_in' ? 'In' : 
-                       camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Out' : 'N/A'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Expanded Details */}
-                {selectedCamper?.id === camper.id && (
-                  <>
-                    <View style={commonStyles.divider} />
-                    
-                    {/* NFC Wristband */}
-                    <View style={styles.detailRow}>
-                      <IconSymbol
-                        ios_icon_name="wave.3.right"
-                        android_material_icon_name="nfc"
-                        size={20}
-                        color={colors.accent}
-                      />
-                      <Text style={commonStyles.textSecondary}>
-                        {camper.wristband_id ? `NFC ID: ${camper.wristband_id}` : 'No wristband assigned'}
-                      </Text>
-                    </View>
-
-                    {/* Action Buttons */}
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, { backgroundColor: colors.primary }]}
-                        onPress={() => handleViewFullProfile(camper)}
-                        activeOpacity={0.8}
-                      >
-                        <IconSymbol
-                          ios_icon_name="doc.text.fill"
-                          android_material_icon_name="description"
-                          size={20}
-                          color="#FFFFFF"
-                        />
-                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>View Full Profile</Text>
-                      </TouchableOpacity>
-
-                      {canEdit && (
-                        <TouchableOpacity 
-                          style={[styles.actionButton, { backgroundColor: colors.secondary }]}
-                          onPress={() => handleEditCamper(camper)}
-                          activeOpacity={0.8}
-                        >
-                          <IconSymbol
-                            ios_icon_name="pencil"
-                            android_material_icon_name="edit"
-                            size={20}
-                            color="#FFFFFF"
-                          />
-                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Edit</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </>
-                )}
-              </TouchableOpacity>
-            </React.Fragment>
-          ))
-        )}
-      </ScrollView>
+        windowSize={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        removeClippedSubviews={Platform.OS === 'android'}
+      />
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onDismiss={() => setToastVisible(false)}
+      />
     </View>
   );
 }
@@ -386,6 +451,9 @@ export default function CampersScreen() {
 const styles = StyleSheet.create({
   container: {
     paddingTop: Platform.OS === 'android' ? 48 : 0,
+  },
+  skeletonContainer: {
+    padding: 16,
   },
   header: {
     paddingHorizontal: 20,

@@ -76,6 +76,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const redirectAfterLogin = useCallback((authenticatedUser: User) => {
+    console.log('Redirecting after login, role:', authenticatedUser.role);
+    
+    // Use a longer timeout for iOS to ensure state is fully updated
+    const timeout = Platform.OS === 'ios' ? 300 : 100;
+    
+    setTimeout(() => {
+      try {
+        if (!authenticatedUser.registrationComplete) {
+          console.log('Redirecting to parent-registration');
+          router.replace('/parent-registration');
+        } else if (authenticatedUser.role === 'parent') {
+          console.log('Redirecting to parent-dashboard');
+          router.replace('/parent-dashboard');
+        } else {
+          console.log('Redirecting to home tabs');
+          router.replace('/(tabs)/(home)/');
+        }
+      } catch (error) {
+        console.error('Navigation error:', error);
+      }
+    }, timeout);
+  }, []);
+
   const handleAuthStateChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
     console.log('Auth state changed:', event);
 
@@ -119,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [loadUserProfile, saveSession]);
+  }, [loadUserProfile, saveSession, redirectAfterLogin]);
 
   // Initialize auth state and set up listener
   useEffect(() => {
@@ -151,6 +175,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [handleAuthStateChange, loadUserProfile]);
 
+  const signOut = useCallback(async () => {
+    try {
+      console.log('Signing out...');
+      await supabase.auth.signOut();
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+      setUser(null);
+      setSessionExpiresAt(null);
+      
+      // Use a longer timeout for iOS
+      const timeout = Platform.OS === 'ios' ? 300 : 100;
+      setTimeout(() => {
+        try {
+          router.replace('/sign-in');
+        } catch (error) {
+          console.error('Navigation error during sign out:', error);
+        }
+      }, timeout);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Always clear local state even if API call fails
+      setUser(null);
+      setSessionExpiresAt(null);
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+      router.replace('/sign-in');
+    }
+  }, []);
+
   // Monitor app state and refresh session when app comes to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
@@ -169,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.remove();
     };
-  }, [user]);
+  }, [user, signOut]);
 
   // Periodic session check (every 5 minutes)
   useEffect(() => {
@@ -192,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 5 * 60 * 1000); // Check every 5 minutes
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, signOut]);
 
   const redirectAfterLogin = useCallback((authenticatedUser: User) => {
     console.log('Redirecting after login, role:', authenticatedUser.role);

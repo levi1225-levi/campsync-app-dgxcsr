@@ -16,67 +16,13 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ErrorBoundary } from "react-error-boundary";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { colors } from "@/styles/commonStyles";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   initialRouteName: "index",
 };
-
-// Error Fallback Component
-function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
-  console.error("App Error:", error);
-  console.error("Error stack:", error.stack);
-  
-  return (
-    <View style={errorStyles.container}>
-      <Text style={errorStyles.title}>Something went wrong</Text>
-      <Text style={errorStyles.message}>
-        {error.message || 'An unexpected error occurred'}
-      </Text>
-      <TouchableOpacity style={errorStyles.button} onPress={resetErrorBoundary}>
-        <Text style={errorStyles.buttonText}>Try Again</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const errorStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: colors.background,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.text,
-    marginBottom: 12,
-  },
-  message: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -133,13 +79,7 @@ export default function RootLayout() {
   };
 
   return (
-    <ErrorBoundary 
-      FallbackComponent={ErrorFallback}
-      onError={(error, errorInfo) => {
-        console.error('ErrorBoundary caught error:', error);
-        console.error('Error info:', errorInfo);
-      }}
-    >
+    <ErrorBoundary>
       <StatusBar style="auto" animated />
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}

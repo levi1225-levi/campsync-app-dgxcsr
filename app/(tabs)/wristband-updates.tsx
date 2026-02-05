@@ -19,6 +19,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Toast } from '@/components/Toast';
 
 interface OutdatedCamper {
   id: string;
@@ -41,8 +43,18 @@ function WristbandUpdatesContent() {
   const [outdatedCampers, setOutdatedCampers] = useState<OutdatedCamper[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('info');
 
   const canUpdate = hasPermission(['super-admin', 'camp-admin', 'staff']);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 3000);
+  }, []);
 
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
@@ -129,14 +141,18 @@ function WristbandUpdatesContent() {
 
       console.log('Found', outdated.length, 'campers with outdated wristbands');
       setOutdatedCampers(outdated);
+      
+      if (isRefreshing) {
+        showToast('Wristband status refreshed', 'success');
+      }
     } catch (error: any) {
       console.error('Error loading outdated wristbands:', error);
-      Alert.alert('Error', error?.message || 'Failed to load outdated wristbands');
+      showToast(error?.message || 'Failed to load outdated wristbands', 'error');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [isRefreshing, showToast]);
 
   useEffect(() => {
     loadOutdatedWristbands();
@@ -150,15 +166,13 @@ function WristbandUpdatesContent() {
 
   const handleUpdateWristband = useCallback((camper: OutdatedCamper) => {
     console.log('User tapped Update Wristband for:', camper.first_name, camper.last_name);
-    Alert.alert(
-      'Update Wristband',
-      `To update ${camper.first_name} ${camper.last_name}'s wristband, please:\n\n1. Go to the Check-In tab\n2. Search for the camper\n3. Tap "Check In & Program Wristband" to reprogram with updated data\n\nThe old data will be overwritten with the latest information.`,
-      [{ text: 'OK' }]
-    );
-  }, []);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    showToast('Go to Check-In tab to reprogram wristband', 'info');
+  }, [showToast]);
 
   const handleViewCamper = useCallback((camper: OutdatedCamper) => {
     console.log('User tapped View Camper:', camper.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/camper-profile?id=${camper.id}`);
   }, [router]);
 
@@ -401,6 +415,12 @@ function WristbandUpdatesContent() {
           </View>
         </View>
       </ScrollView>
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onDismiss={() => setToastVisible(false)}
+      />
     </View>
   );
 }
