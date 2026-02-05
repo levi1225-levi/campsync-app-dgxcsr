@@ -122,6 +122,7 @@ function EditCamperContent() {
       }
 
       console.log('=== CAMPER DATA LOADED FOR EDITING ===');
+      console.log('Full camper data:', JSON.stringify(data, null, 2));
       console.log('Name:', data.first_name, data.last_name);
       console.log('Swim Level:', data.swim_level);
       console.log('Cabin:', data.cabin_assignment);
@@ -130,20 +131,33 @@ function EditCamperContent() {
       console.log('Wristband ID:', data.wristband_id);
       console.log('Date of Birth:', data.date_of_birth);
 
-      // Set all basic info state
-      setFirstName(data.first_name || '');
-      setLastName(data.last_name || '');
-      setDateOfBirth(new Date(data.date_of_birth));
-      setWristbandId(data.wristband_id || '');
-      setCheckInStatus(data.check_in_status || 'not-arrived');
-      setSwimLevel(data.swim_level || '');
-      setCabinAssignment(data.cabin_assignment || '');
-      setRegistrationStatus(data.registration_status || 'pending');
+      // Set all basic info state in a batch to avoid race conditions
+      const newFirstName = data.first_name || '';
+      const newLastName = data.last_name || '';
+      const newDateOfBirth = new Date(data.date_of_birth);
+      const newWristbandId = data.wristband_id || '';
+      const newCheckInStatus = data.check_in_status || 'not-arrived';
+      const newSwimLevel = data.swim_level || '';
+      const newCabinAssignment = data.cabin_assignment || '';
+      const newRegistrationStatus = data.registration_status || 'pending';
 
-      console.log('State updated with basic info');
-      console.log('First Name state:', data.first_name);
-      console.log('Last Name state:', data.last_name);
-      console.log('Swim Level state:', data.swim_level);
+      console.log('Setting state with values:');
+      console.log('- First Name:', newFirstName);
+      console.log('- Last Name:', newLastName);
+      console.log('- Swim Level:', newSwimLevel);
+      console.log('- Cabin:', newCabinAssignment);
+      console.log('- Wristband ID:', newWristbandId);
+
+      setFirstName(newFirstName);
+      setLastName(newLastName);
+      setDateOfBirth(newDateOfBirth);
+      setWristbandId(newWristbandId);
+      setCheckInStatus(newCheckInStatus);
+      setSwimLevel(newSwimLevel);
+      setCabinAssignment(newCabinAssignment);
+      setRegistrationStatus(newRegistrationStatus);
+
+      console.log('State set complete - values should now be visible in form');
 
       console.log('Loading medical info for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
@@ -175,8 +189,6 @@ function EditCamperContent() {
       }
 
       console.log('=== LOAD COMPLETE ===');
-      console.log('Final state check - First Name:', data.first_name);
-      console.log('Final state check - Last Name:', data.last_name);
     } catch (error: any) {
       console.error('=== ERROR IN LOAD CAMPER ===');
       console.error('Error:', error);
@@ -190,11 +202,12 @@ function EditCamperContent() {
     }
   }, [camperId, router]);
 
+  // Load data when screen mounts or comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('Edit camper screen focused - reloading data');
+      console.log('Edit camper screen focused - loading data for camper:', camperId);
       loadCamper();
-    }, [loadCamper])
+    }, [loadCamper, camperId])
   );
 
   const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -209,6 +222,13 @@ function EditCamperContent() {
     if (event.type === 'set' && selectedDate) {
       console.log('User selected date:', selectedDate.toISOString());
       setDateOfBirth(selectedDate);
+      // On iOS, keep the picker open until user taps outside
+      if (Platform.OS === 'ios') {
+        setShowDatePicker(false);
+      }
+    } else if (event.type === 'dismissed') {
+      // User cancelled the picker
+      setShowDatePicker(false);
     }
   };
 
