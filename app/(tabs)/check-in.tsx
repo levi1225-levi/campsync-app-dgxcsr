@@ -10,7 +10,6 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
-  RefreshControl,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -23,8 +22,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { encryptWristbandData, decryptWristbandData, WristbandCamperData, getWristbandLockCode } from '@/utils/wristbandEncryption';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import * as Haptics from 'expo-haptics';
-import { Toast } from '@/components/Toast';
 
 interface CamperData {
   id: string;
@@ -51,19 +48,8 @@ function CheckInScreenContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCamper, setSelectedCamper] = useState<CamperData | null>(null);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('info');
 
   const canCheckIn = hasPermission(['super-admin', 'camp-admin', 'staff']);
-
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToastMessage(message);
-    setToastType(type);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  }, [setToastMessage, setToastType, setToastVisible]);
 
   const initNFC = useCallback(async () => {
     try {
@@ -278,11 +264,15 @@ function CheckInScreenContent() {
 
       console.log('✅ Database updated successfully:', dbResult);
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showToast(`${camper.first_name} ${camper.last_name} checked in successfully!`, 'success');
-      setSelectedCamper(null);
-      setSearchQuery('');
-      setSearchResults([]);
+      Alert.alert(
+        'Check-In Successful! ✅',
+        `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}`,
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
+      );
     } catch (error: any) {
       console.error('❌ Error in writeNFCTag:', error);
       
@@ -295,8 +285,7 @@ function CheckInScreenContent() {
         errorMessage += `Error: ${error.message || 'Unknown error'}`;
       }
       
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showToast(errorMessage, 'error');
+      Alert.alert('Check-In Failed', errorMessage, [{ text: 'OK' }]);
     } finally {
       setIsProgramming(false);
       try {
@@ -305,7 +294,7 @@ function CheckInScreenContent() {
         console.error('Cleanup error:', cleanupError);
       }
     }
-  }, [showToast]);
+  }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
     setIsProgramming(true);
@@ -355,11 +344,15 @@ function CheckInScreenContent() {
 
       console.log('✅ Database updated successfully:', dbResult);
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showToast(`${camper.first_name} ${camper.last_name} checked out successfully!`, 'success');
-      setSelectedCamper(null);
-      setSearchQuery('');
-      setSearchResults([]);
+      Alert.alert(
+        'Check-Out Successful! ✅',
+        `${camper.first_name} ${camper.last_name} has been checked out.`,
+        [{ text: 'OK', onPress: () => {
+          setSelectedCamper(null);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}]
+      );
     } catch (error: any) {
       console.error('❌ Error in eraseNFCTag:', error);
       
@@ -372,8 +365,7 @@ function CheckInScreenContent() {
         errorMessage += `Error: ${error.message || 'Unknown error'}`;
       }
       
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showToast(errorMessage, 'error');
+      Alert.alert('Check-Out Failed', errorMessage, [{ text: 'OK' }]);
     } finally {
       setIsProgramming(false);
       try {
@@ -382,25 +374,23 @@ function CheckInScreenContent() {
         console.error('Cleanup error:', cleanupError);
       }
     }
-  }, [showToast]);
+  }, []);
 
   const handleCheckIn = useCallback(async (camper: CamperData) => {
     if (!nfcSupported || !nfcEnabled) {
-      showToast('NFC is not supported or enabled', 'error');
+      Alert.alert('NFC Not Available', 'NFC is not supported or enabled.', [{ text: 'OK' }]);
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     writeNFCTag(camper);
-  }, [nfcSupported, nfcEnabled, writeNFCTag, showToast]);
+  }, [nfcSupported, nfcEnabled, writeNFCTag]);
 
   const handleCheckOutPress = useCallback((camper: CamperData) => {
     if (!nfcSupported || !nfcEnabled) {
-      showToast('NFC is not supported or enabled', 'error');
+      Alert.alert('NFC Not Available', 'NFC is not supported or enabled.', [{ text: 'OK' }]);
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowCheckOutModal(true);
-  }, [nfcSupported, nfcEnabled, showToast]);
+  }, [nfcSupported, nfcEnabled]);
 
   const handleConfirmCheckOut = useCallback(() => {
     setShowCheckOutModal(false);
@@ -414,22 +404,6 @@ function CheckInScreenContent() {
   }, []);
 
   const camperFullName = selectedCamper ? `${selectedCamper.first_name} ${selectedCamper.last_name}` : '';
-
-  const handleRefresh = useCallback(async () => {
-    console.log('User pulled to refresh');
-    setRefreshing(true);
-    try {
-      const { data, error } = await supabase.rpc('get_all_campers');
-      if (!error && data) {
-        setAllCampers(data);
-        showToast('Campers list refreshed', 'success');
-      }
-    } catch (error) {
-      console.error('Error refreshing campers:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [showToast]);
 
   return (
     <View style={commonStyles.container}>
@@ -464,18 +438,7 @@ function CheckInScreenContent() {
         </BlurView>
       )}
 
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
-      >
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Find Camper</Text>
           <GlassCard>
@@ -544,12 +507,6 @@ function CheckInScreenContent() {
         confirmStyle="destructive"
         onConfirm={handleConfirmCheckOut}
         onCancel={handleCancelCheckOut}
-      />
-      <Toast
-        visible={toastVisible}
-        message={toastMessage}
-        type={toastType}
-        onDismiss={() => setToastVisible(false)}
       />
     </View>
   );
