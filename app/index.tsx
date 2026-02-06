@@ -32,17 +32,23 @@ export default function Index() {
   useEffect(() => {
     console.log('Index screen - isLoading:', isLoading, 'user:', user?.email, 'isOffline:', isOffline, 'checkingNetwork:', checkingNetwork);
     
-    if (!isLoading && !checkingNetwork) {
-      // Add a small delay to ensure navigation is ready
+    // If offline, redirect immediately to NFC scanner without waiting for auth
+    if (!checkingNetwork && isOffline) {
+      console.log('🔌 OFFLINE MODE - Redirecting to NFC scanner for emergency access');
       const timeout = setTimeout(() => {
         try {
-          // If offline and no user, redirect to NFC scanner for offline access
-          if (isOffline && !user) {
-            console.log('Offline mode detected - redirecting to NFC scanner for offline access');
-            router.replace('/(tabs)/nfc-scanner');
-            return;
-          }
+          router.replace('/(tabs)/nfc-scanner');
+        } catch (error) {
+          console.error('Navigation error in offline mode:', error);
+        }
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
 
+    // Online mode - wait for auth to complete
+    if (!isLoading && !checkingNetwork && !isOffline) {
+      const timeout = setTimeout(() => {
+        try {
           if (!user) {
             console.log('No user, redirecting to sign-in');
             router.replace('/sign-in');
@@ -76,7 +82,9 @@ export default function Index() {
     ? 'Checking network status...' 
     : isOffline 
     ? 'Offline mode - Loading NFC scanner...' 
-    : 'Loading...';
+    : isLoading
+    ? 'Loading...'
+    : 'Redirecting...';
 
   return (
     <View style={styles.container}>

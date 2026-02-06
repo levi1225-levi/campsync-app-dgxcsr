@@ -8,13 +8,13 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { useAuth } from '@/contexts/AuthContext';
 import { decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
 import { IconSymbol } from '@/components/IconSymbol';
+import * as Network from 'expo-network';
 
 function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
@@ -23,8 +23,29 @@ function NFCScannerScreenContent() {
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcEnabled, setNfcEnabled] = useState(false);
   const [nfcInitialized, setNfcInitialized] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
-  const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
+  // Allow scanning if authenticated with permission OR if offline (emergency access)
+  const canScan = isOffline || hasPermission(['super-admin', 'camp-admin', 'staff']);
+
+  // Check network status
+  useEffect(() => {
+    const checkNetwork = async () => {
+      try {
+        const networkState = await Network.getNetworkStateAsync();
+        const offline = !networkState.isConnected || networkState.isInternetReachable === false;
+        console.log('NFC Scanner Android - Network status:', offline ? 'OFFLINE' : 'ONLINE');
+        setIsOffline(offline);
+      } catch (error) {
+        console.error('Error checking network:', error);
+        setIsOffline(false);
+      }
+    };
+
+    checkNetwork();
+    const interval = setInterval(checkNetwork, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const initNFC = useCallback(async () => {
     try {
@@ -83,7 +104,7 @@ function NFCScannerScreenContent() {
   };
 
   const handleScan = useCallback(async () => {
-    if (!canScan) {
+    if (!canScan && !isOffline) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
       return;
     }
@@ -116,6 +137,9 @@ function NFCScannerScreenContent() {
     }
 
     console.log('User tapped Scan Wristband - Starting NFC scan...');
+    if (isOffline) {
+      console.log('🔌 OFFLINE MODE - Scanning wristband for offline data access');
+    }
     setIsScanning(true);
     setScannedData(null);
     
@@ -169,7 +193,7 @@ function NFCScannerScreenContent() {
         console.error('Error cancelling NFC request:', cancelError);
       }
     }
-  }, [canScan, nfcSupported, nfcEnabled, nfcInitialized]);
+  }, [canScan, nfcSupported, nfcEnabled, nfcInitialized, isOffline]);
 
   const camperAge = scannedData ? calculateAge(scannedData.dateOfBirth) : 0;
   const scanTimestamp = scannedData ? new Date(scannedData.timestamp).toLocaleString() : '';
@@ -177,6 +201,8 @@ function NFCScannerScreenContent() {
   const lockStatusColor = scannedData?.isLocked ? colors.success : colors.warning;
   const checkInStatusDisplay = scannedData?.checkInStatus === 'checked-in' ? 'Checked In' : 
                                 scannedData?.checkInStatus === 'checked-out' ? 'Checked Out' : 'Not Arrived';
+  const modeText = isOffline ? 'Offline Mode - Emergency Access' : 'Online Mode';
+  const modeColor = isOffline ? colors.warning : colors.success;
 
   return (
     <View style={[commonStyles.container, styles.container]}>
@@ -196,9 +222,20 @@ function NFCScannerScreenContent() {
         </View>
         <Text style={styles.headerTitle}>NFC Scanner</Text>
         <Text style={styles.headerSubtitle}>
-          Scan wristbands to view camper details
+          {isOffline ? 'Offline wristband scanning' : 'Scan wristbands to view camper details'}
         </Text>
       </LinearGradient>
+
+      {/* Mode Status Banner */}
+      <View style={[styles.statusBanner, { backgroundColor: modeColor }]}>
+        <IconSymbol
+          ios_icon_name={isOffline ? "wifi.slash" : "checkmark.circle.fill"}
+          android_material_icon_name={isOffline ? "wifi-off" : "check-circle"}
+          size={20}
+          color="#FFFFFF"
+        />
+        <Text style={styles.statusText}>{modeText}</Text>
+      </View>
 
       {nfcInitialized && !nfcSupported && (
         <View style={[styles.statusBanner, { backgroundColor: colors.error }]}>
@@ -232,7 +269,7 @@ function NFCScannerScreenContent() {
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>NFC Ready - Offline Mode Enabled</Text>
+          <Text style={styles.statusText}>NFC Ready</Text>
         </View>
       )}
 
@@ -258,9 +295,9 @@ function NFCScannerScreenContent() {
           </Text>
 
           <TouchableOpacity
-            style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
+            style={[styles.scanButton, (isScanning || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
             onPress={handleScan}
-            disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
+            disabled={isScanning || !nfcSupported || !nfcEnabled || !nfcInitialized}
             activeOpacity={0.7}
           >
             <LinearGradient
@@ -435,7 +472,22 @@ function NFCScannerScreenContent() {
 
         {!scannedData && (
           <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>Offline NFC Scanner</Text>
+            <Text style={styles.instructionsTitle}>
+              {isOffline ? 'Offline NFC Scanner' : 'NFC Scanner'}
+            </Text>
+            {isOffline && (
+              <View style={styles.offlineWarning}>
+                <IconSymbol
+                  ios_icon_name="wifi.slash"
+                  android_material_icon_name="wifi-off"
+                  size={24}
+                  color={colors.warning}
+                />
+                <Text style={styles.offlineWarningText}>
+                  You are offline. You can still scan wristbands to view camper information stored on the wristbands.
+                </Text>
+              </View>
+            )}
             <View style={styles.instructionRow}>
               <View style={styles.instructionNumber}>
                 <Text style={styles.instructionNumberText}>1</Text>
@@ -476,11 +528,7 @@ function NFCScannerScreenContent() {
 }
 
 export default function NFCScannerScreen() {
-  return (
-    <ProtectedRoute allowedRoles={['super-admin', 'camp-admin', 'staff']}>
-      <NFCScannerScreenContent />
-    </ProtectedRoute>
-  );
+  return <NFCScannerScreenContent />;
 }
 
 const styles = StyleSheet.create({
@@ -666,6 +714,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: 16,
+  },
+  offlineWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.warningLight + '20',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.warning,
+    marginBottom: 16,
+  },
+  offlineWarningText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.warning,
+    flex: 1,
   },
   instructionRow: {
     flexDirection: 'row',

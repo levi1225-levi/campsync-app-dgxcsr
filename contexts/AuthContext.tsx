@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import * as Network from 'expo-network';
 
 interface AuthContextType {
   user: User | null;
@@ -22,6 +23,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SESSION_KEY = 'campsync_session';
+const AUTH_TIMEOUT_MS = 5000; // 5 second timeout for auth operations when offline
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -149,20 +151,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('Initializing auth state...');
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('Error getting initial session:', error);
-        setIsLoading(false);
-        return;
-      }
-
-      if (session?.user) {
-        console.log('Initial session found for user:', session.user.email);
-        console.log('Session expires at:', session.expires_at);
-        console.log('Access token exists:', !!session.access_token);
+    const initAuth = async () => {
+      try {
+        // Check network status first
+        const networkState = await Network.getNetworkStateAsync();
+        const isOffline = !networkState.isConnected || networkState.isInternetReachable === false;
         
-        loadUserProfile(session.user.id, session.user.email!).then((userProfile) => {
+        if (isOffline) {
+          console.log('🔌 OFFLINE - Skipping auth session check, setting loading to false');
+          setIsLoading(false);
+          return;
+        }
+
+        // Online - get session with timeout
+        console.log('📡 ONLINE - Checking auth session...');
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: null }, error: null }>((resolve) => {
+          setTimeout(() => {
+            console.log('⏱️ Auth session check timed out after', AUTH_TIMEOUT_MS, 'ms');
+            resolve({ data: { session: null }, error: null });
+          }, AUTH_TIMEOUT_MS);
+        });
+
+        const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
+
+        if (error) {
+          console.error('Error getting initial session:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('Initial session found for user:', session.user.email);
+          console.log('Session expires at:', session.expires_at);
+          console.log('Access token exists:', !!session.access_token);
+          
+          const userProfile = await loadUserProfile(session.user.id, session.user.email!);
           if (userProfile) {
             console.log('User profile loaded successfully:', userProfile.email, 'Role:', userProfile.role);
             setUser(userProfile);
@@ -170,19 +194,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             console.error('Failed to load user profile');
           }
-          setIsLoading(false);
-        }).catch((error) => {
-          console.error('Error loading user profile:', error);
-          setIsLoading(false);
-        });
-      } else {
-        console.log('No initial session found - user needs to sign in');
+        } else {
+          console.log('No initial session found - user needs to sign in');
+        }
+      } catch (error) {
+        console.error('Exception during auth initialization:', error);
+      } finally {
         setIsLoading(false);
       }
-    }).catch((error) => {
-      console.error('Exception getting initial session:', error);
-      setIsLoading(false);
-    });
+    };
+
+    initAuth();
 
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
