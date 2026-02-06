@@ -177,7 +177,7 @@ function CamperProfileContent() {
       let medicalInfo = null;
       if (canViewMedical) {
         try {
-          console.log('Loading medical info...');
+          console.log('Loading medical info for camper:', camperId);
           const { data: medicalData, error: medicalError } = await supabase
             .from('camper_medical_info')
             .select('*')
@@ -187,10 +187,22 @@ function CamperProfileContent() {
           if (medicalError) {
             console.error('Medical info error:', medicalError);
           } else if (medicalData) {
-            medicalInfo = medicalData;
-            console.log('Medical info loaded successfully');
+            console.log('Raw medical data from DB:', medicalData);
+            medicalInfo = {
+              allergies: Array.isArray(medicalData.allergies) ? medicalData.allergies : [],
+              medications: Array.isArray(medicalData.medications) ? medicalData.medications : [],
+              dietary_restrictions: Array.isArray(medicalData.dietary_restrictions) ? medicalData.dietary_restrictions : [],
+              medical_conditions: Array.isArray(medicalData.medical_conditions) ? medicalData.medical_conditions : [],
+              special_care_instructions: medicalData.special_care_instructions || null,
+              doctor_name: medicalData.doctor_name || null,
+              doctor_phone: medicalData.doctor_phone || null,
+              insurance_provider: medicalData.insurance_provider || null,
+              insurance_number: medicalData.insurance_number || null,
+              notes: medicalData.notes || null,
+            };
+            console.log('Medical info loaded successfully:', medicalInfo);
           } else {
-            console.log('No medical info found');
+            console.log('No medical info found for camper');
           }
         } catch (medicalErr) {
           console.error('Error loading medical info:', medicalErr);
@@ -237,6 +249,7 @@ function CamperProfileContent() {
       console.log('=== PROFILE ASSEMBLED SUCCESSFULLY ===');
       console.log('Final swim level:', profile.swim_level);
       console.log('Final cabin:', profile.cabin_assignment);
+      console.log('Medical info included:', profile.medical_info ? 'YES' : 'NO');
       
       setCamper(profile);
       setIsLoading(false);
@@ -250,11 +263,11 @@ function CamperProfileContent() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [camperId, canViewMedical, params]);
+  }, [camperId, canViewMedical]);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Screen focused - reloading camper profile');
+      console.log('Screen focused - loading camper profile');
       loadCamperProfile(false);
     }, [loadCamperProfile])
   );
