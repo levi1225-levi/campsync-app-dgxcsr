@@ -95,6 +95,7 @@ function EditCamperContent() {
       console.log('Camper ID:', camperId);
       setLoading(true);
 
+      // Fetch all campers using RPC function
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
 
       if (rpcError) {
@@ -108,9 +109,21 @@ function EditCamperContent() {
         return;
       }
 
-      console.log('Total campers loaded:', allCampers?.length || 0);
+      if (!allCampers || allCampers.length === 0) {
+        console.error('No campers returned from get_all_campers');
+        Alert.alert(
+          'No Data',
+          'No campers found in the system.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+        setLoading(false);
+        return;
+      }
 
-      const data = allCampers?.find((c: any) => c.id === camperId);
+      console.log('Total campers loaded:', allCampers.length);
+
+      // Find the specific camper
+      const data = allCampers.find((c: any) => c.id === camperId);
 
       if (!data) {
         console.error('Camper not found with ID:', camperId);
@@ -124,16 +137,9 @@ function EditCamperContent() {
       }
 
       console.log('=== CAMPER DATA LOADED FOR EDITING ===');
-      console.log('Full camper data:', JSON.stringify(data, null, 2));
-      console.log('Name:', data.first_name, data.last_name);
-      console.log('Swim Level:', data.swim_level);
-      console.log('Cabin:', data.cabin_assignment);
-      console.log('Check-in Status:', data.check_in_status);
-      console.log('Registration Status:', data.registration_status);
-      console.log('Wristband ID:', data.wristband_id);
-      console.log('Date of Birth:', data.date_of_birth);
+      console.log('Raw camper data:', JSON.stringify(data, null, 2));
 
-      // FIXED: Parse date properly - handle both date strings and Date objects
+      // Parse date properly - handle both date strings and Date objects
       let parsedDate = new Date();
       try {
         if (data.date_of_birth) {
@@ -142,6 +148,8 @@ function EditCamperContent() {
           if (isNaN(parsedDate.getTime())) {
             console.error('Invalid date:', data.date_of_birth);
             parsedDate = new Date();
+          } else {
+            console.log('Date parsed successfully:', parsedDate.toISOString());
           }
         }
       } catch (error) {
@@ -149,7 +157,8 @@ function EditCamperContent() {
         parsedDate = new Date();
       }
       
-      // Set all state values in one batch
+      // Set all basic camper state values
+      console.log('Setting state values...');
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setDateOfBirth(parsedDate);
@@ -159,14 +168,15 @@ function EditCamperContent() {
       setCabinAssignment(data.cabin_assignment || '');
       setRegistrationStatus(data.registration_status || 'pending');
 
-      console.log('State set with values:');
-      console.log('- First Name:', data.first_name || '');
-      console.log('- Last Name:', data.last_name || '');
-      console.log('- Swim Level:', data.swim_level || '');
-      console.log('- Cabin:', data.cabin_assignment || '');
-      console.log('- Wristband ID:', data.wristband_id || '');
-      console.log('- Date of Birth:', parsedDate.toISOString());
+      console.log('✅ Basic info state set:');
+      console.log('  - First Name:', data.first_name || '(empty)');
+      console.log('  - Last Name:', data.last_name || '(empty)');
+      console.log('  - Swim Level:', data.swim_level || '(empty)');
+      console.log('  - Cabin:', data.cabin_assignment || '(empty)');
+      console.log('  - Wristband ID:', data.wristband_id || '(empty)');
+      console.log('  - Date of Birth:', parsedDate.toISOString());
 
+      // Load medical info
       console.log('Loading medical info for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
         .from('camper_medical_info')
@@ -176,11 +186,13 @@ function EditCamperContent() {
 
       if (medicalError) {
         console.error('Medical info error:', medicalError);
+        setHasMedicalInfo(false);
       } else if (medicalData) {
         console.log('=== MEDICAL INFO LOADED ===');
-        console.log('Allergies:', medicalData.allergies);
-        console.log('Medications:', medicalData.medications);
+        console.log('Raw medical data:', JSON.stringify(medicalData, null, 2));
         setHasMedicalInfo(true);
+        
+        // Set medical info state
         setAllergiesText((medicalData.allergies || []).join(', '));
         setMedicationsText((medicalData.medications || []).join(', '));
         setDietaryRestrictionsText((medicalData.dietary_restrictions || []).join(', '));
@@ -191,16 +203,22 @@ function EditCamperContent() {
         setInsuranceProvider(medicalData.insurance_provider || '');
         setInsuranceNumber(medicalData.insurance_number || '');
         setMedicalNotes(medicalData.notes || '');
+        
+        console.log('✅ Medical info state set:');
+        console.log('  - Allergies:', (medicalData.allergies || []).length, 'items');
+        console.log('  - Medications:', (medicalData.medications || []).length, 'items');
       } else {
         console.log('No medical info found for camper');
         setHasMedicalInfo(false);
       }
 
       console.log('=== LOAD COMPLETE - Setting loading to false ===');
+      // CRITICAL: Set loading to false AFTER all state has been set
       setLoading(false);
     } catch (error: any) {
       console.error('=== ERROR IN LOAD CAMPER ===');
       console.error('Error:', error);
+      console.error('Stack:', error?.stack);
       Alert.alert(
         'Error',
         error?.message || 'Failed to load camper data',
@@ -271,11 +289,14 @@ function EditCamperContent() {
       setSaving(true);
       console.log('=== STARTING SAVE PROCESS ===');
       console.log('Camper ID:', camperId);
-      console.log('First Name:', firstName);
-      console.log('Last Name:', lastName);
-      console.log('Swim Level:', swimLevel);
-      console.log('Cabin:', cabinAssignment);
+      console.log('Data to save:');
+      console.log('  - First Name:', firstName);
+      console.log('  - Last Name:', lastName);
+      console.log('  - Swim Level:', swimLevel);
+      console.log('  - Cabin:', cabinAssignment);
+      console.log('  - Date of Birth:', dateOfBirth.toISOString());
 
+      // Update basic camper info
       console.log('Calling update_camper_bypass_rls RPC function...');
       const { data: updateResult, error: camperError } = await supabase.rpc('update_camper_bypass_rls', {
         p_camper_id: camperId,
@@ -292,23 +313,21 @@ function EditCamperContent() {
       if (camperError) {
         console.error('=== CAMPER UPDATE ERROR ===');
         console.error('Error:', camperError);
-        console.error('Error message:', camperError.message);
-        console.error('Error details:', camperError.details);
-        console.error('Error hint:', camperError.hint);
         throw new Error(`Failed to update camper: ${camperError.message}`);
       }
 
       console.log('✅ Camper basic info updated successfully');
-      console.log('Update result:', updateResult);
 
+      // Parse medical info arrays
       const allergiesArray = allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [];
       const medicationsArray = medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [];
       const dietaryArray = dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [];
       const conditionsArray = medicalConditionsText.trim() ? medicalConditionsText.split(',').map(s => s.trim()).filter(s => s) : [];
 
       console.log('Calling upsert_camper_medical_info_bypass_rls RPC function...');
-      console.log('Allergies array:', allergiesArray);
-      console.log('Medications array:', medicationsArray);
+      console.log('Medical data to save:');
+      console.log('  - Allergies:', allergiesArray);
+      console.log('  - Medications:', medicationsArray);
 
       const { data: medicalResult, error: medicalError } = await supabase.rpc('upsert_camper_medical_info_bypass_rls', {
         p_camper_id: camperId,
@@ -327,15 +346,10 @@ function EditCamperContent() {
       if (medicalError) {
         console.error('=== MEDICAL INFO UPDATE ERROR ===');
         console.error('Error:', medicalError);
-        console.error('Error message:', medicalError.message);
-        console.error('Error details:', medicalError.details);
-        console.error('Error hint:', medicalError.hint);
         throw new Error(`Failed to save medical info: ${medicalError.message}`);
       }
 
       console.log('✅ Medical info saved successfully');
-      console.log('Medical result:', medicalResult);
-
       console.log('=== SAVE COMPLETE - ALL DATA UPDATED ===');
 
       Alert.alert(
@@ -355,7 +369,6 @@ function EditCamperContent() {
       console.error('=== SAVE ERROR ===');
       console.error('Error:', error);
       console.error('Error message:', error?.message);
-      console.error('Error stack:', error?.stack);
       Alert.alert('Error', error?.message || 'Failed to update camper');
     } finally {
       setSaving(false);
@@ -403,18 +416,13 @@ function EditCamperContent() {
 
   console.log('=== RENDERING FORM ===');
   console.log('Current state values:');
-  console.log('- First Name:', firstName);
-  console.log('- Last Name:', lastName);
-  console.log('- Swim Level:', swimLevel);
-  console.log('- Cabin Assignment:', cabinAssignment);
-  console.log('- Wristband ID:', wristbandId);
+  console.log('  - First Name:', firstName);
+  console.log('  - Last Name:', lastName);
+  console.log('  - Swim Level:', swimLevel);
+  console.log('  - Cabin Assignment:', cabinAssignment);
+  console.log('  - Wristband ID:', wristbandId);
 
-  let dateDisplayText = 'Select date';
-  try {
-    dateDisplayText = dateOfBirth.toLocaleDateString();
-  } catch (error) {
-    console.error('Error formatting date:', error);
-  }
+  const dateDisplayText = dateOfBirth.toLocaleDateString();
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -849,7 +857,7 @@ function EditCamperContent() {
               {saving ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <>
+                <React.Fragment>
                   <IconSymbol
                     ios_icon_name="checkmark.circle.fill"
                     android_material_icon_name="check-circle"
@@ -857,7 +865,7 @@ function EditCamperContent() {
                     color="#FFFFFF"
                   />
                   <Text style={styles.saveButtonText}>Save Changes</Text>
-                </>
+                </React.Fragment>
               )}
             </LinearGradient>
           </TouchableOpacity>

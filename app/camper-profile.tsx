@@ -67,10 +67,22 @@ function CamperProfileContent() {
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
   const canViewMedical = hasPermission(['super-admin', 'camp-admin', 'staff']);
 
-  const calculateAge = useCallback((dateOfBirth: string) => {
+  const calculateAge = useCallback((dateOfBirth: string | null | undefined): number => {
+    if (!dateOfBirth) {
+      console.warn('calculateAge: No date of birth provided');
+      return 0;
+    }
+    
     try {
       const today = new Date();
       const birthDate = new Date(dateOfBirth);
+      
+      // Validate the parsed date
+      if (isNaN(birthDate.getTime())) {
+        console.error('calculateAge: Invalid date format:', dateOfBirth);
+        return 0;
+      }
+      
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -78,18 +90,19 @@ function CamperProfileContent() {
       }
       return age;
     } catch (error) {
-      console.error('Error calculating age:', error);
+      console.error('calculateAge: Error calculating age:', error);
       return 0;
     }
   }, []);
 
-  const getStatusColor = useCallback((status: string) => {
-    switch (status) {
+  const getStatusColor = useCallback((status: string | null | undefined): string => {
+    if (!status) return colors.textSecondary;
+    
+    const normalizedStatus = status.toLowerCase().replace('_', '-');
+    switch (normalizedStatus) {
       case 'checked-in':
-      case 'checked_in':
         return colors.success;
       case 'checked-out':
-      case 'checked_out':
         return colors.warning;
       default:
         return colors.textSecondary;
@@ -98,7 +111,7 @@ function CamperProfileContent() {
 
   const loadCamperProfile = useCallback(async () => {
     if (!camperId) {
-      console.error('No camper ID provided in params:', params);
+      console.error('loadCamperProfile: No camper ID provided in params:', params);
       setError('No camper ID provided');
       setIsLoading(false);
       return;
@@ -110,6 +123,7 @@ function CamperProfileContent() {
       setIsLoading(true);
       setError(null);
 
+      // Fetch all campers using RPC
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
       
       if (rpcError) {
@@ -117,9 +131,15 @@ function CamperProfileContent() {
         throw new Error(`Failed to load campers: ${rpcError.message}`);
       }
 
-      console.log('Total campers loaded:', allCampers?.length || 0);
+      if (!allCampers || !Array.isArray(allCampers)) {
+        console.error('Invalid response from get_all_campers:', allCampers);
+        throw new Error('Invalid response from database');
+      }
 
-      const camperData = allCampers?.find((c: any) => c.id === camperId);
+      console.log('Total campers loaded:', allCampers.length);
+
+      // Find the specific camper
+      const camperData = allCampers.find((c: any) => c.id === camperId);
 
       if (!camperData) {
         console.error('Camper not found with ID:', camperId);
@@ -128,64 +148,82 @@ function CamperProfileContent() {
 
       console.log('=== CAMPER DATA LOADED ===');
       console.log('Name:', camperData.first_name, camperData.last_name);
-      console.log('Swim Level:', camperData.swim_level);
-      console.log('Cabin:', camperData.cabin_assignment);
+      console.log('Swim Level (raw):', camperData.swim_level);
+      console.log('Cabin (raw):', camperData.cabin_assignment);
       console.log('Check-in Status:', camperData.check_in_status);
-      console.log('Last Check-in:', camperData.last_check_in);
-      console.log('Updated At:', camperData.updated_at);
 
+      // Load session name if session_id exists
       let sessionName = null;
       if (camperData.session_id) {
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('sessions')
-          .select('name')
-          .eq('id', camperData.session_id)
-          .maybeSingle();
-        
-        if (!sessionError && sessionData) {
-          sessionName = sessionData.name;
-          console.log('Session name loaded:', sessionName);
+        try {
+          const { data: sessionData, error: sessionError } = await supabase
+            .from('sessions')
+            .select('name')
+            .eq('id', camperData.session_id)
+            .maybeSingle();
+          
+          if (!sessionError && sessionData) {
+            sessionName = sessionData.name;
+            console.log('Session name loaded:', sessionName);
+          }
+        } catch (sessionErr) {
+          console.error('Error loading session:', sessionErr);
+          // Non-critical error, continue
         }
       }
 
+      // Load medical info if user has permission
       let medicalInfo = null;
       if (canViewMedical) {
-        console.log('Loading medical info...');
-        const { data: medicalData, error: medicalError } = await supabase
-          .from('camper_medical_info')
-          .select('*')
-          .eq('camper_id', camperId)
-          .maybeSingle();
-        
-        if (medicalError) {
-          console.error('Medical info error:', medicalError);
-        } else if (medicalData) {
-          medicalInfo = medicalData;
-          console.log('Medical info loaded - Allergies:', medicalData.allergies?.length || 0);
-          console.log('Medical info loaded - Medications:', medicalData.medications?.length || 0);
-        } else {
-          console.log('No medical info found');
+        try {
+          console.log('Loading medical info...');
+          const { data: medicalData, error: medicalError } = await supabase
+            .from('camper_medical_info')
+            .select('*')
+            .eq('camper_id', camperId)
+            .maybeSingle();
+          
+          if (medicalError) {
+            console.error('Medical info error:', medicalError);
+          } else if (medicalData) {
+            medicalInfo = medicalData;
+            console.log('Medical info loaded successfully');
+          } else {
+            console.log('No medical info found');
+          }
+        } catch (medicalErr) {
+          console.error('Error loading medical info:', medicalErr);
+          // Non-critical error, continue
         }
       }
 
-      console.log('Loading emergency contacts...');
-      const { data: contactsData, error: contactsError } = await supabase
-        .from('emergency_contacts')
-        .select('*')
-        .eq('camper_id', camperId)
-        .order('priority_order');
+      // Load emergency contacts
+      let emergencyContacts = [];
+      try {
+        console.log('Loading emergency contacts...');
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('emergency_contacts')
+          .select('*')
+          .eq('camper_id', camperId)
+          .order('priority_order');
 
-      if (contactsError) {
-        console.error('Emergency contacts error:', contactsError);
-      } else {
-        console.log('Emergency contacts loaded:', contactsData?.length || 0);
+        if (contactsError) {
+          console.error('Emergency contacts error:', contactsError);
+        } else if (contactsData) {
+          emergencyContacts = contactsData;
+          console.log('Emergency contacts loaded:', contactsData.length);
+        }
+      } catch (contactsErr) {
+        console.error('Error loading emergency contacts:', contactsErr);
+        // Non-critical error, continue
       }
 
+      // Assemble the profile with defensive null checks
       const profile: CamperProfile = {
-        id: camperData.id,
-        first_name: camperData.first_name,
-        last_name: camperData.last_name,
-        date_of_birth: camperData.date_of_birth,
+        id: camperData.id || '',
+        first_name: camperData.first_name || '',
+        last_name: camperData.last_name || '',
+        date_of_birth: camperData.date_of_birth || '',
         registration_status: camperData.registration_status || 'pending',
         wristband_id: camperData.wristband_id || null,
         check_in_status: camperData.check_in_status || 'not-arrived',
@@ -196,7 +234,7 @@ function CamperProfileContent() {
         swim_level: camperData.swim_level || null,
         cabin_assignment: camperData.cabin_assignment || null,
         medical_info: medicalInfo,
-        emergency_contacts: contactsData || [],
+        emergency_contacts: emergencyContacts,
       };
 
       console.log('=== PROFILE ASSEMBLED SUCCESSFULLY ===');
@@ -209,6 +247,7 @@ function CamperProfileContent() {
       console.error('=== ERROR LOADING PROFILE ===');
       console.error('Error:', error);
       console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
       setError(error?.message || 'Failed to load camper profile');
       setIsLoading(false);
     }
@@ -275,6 +314,7 @@ function CamperProfileContent() {
     );
   }
 
+  // Calculate display values with defensive checks
   const ageDisplay = calculateAge(camper.date_of_birth);
   const sessionDisplay = camper.session_name ? ` • ${camper.session_name}` : '';
   const headerSubtitleText = `Age ${ageDisplay}${sessionDisplay}`;
@@ -284,29 +324,43 @@ function CamperProfileContent() {
     camper.check_in_status === 'checked-out' || camper.check_in_status === 'checked_out' ? 'Checked Out' : 'Not Arrived';
 
   let dateOfBirthDisplay = 'N/A';
-  try {
-    dateOfBirthDisplay = new Date(camper.date_of_birth).toLocaleDateString();
-  } catch (error) {
-    console.error('Error formatting date of birth:', error);
+  if (camper.date_of_birth) {
+    try {
+      const date = new Date(camper.date_of_birth);
+      if (!isNaN(date.getTime())) {
+        dateOfBirthDisplay = date.toLocaleDateString();
+      }
+    } catch (error) {
+      console.error('Error formatting date of birth:', error);
+    }
   }
 
   let lastCheckInDisplay = null;
   if (camper.last_check_in) {
     try {
-      lastCheckInDisplay = new Date(camper.last_check_in).toLocaleString();
+      const date = new Date(camper.last_check_in);
+      if (!isNaN(date.getTime())) {
+        lastCheckInDisplay = date.toLocaleString();
+      }
     } catch (error) {
       console.error('Error formatting last check-in:', error);
     }
   }
 
-  // FIXED: Defensive swim level display - check if swim_level exists AND is a string before calling methods
+  // DEFENSIVE: Format swim level with extensive null/undefined checks
   let swimLevelDisplay = null;
-  if (camper.swim_level && typeof camper.swim_level === 'string' && camper.swim_level.length > 0) {
+  if (camper.swim_level) {
     try {
-      swimLevelDisplay = camper.swim_level.charAt(0).toUpperCase() + camper.swim_level.slice(1).replace('-', ' ');
+      // Ensure it's a string and has content
+      const swimLevelStr = String(camper.swim_level).trim();
+      if (swimLevelStr.length > 0) {
+        // Safely format the string
+        swimLevelDisplay = swimLevelStr.charAt(0).toUpperCase() + swimLevelStr.slice(1).replace(/-/g, ' ');
+      }
     } catch (error) {
       console.error('Error formatting swim level:', error);
-      swimLevelDisplay = camper.swim_level;
+      // Fallback to raw value
+      swimLevelDisplay = String(camper.swim_level);
     }
   }
 
@@ -396,7 +450,7 @@ function CamperProfileContent() {
             </View>
 
             {swimLevelDisplay && (
-              <>
+              <React.Fragment>
                 <View style={commonStyles.divider} />
                 <View style={styles.infoRow}>
                   <IconSymbol
@@ -412,11 +466,11 @@ function CamperProfileContent() {
                     </Text>
                   </View>
                 </View>
-              </>
+              </React.Fragment>
             )}
 
             {camper.cabin_assignment && (
-              <>
+              <React.Fragment>
                 <View style={commonStyles.divider} />
                 <View style={styles.infoRow}>
                   <IconSymbol
@@ -430,11 +484,11 @@ function CamperProfileContent() {
                     <Text style={styles.infoValue}>{camper.cabin_assignment}</Text>
                   </View>
                 </View>
-              </>
+              </React.Fragment>
             )}
 
             {camper.wristband_id && (
-              <>
+              <React.Fragment>
                 <View style={commonStyles.divider} />
                 <View style={styles.infoRow}>
                   <IconSymbol
@@ -448,11 +502,11 @@ function CamperProfileContent() {
                     <Text style={styles.infoValue}>{camper.wristband_id}</Text>
                   </View>
                 </View>
-              </>
+              </React.Fragment>
             )}
 
             {lastCheckInDisplay && (
-              <>
+              <React.Fragment>
                 <View style={commonStyles.divider} />
                 <View style={styles.infoRow}>
                   <IconSymbol
@@ -468,7 +522,7 @@ function CamperProfileContent() {
                     </Text>
                   </View>
                 </View>
-              </>
+              </React.Fragment>
             )}
           </View>
         </View>
