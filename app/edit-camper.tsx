@@ -46,6 +46,7 @@ interface MedicalInfo {
   insurance_provider: string | null;
   insurance_number: string | null;
   notes: string | null;
+  has_epi_pen: boolean | null;
 }
 
 // Helper function to format date as MM/dd/yyyy
@@ -87,6 +88,7 @@ function EditCamperContent() {
   const [insuranceProvider, setInsuranceProvider] = useState('');
   const [insuranceNumber, setInsuranceNumber] = useState('');
   const [medicalNotes, setMedicalNotes] = useState('');
+  const [hasEpiPen, setHasEpiPen] = useState(false);
   const [hasMedicalInfo, setHasMedicalInfo] = useState(false);
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
@@ -209,6 +211,7 @@ function EditCamperContent() {
         setInsuranceProvider('');
         setInsuranceNumber('');
         setMedicalNotes('');
+        setHasEpiPen(false);
       } else if (medicalData) {
         console.log('=== ✅ MEDICAL INFO FOUND ===');
         console.log('Raw medical data:', JSON.stringify(medicalData, null, 2));
@@ -235,6 +238,7 @@ function EditCamperContent() {
         console.log('  - Insurance provider:', medicalData.insurance_provider || '(empty)');
         console.log('  - Insurance number:', medicalData.insurance_number || '(empty)');
         console.log('  - Notes:', medicalData.notes || '(empty)');
+        console.log('  - Has EpiPen:', medicalData.has_epi_pen || false);
         
         setAllergiesText(allergiesStr);
         setMedicationsText(medicationsStr);
@@ -246,6 +250,7 @@ function EditCamperContent() {
         setInsuranceProvider(medicalData.insurance_provider || '');
         setInsuranceNumber(medicalData.insurance_number || '');
         setMedicalNotes(medicalData.notes || '');
+        setHasEpiPen(medicalData.has_epi_pen || false);
         
         console.log('✅ Medical info state set successfully');
       } else {
@@ -263,6 +268,7 @@ function EditCamperContent() {
         setInsuranceProvider('');
         setInsuranceNumber('');
         setMedicalNotes('');
+        setHasEpiPen(false);
       }
 
       console.log('=== LOAD COMPLETE - Setting loading to false ===');
@@ -377,6 +383,7 @@ function EditCamperContent() {
       console.log('Medical data to save:');
       console.log('  - Allergies:', allergiesArray);
       console.log('  - Medications:', medicationsArray);
+      console.log('  - Has EpiPen:', hasEpiPen);
 
       const { data: medicalResult, error: medicalError } = await supabase.rpc('upsert_camper_medical_info_bypass_rls', {
         p_camper_id: camperId,
@@ -390,6 +397,7 @@ function EditCamperContent() {
         p_insurance_provider: insuranceProvider.trim() || null,
         p_insurance_number: insuranceNumber.trim() || null,
         p_notes: medicalNotes.trim() || null,
+        p_has_epi_pen: hasEpiPen,
       });
 
       if (medicalError) {
@@ -444,6 +452,7 @@ function EditCamperContent() {
     insuranceProvider,
     insuranceNumber,
     medicalNotes,
+    hasEpiPen,
     router,
   ]);
 
@@ -481,6 +490,7 @@ function EditCamperContent() {
   console.log('  - Insurance Provider:', insuranceProvider);
   console.log('  - Insurance Number:', insuranceNumber);
   console.log('  - Medical Notes:', medicalNotes);
+  console.log('  - Has EpiPen:', hasEpiPen);
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -820,6 +830,28 @@ function EditCamperContent() {
               numberOfLines={2}
             />
 
+            <Text style={[styles.label, { marginTop: 16 }]}>EpiPen Required</Text>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => {
+                console.log('User toggled EpiPen checkbox:', !hasEpiPen);
+                setHasEpiPen(!hasEpiPen);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, hasEpiPen && styles.checkboxChecked]}>
+                {hasEpiPen && (
+                  <IconSymbol
+                    ios_icon_name="checkmark"
+                    android_material_icon_name="check"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                )}
+              </View>
+              <Text style={styles.checkboxLabel}>Camper requires an EpiPen</Text>
+            </TouchableOpacity>
+
             <Text style={[styles.label, { marginTop: 16 }]}>Dietary Restrictions</Text>
             <Text style={styles.helperText}>Separate multiple items with commas</Text>
             <TextInput
@@ -1124,6 +1156,31 @@ const styles = StyleSheet.create({
   },
   swimLevelButtonTextActive: {
     color: '#FFFFFF',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkboxLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text,
   },
   saveButton: {
     borderRadius: 16,

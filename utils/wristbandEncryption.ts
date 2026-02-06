@@ -97,7 +97,6 @@ export async function setWristbandLockCode(newCode: string): Promise<{ success: 
     }
     
     // Only allow alphanumeric characters and basic symbols
-    // FIXED: Removed unnecessary escape for [ and ]
     const validCodeRegex = /^[A-Za-z0-9!@#$%^&*()_+\-=[\]{}|;:,.<>?]+$/;
     if (!validCodeRegex.test(newCode)) {
       return { success: false, error: 'Lock code can only contain letters, numbers, and basic symbols' };
@@ -190,7 +189,8 @@ export function clearLockCodeCache(): void {
  */
 export async function encryptWristbandData(camperData: WristbandCamperData): Promise<string> {
   try {
-    console.log('Encrypting comprehensive wristband data for camper:', camperData.id);
+    console.log('🔐 ENCRYPTION START - Encrypting comprehensive wristband data for camper:', camperData.id);
+    console.log('📊 Input data:', JSON.stringify(camperData, null, 2));
     
     // Create compact data structure with essential offline information
     const compactData = {
@@ -212,33 +212,41 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
     
     // Create a compact JSON string
     const dataString = JSON.stringify(compactData);
-    console.log('Comprehensive data to encrypt (size):', dataString.length, 'bytes');
+    console.log('📦 Compact data string created (size):', dataString.length, 'bytes');
+    console.log('📦 Compact data:', dataString);
     
-    // Create a hash for verification
+    // Create a hash for verification using the encryption key
     const dataToEncrypt = `${ENCRYPTION_KEY}:${dataString}`;
+    console.log('🔐 Creating SHA256 hash for verification...');
+    
     const fullHash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       dataToEncrypt
     );
     
+    console.log('✅ Full hash generated:', fullHash);
+    
     // Use first 8 characters of hash to save space
     const shortHash = fullHash.substring(0, 8);
+    console.log('✅ Short hash (first 8 chars):', shortHash);
     
     // Combine hash with data
     const encryptedPayload = `${shortHash}:${dataString}`;
     
-    console.log('Encrypted payload size:', encryptedPayload.length, 'bytes');
+    console.log('✅ ENCRYPTION COMPLETE - Final encrypted payload size:', encryptedPayload.length, 'bytes');
+    console.log('📦 Encrypted payload preview:', encryptedPayload.substring(0, 100) + '...');
     
     if (encryptedPayload.length > 500) {
-      console.warn('Warning: Encrypted payload is large. May not fit on some NFC chips.');
+      console.warn('⚠️ WARNING: Encrypted payload is large. May not fit on some NFC chips.');
     }
     
-    console.log('Wristband data encrypted successfully with offline capabilities');
-    console.log('Included: Name, DOB, Allergies, Medications, Swim Level, Cabin');
+    console.log('✅ Wristband data encrypted successfully with offline capabilities');
+    console.log('✅ Included: Name, DOB, Allergies, Medications, Swim Level, Cabin');
     
     return encryptedPayload;
   } catch (error) {
-    console.error('Error encrypting wristband data:', error);
+    console.error('❌ ENCRYPTION ERROR:', error);
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
     throw new Error('Failed to encrypt wristband data');
   }
 }
@@ -253,42 +261,52 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
   isLocked: boolean;
 } | null> {
   try {
-    console.log('Decrypting comprehensive wristband data...');
-    console.log('Encrypted data length:', encryptedData.length, 'bytes');
+    console.log('🔓 DECRYPTION START - Decrypting comprehensive wristband data...');
+    console.log('📦 Encrypted data length:', encryptedData.length, 'bytes');
+    console.log('📦 Encrypted data preview:', encryptedData.substring(0, 100) + '...');
     
     // Split the encrypted payload
     const parts = encryptedData.split(':');
     if (parts.length < 2) {
-      console.error('Invalid encrypted data format');
+      console.error('❌ Invalid encrypted data format - expected "hash:data"');
       return null;
     }
     
     const shortHash = parts[0];
     const dataString = parts.slice(1).join(':');
     
+    console.log('🔍 Extracted short hash:', shortHash);
+    console.log('🔍 Extracted data string length:', dataString.length, 'bytes');
+    
     // Parse the data
     let data;
     try {
       data = JSON.parse(dataString);
+      console.log('✅ Data parsed successfully:', JSON.stringify(data, null, 2));
     } catch (parseError) {
-      console.error('Failed to parse wristband data:', parseError);
+      console.error('❌ Failed to parse wristband data:', parseError);
       return null;
     }
     
     // Verify the hash
+    console.log('🔐 Verifying hash...');
     const dataToVerify = `${ENCRYPTION_KEY}:${dataString}`;
     const verifyHash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       dataToVerify
     );
     
+    console.log('🔍 Verification hash:', verifyHash);
+    console.log('🔍 Expected hash prefix:', shortHash);
+    
     if (!verifyHash.startsWith(shortHash)) {
-      console.error('Hash verification failed - data may be tampered');
+      console.error('❌ Hash verification failed - data may be tampered');
       return null;
     }
     
-    console.log('Wristband data decrypted and verified successfully');
-    console.log('Camper:', data.fn, data.ln);
+    console.log('✅ Hash verification successful');
+    console.log('✅ Wristband data decrypted and verified successfully');
+    console.log('👤 Camper:', data.fn, data.ln);
     
     // Reconstruct full data structure
     const fullData: WristbandCamperData & { timestamp: number; isLocked: boolean } = {
@@ -306,11 +324,13 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
       isLocked: true,
     };
     
-    console.log('Offline data available: Allergies:', fullData.allergies.length, 'Medications:', fullData.medications.length);
+    console.log('✅ DECRYPTION COMPLETE - Full data reconstructed');
+    console.log('📊 Offline data available: Allergies:', fullData.allergies.length, 'Medications:', fullData.medications.length);
     
     return fullData;
   } catch (error) {
-    console.error('Error decrypting wristband data:', error);
+    console.error('❌ DECRYPTION ERROR:', error);
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
     return null;
   }
 }
