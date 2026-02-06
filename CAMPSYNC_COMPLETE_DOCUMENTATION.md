@@ -3,7 +3,7 @@
 
 ## Executive Summary
 
-CampSync is a secure, offline-capable digital platform designed to manage and streamline operations for a single summer camp. It centralizes staff workflows, camper management, incident reporting, NFC wristband usage, and parent engagement into one cohesive system built for real-world camp environments.
+CampSync is a secure, offline-capable digital platform designed to manage and streamline operations for a single summer camp. It centralizes staff workflows, camper management, encrypted NFC wristband operations, and parent engagement into one cohesive system built for real-world camp environments.
 
 **Core Philosophy:** Speed, safety, and reliability in settings where staff are mobile, connectivity may be unreliable, and accurate camper information is critical.
 
@@ -65,7 +65,6 @@ Super Admin (System Owner)
 | Check-In/Out | ✅ | ✅ | ✅ | ❌ |
 | NFC Operations | ✅ | ✅ | ✅ | ❌ |
 | Medical Info Access | ✅ | ✅ | ✅ | ✅ Own Children Only |
-| Incident Logging | ✅ | ✅ | ✅ | ❌ View Only |
 | Authorization Codes | ✅ | ✅ Manage | ❌ | ❌ |
 | Wristband Settings | ✅ | ✅ | ❌ | ❌ |
 | Bulk Import | ✅ | ✅ | ❌ | ❌ |
@@ -98,7 +97,6 @@ Super Admin (System Owner)
 - Camper profiles (demographics, medical, emergency contacts)
 - Staff profiles (roles, permissions, contact info)
 - Session management (dates, capacity, assignments)
-- Incident tracking (logs, follow-ups, accountability)
 - Parent information (linked to campers)
 
 **Benefits:**
@@ -109,24 +107,36 @@ Super Admin (System Owner)
 
 ### 2. NFC Wristband Integration
 
-**What:** Each camper wears an NFC wristband for identification
+**What:** Each camper wears an encrypted NFC wristband for secure identification
 
 **Capabilities:**
-- **Check-in/Check-out** - Tap wristband to log arrival/departure
-- **Medical Access** - Instant access to allergies, medications, conditions
-- **Incident Logging** - Link incidents to specific campers
-- **Identity Verification** - Confirm camper identity before actions
+- **Check-in/Check-out** - Tap wristband to log arrival/departure with encrypted verification
+- **Medical Access** - Instant access to allergies, medications, conditions via encrypted data
+- **Identity Verification** - Confirm camper identity before actions using secure cryptographic protocols
 
-**Security:**
-- Wristbands store encrypted data only
-- Personal information never stored on chip
-- Password-protected write operations
-- Data hash verification for integrity
+**Advanced Security Features:**
+- **AES-256-CBC Encryption:** All camper data on wristbands is encrypted using industry-standard AES-256-CBC encryption with camp-specific encryption keys
+- **Zero PII Storage:** Personal information is NEVER stored in plain text on the chip - only encrypted payloads
+- **Password-Protected Writes:** NTAG chips use 32-bit password protection to prevent unauthorized write operations
+- **Data Integrity Verification:** SHA-256 hash verification ensures data hasn't been tampered with
+- **Encryption Key Management:** Camp-specific encryption keys are securely stored in the backend database and never exposed on devices
+- **Lock Code System:** Configurable 4-byte lock codes prevent unauthorized wristband modifications
+- **Timestamp Validation:** Encrypted timestamps detect stale or outdated wristband data
+- **Secure Key Derivation:** Uses cryptographic key derivation functions to generate unique encryption keys per camp
 
 **Recommended Hardware:**
-- **Chip Type:** NTAG215 or NTAG216
-- **Reason:** Password protection support, 504-888 byte capacity
-- **Form Factor:** Silicone wristbands (waterproof, durable)
+- **Chip Type:** NTAG215 (504 bytes) or NTAG216 (888 bytes)
+- **Protocol:** ISO 14443A (NFC Type 2)
+- **Frequency:** 13.56 MHz
+- **Security Features:** 
+  - 32-bit password protection for write operations
+  - 16-bit PACK (Password Acknowledge) for authentication
+  - 7-byte UID (Unique Identifier) - read-only and tamper-proof
+  - Memory lock bits to prevent unauthorized modifications
+- **Read Range:** 1-10 cm (optimal for tap-to-scan operations)
+- **Form Factor:** Silicone wristbands (waterproof IP68, durable, tamper-evident)
+- **Durability:** Withstands water, sweat, and physical activity
+- **Tamper Evidence:** Breaks if removed, preventing wristband swapping
 
 ### 3. Role-Based Access Control (RBAC)
 
@@ -180,7 +190,6 @@ USING (
 - View camper profiles (read-only demographics)
 - Update medical information (allergies, medications, conditions)
 - Manage emergency contacts (add, edit, prioritize)
-- View incident reports (read-only)
 - Update parent profile (contact info)
 
 **Security:**
@@ -189,43 +198,15 @@ USING (
 - Cannot perform check-in/out operations
 - All changes logged with audit trail
 
-### 6. Incident Tracking & Accountability
-
-**What:** Structured logging of incidents with follow-up tracking
-
-**Incident Types:**
-- Medical (injury, illness, medication administration)
-- Behavioral (discipline, conflict resolution)
-- Safety (near-miss, hazard identification)
-- General (lost item, parent communication)
-
-**Data Captured:**
-- Timestamp (automatic)
-- Camper(s) involved (via NFC or manual selection)
-- Incident type and severity
-- Description (free text)
-- Staff member reporting (automatic from auth)
-- Follow-up actions required
-- Resolution status
-
-**Workflow:**
-1. Staff identifies incident
-2. Scans camper wristband or selects from list
-3. Fills incident form
-4. System logs with timestamp and reporter
-5. Admin reviews and assigns follow-up
-6. Staff completes follow-up actions
-7. Incident marked resolved
-
-### 7. Embedded AI Assistant (Future Feature)
+### 6. Embedded AI Assistant (Future Feature)
 
 **What:** Natural language query interface for authorized staff
 
 **Capabilities:**
 - "Show me all campers with peanut allergies"
 - "Who is checked in right now?"
-- "List incidents from today"
 - "Find campers in Cabin 5"
+- "List all campers with medical conditions"
 
 **Security:**
 - Read-only access (no data modification)
@@ -252,7 +233,7 @@ USING (
 3. Session Validation (Auto-refresh if needed)
    ↓
 4. Home Dashboard
-   ├── Quick Stats (checked in, total campers, incidents)
+   ├── Quick Stats (checked in, total campers, sessions)
    ├── Recent Activity Feed
    └── Quick Actions (Check-In, NFC Scan, Add Camper)
    ↓
@@ -271,7 +252,7 @@ USING (
       ├── Hold phone near wristband
       ├── System decrypts wristband data
       ├── Display camper profile (demographics, medical, emergency)
-      ├── Quick actions: Check-In/Out, Log Incident, Edit Profile
+      ├── Quick actions: Check-In/Out, Edit Profile
       └── Return to scanner
    
    C. Camper Management Flow
@@ -282,14 +263,6 @@ USING (
       ├── Save changes (validates + syncs)
       └── Return to list
    
-   D. Incident Logging Flow
-      ├── From NFC scan or camper profile
-      ├── Tap "Log Incident"
-      ├── Select incident type + severity
-      ├── Enter description
-      ├── System auto-fills: timestamp, reporter, camper
-      ├── Submit
-      └── Confirmation + return
 ```
 
 ### User Journey: Parent
@@ -301,16 +274,14 @@ USING (
    ↓
 3. Parent Dashboard
    ├── My Children (cards with photos, names, ages)
-   ├── Check-In Status (visual indicator)
-   └── Recent Incidents (if any)
+   └── Check-In Status (visual indicator)
    ↓
 4. Primary Workflows:
    
    A. View Child Profile
       ├── Tap child card
       ├── View demographics (read-only)
-      ├── View check-in history
-      └── View incidents (read-only)
+      └── View check-in history
    
    B. Update Medical Info
       ├── From child profile → "Edit Medical"
@@ -478,23 +449,7 @@ CREATE TABLE authorization_codes (
 );
 ```
 
-#### `incidents` (Incident Reports)
-```sql
-CREATE TABLE incidents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  camper_id UUID NOT NULL REFERENCES campers(id),
-  reported_by UUID NOT NULL REFERENCES profiles(id),
-  incident_type TEXT NOT NULL,
-  severity TEXT NOT NULL,
-  description TEXT NOT NULL,
-  follow_up_required BOOLEAN DEFAULT FALSE,
-  follow_up_notes TEXT,
-  resolved BOOLEAN DEFAULT FALSE,
-  occurred_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+
 
 #### `check_in_logs` (Check-In/Out History)
 ```sql
@@ -727,11 +682,38 @@ export const ProtectedRoute = ({
 - All API calls over HTTPS/TLS 1.3
 - WebSocket connections (Realtime) over WSS
 
-**NFC Wristband Data:**
-- Encrypted using AES-256-CBC
-- Encryption key: Camp-specific, stored in Supabase (not on device)
-- Lock code: Password-protects write operations on chip
-- Data hash: Verifies integrity, detects tampering
+**NFC Wristband Data Encryption (Detailed):**
+- **Encryption Algorithm:** AES-256-CBC (Advanced Encryption Standard with 256-bit key in Cipher Block Chaining mode)
+- **Encryption Key Management:** 
+  - Camp-specific 256-bit encryption keys generated using cryptographically secure random number generators
+  - Keys stored securely in backend database with restricted access
+  - Keys NEVER transmitted to or stored on mobile devices in plain text
+  - Key rotation supported for enhanced security
+- **Lock Code System:** 
+  - 32-bit (4-byte) password protection on NTAG chips prevents unauthorized write operations
+  - Lock codes are configurable per camp and can be changed by administrators
+  - PACK (Password Acknowledge) provides 16-bit authentication response
+  - Lock codes cached locally in secure storage for offline write operations
+- **Data Integrity:** 
+  - SHA-256 cryptographic hash function verifies data hasn't been tampered with
+  - Hash computed on encrypted payload and stored both on chip and in database
+  - Mismatch detection triggers wristband update workflow
+  - Timestamp validation prevents replay attacks with stale data
+- **Encryption Process:**
+  1. Camper data serialized to JSON format
+  2. Random 16-byte Initialization Vector (IV) generated for each encryption
+  3. Data encrypted using AES-256-CBC with camp encryption key and IV
+  4. SHA-256 hash computed on encrypted payload
+  5. IV prepended to ciphertext for decryption
+  6. Complete encrypted payload written to NTAG chip NDEF record
+- **Decryption Process:**
+  1. NDEF record read from NTAG chip
+  2. IV extracted from payload prefix
+  3. Ciphertext decrypted using AES-256-CBC with camp key and IV
+  4. SHA-256 hash verified against stored hash
+  5. Timestamp checked for data freshness
+  6. Decrypted JSON parsed and validated
+  7. Camper data displayed to authorized user
 
 **Encryption Implementation:**
 ```typescript
@@ -774,9 +756,10 @@ export async function decryptWristbandData(
 - Role changes
 - Camper creation/updates/deletion
 - Check-in/check-out operations
-- Incident creation/updates
 - Authorization code usage
 - Wristband lock code changes
+- Medical information updates
+- Emergency contact modifications
 
 **Implementation:**
 - Database triggers on sensitive tables
@@ -1083,11 +1066,11 @@ async function checkOutdatedWristbands() {
 **Philosophy:** Core operations must work without internet
 
 **Offline-Capable Features:**
-- NFC scanning (read wristband data)
+- NFC scanning (read encrypted wristband data)
 - Camper profile viewing (cached data)
 - Check-in/check-out (queued for sync)
-- Incident logging (queued for sync)
 - Search campers (cached list)
+- Medical information access (cached, encrypted)
 
 **Requires Connectivity:**
 - User authentication (initial login)
@@ -1099,11 +1082,12 @@ async function checkOutdatedWristbands() {
 ### Data Caching Strategy
 
 **What to Cache:**
-- All camper profiles (demographics, medical, emergency contacts)
+- All camper profiles (demographics, medical, emergency contacts) - encrypted
 - User profile (role, permissions)
 - Session data (JWT token, expiry)
-- Wristband encryption key and lock code
+- Wristband encryption key and lock code - securely stored
 - Recent check-in/out logs
+- NFC encryption keys for offline wristband operations
 
 **Cache Storage:**
 - `@react-native-async-storage/async-storage` for large data (camper list)
@@ -1153,14 +1137,14 @@ async function loadCachedCampers(): Promise<Camper[]> {
 
 **Queued Operations:**
 - Check-in/check-out
-- Incident creation
 - Camper profile updates (if allowed offline)
+- Medical information updates
 
 **Queue Structure:**
 ```typescript
 interface QueuedOperation {
   id: string;
-  type: 'check_in' | 'check_out' | 'incident' | 'update_camper';
+  type: 'check_in' | 'check_out' | 'update_camper' | 'update_medical';
   payload: any;
   timestamp: string;
   retries: number;
@@ -1187,8 +1171,8 @@ async function syncQueue() {
         case 'check_out':
           await supabase.rpc('check_out_camper_bypass_rls', operation.payload);
           break;
-        case 'incident':
-          await supabase.from('incidents').insert(operation.payload);
+        case 'update_medical':
+          await supabase.from('campers').update({ medical_info: operation.payload.medical_info }).eq('id', operation.payload.camper_id);
           break;
         // ... other operations
       }
@@ -1402,24 +1386,7 @@ NetInfo.addEventListener(state => {
 - Headers: `Authorization: Bearer <token>`
 - Returns: `{ success: true }`
 
-### Incidents
 
-**GET /rest/v1/incidents?camper_id=eq.<uuid>**
-- Headers: `Authorization: Bearer <token>`
-- Returns: `Incident[]`
-- RLS: Staff see all, parents see own campers' incidents
-
-**POST /rest/v1/incidents**
-- Headers: `Authorization: Bearer <token>`
-- Body: `{ camper_id, incident_type, severity, description, occurred_at }`
-- Returns: `Incident` (created)
-- Auto-fills `reported_by` from auth token
-
-**PATCH /rest/v1/incidents?id=eq.<uuid>**
-- Headers: `Authorization: Bearer <token>`
-- Body: `{ follow_up_notes, resolved, ... }`
-- Returns: `Incident` (updated)
-- RLS: Only staff/admin can update
 
 ### User Management (Admin Only)
 
@@ -1594,8 +1561,8 @@ app/
 
 **Dashboard (Home):**
 - Header with camp logo and user greeting
-- Quick stats cards (checked in, total campers, incidents)
-- Recent activity feed (check-ins, incidents)
+- Quick stats cards (checked in, total campers, sessions)
+- Recent activity feed (check-ins, updates)
 - Quick action buttons (Check-In, NFC Scan, Add Camper)
 
 **Camper List:**
@@ -1613,11 +1580,10 @@ app/
 - Header with back button and edit button
 - Photo (large, centered)
 - Demographics section (name, age, DOB, cabin, swim level)
-- Medical section (allergies, medications, conditions)
+- Medical section (allergies, medications, conditions) - encrypted data display
 - Emergency contacts section (list with priority)
 - Check-in history section (recent logs)
-- Incidents section (list with severity badges)
-- Action buttons (Check-In/Out, Log Incident, Edit Profile)
+- Action buttons (Check-In/Out, Edit Profile, Update Wristband)
 
 **Check-In Screen:**
 - NFC scan button (large, centered)
@@ -1629,9 +1595,10 @@ app/
 
 **NFC Scanner:**
 - Animated NFC icon (pulsing)
-- Instructions ("Hold phone near wristband")
-- Scanned camper card (appears after scan)
-- Quick actions (Check-In/Out, View Profile, Log Incident)
+- Instructions ("Hold phone near encrypted wristband")
+- Encryption status indicator (shows when decrypting)
+- Scanned camper card (appears after successful decryption)
+- Quick actions (Check-In/Out, View Profile, Update Wristband)
 - Scan again button
 
 **Profile (User):**
@@ -1853,9 +1820,10 @@ This documentation provides a complete blueprint for rebuilding CampSync on any 
 
 **Key Takeaways:**
 - **Offline-first:** Core operations work without internet
-- **Security-first:** Role-based access, encryption, audit logging
+- **Security-first:** Military-grade AES-256 encryption, role-based access, comprehensive audit logging
 - **User-first:** Intuitive workflows, minimal training required
-- **NFC-powered:** Fast camper identification and data access
+- **NFC-powered:** Fast camper identification with encrypted wristband technology
+- **Privacy-focused:** Zero PII storage on wristbands, encrypted data at rest and in transit
 - **Scalable:** Designed to grow with camp needs
 
 Good luck building CampSync! 🏕️
