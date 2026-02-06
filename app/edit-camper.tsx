@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { format } from 'date-fns';
 
 interface CamperData {
   id: string;
@@ -61,6 +62,7 @@ function EditCamperContent() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState(new Date());
+  const [dobText, setDobText] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [wristbandId, setWristbandId] = useState('');
   const [checkInStatus, setCheckInStatus] = useState('not-arrived');
@@ -86,6 +88,7 @@ function EditCamperContent() {
     if (!camperId) {
       console.error('No camper ID provided');
       Alert.alert('Error', 'No camper ID provided');
+      setLoading(false);
       router.back();
       return;
     }
@@ -95,7 +98,6 @@ function EditCamperContent() {
       console.log('Camper ID:', camperId);
       setLoading(true);
 
-      // Fetch all campers using RPC function
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
 
       if (rpcError) {
@@ -122,7 +124,6 @@ function EditCamperContent() {
 
       console.log('Total campers loaded:', allCampers.length);
 
-      // Find the specific camper
       const data = allCampers.find((c: any) => c.id === camperId);
 
       if (!data) {
@@ -139,12 +140,10 @@ function EditCamperContent() {
       console.log('=== CAMPER DATA LOADED FOR EDITING ===');
       console.log('Raw camper data:', JSON.stringify(data, null, 2));
 
-      // Parse date properly - handle both date strings and Date objects
       let parsedDate = new Date();
       try {
         if (data.date_of_birth) {
           parsedDate = new Date(data.date_of_birth);
-          // Validate the date
           if (isNaN(parsedDate.getTime())) {
             console.error('Invalid date:', data.date_of_birth);
             parsedDate = new Date();
@@ -157,11 +156,11 @@ function EditCamperContent() {
         parsedDate = new Date();
       }
       
-      // Set all basic camper state values
       console.log('Setting state values...');
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setDateOfBirth(parsedDate);
+      setDobText(format(parsedDate, 'MM/dd/yyyy'));
       setWristbandId(data.wristband_id || '');
       setCheckInStatus(data.check_in_status || 'not-arrived');
       setSwimLevel(data.swim_level || '');
@@ -175,8 +174,8 @@ function EditCamperContent() {
       console.log('  - Cabin:', data.cabin_assignment || '(empty)');
       console.log('  - Wristband ID:', data.wristband_id || '(empty)');
       console.log('  - Date of Birth:', parsedDate.toISOString());
+      console.log('  - DOB Text:', format(parsedDate, 'MM/dd/yyyy'));
 
-      // Load medical info
       console.log('Loading medical info for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
         .from('camper_medical_info')
@@ -192,7 +191,6 @@ function EditCamperContent() {
         console.log('Raw medical data:', JSON.stringify(medicalData, null, 2));
         setHasMedicalInfo(true);
         
-        // Set medical info state
         setAllergiesText((medicalData.allergies || []).join(', '));
         setMedicationsText((medicalData.medications || []).join(', '));
         setDietaryRestrictionsText((medicalData.dietary_restrictions || []).join(', '));
@@ -213,7 +211,6 @@ function EditCamperContent() {
       }
 
       console.log('=== LOAD COMPLETE - Setting loading to false ===');
-      // CRITICAL: Set loading to false AFTER all state has been set
       setLoading(false);
     } catch (error: any) {
       console.error('=== ERROR IN LOAD CAMPER ===');
@@ -228,7 +225,6 @@ function EditCamperContent() {
     }
   }, [camperId, router]);
 
-  // Load data when screen mounts or comes into focus
   useFocusEffect(
     useCallback(() => {
       console.log('Edit camper screen focused - loading data for camper:', camperId);
@@ -241,25 +237,25 @@ function EditCamperContent() {
   const handleDateChange = useCallback((event: DateTimePickerEvent, selectedDate?: Date) => {
     console.log('Date picker event:', event.type);
     
-    // On Android, close the picker after selection or dismissal
+    const currentDate = selectedDate || dateOfBirth;
+    
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
     
-    // Update the date if user selected one (not dismissed)
-    if (event.type === 'set' && selectedDate) {
-      console.log('User selected date:', selectedDate.toISOString());
-      setDateOfBirth(selectedDate);
-      // On iOS, keep the picker open until user taps outside
+    if (event.type === 'set') {
+      console.log('User selected date:', currentDate.toISOString());
+      setDateOfBirth(currentDate);
+      setDobText(format(currentDate, 'MM/dd/yyyy'));
+      
       if (Platform.OS === 'ios') {
         setShowDatePicker(false);
       }
     } else if (event.type === 'dismissed') {
-      // User cancelled the picker
       console.log('Date picker dismissed');
       setShowDatePicker(false);
     }
-  }, []);
+  }, [dateOfBirth]);
 
   const validateForm = useCallback(() => {
     if (!firstName.trim()) {
@@ -296,7 +292,6 @@ function EditCamperContent() {
       console.log('  - Cabin:', cabinAssignment);
       console.log('  - Date of Birth:', dateOfBirth.toISOString());
 
-      // Update basic camper info
       console.log('Calling update_camper_bypass_rls RPC function...');
       const { data: updateResult, error: camperError } = await supabase.rpc('update_camper_bypass_rls', {
         p_camper_id: camperId,
@@ -318,7 +313,6 @@ function EditCamperContent() {
 
       console.log('✅ Camper basic info updated successfully');
 
-      // Parse medical info arrays
       const allergiesArray = allergiesText.trim() ? allergiesText.split(',').map(s => s.trim()).filter(s => s) : [];
       const medicationsArray = medicationsText.trim() ? medicationsText.split(',').map(s => s.trim()).filter(s => s) : [];
       const dietaryArray = dietaryRestrictionsText.trim() ? dietaryRestrictionsText.split(',').map(s => s.trim()).filter(s => s) : [];
@@ -421,8 +415,7 @@ function EditCamperContent() {
   console.log('  - Swim Level:', swimLevel);
   console.log('  - Cabin Assignment:', cabinAssignment);
   console.log('  - Wristband ID:', wristbandId);
-
-  const dateDisplayText = dateOfBirth.toLocaleDateString();
+  console.log('  - DOB Text:', dobText);
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -503,7 +496,7 @@ function EditCamperContent() {
                 color={colors.primary}
               />
               <Text style={styles.dateButtonText}>
-                {dateDisplayText}
+                {dobText}
               </Text>
             </TouchableOpacity>
 

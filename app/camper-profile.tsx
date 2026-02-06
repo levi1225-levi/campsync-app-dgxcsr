@@ -77,7 +77,6 @@ function CamperProfileContent() {
       const today = new Date();
       const birthDate = new Date(dateOfBirth);
       
-      // Validate the parsed date
       if (isNaN(birthDate.getTime())) {
         console.error('calculateAge: Invalid date format:', dateOfBirth);
         return 0;
@@ -123,7 +122,6 @@ function CamperProfileContent() {
       setIsLoading(true);
       setError(null);
 
-      // Fetch all campers using RPC
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
       
       if (rpcError) {
@@ -138,7 +136,6 @@ function CamperProfileContent() {
 
       console.log('Total campers loaded:', allCampers.length);
 
-      // Find the specific camper
       const camperData = allCampers.find((c: any) => c.id === camperId);
 
       if (!camperData) {
@@ -152,7 +149,6 @@ function CamperProfileContent() {
       console.log('Cabin (raw):', camperData.cabin_assignment);
       console.log('Check-in Status:', camperData.check_in_status);
 
-      // Load session name if session_id exists
       let sessionName = null;
       if (camperData.session_id) {
         try {
@@ -168,11 +164,9 @@ function CamperProfileContent() {
           }
         } catch (sessionErr) {
           console.error('Error loading session:', sessionErr);
-          // Non-critical error, continue
         }
       }
 
-      // Load medical info if user has permission
       let medicalInfo = null;
       if (canViewMedical) {
         try {
@@ -193,11 +187,9 @@ function CamperProfileContent() {
           }
         } catch (medicalErr) {
           console.error('Error loading medical info:', medicalErr);
-          // Non-critical error, continue
         }
       }
 
-      // Load emergency contacts
       let emergencyContacts = [];
       try {
         console.log('Loading emergency contacts...');
@@ -215,10 +207,8 @@ function CamperProfileContent() {
         }
       } catch (contactsErr) {
         console.error('Error loading emergency contacts:', contactsErr);
-        // Non-critical error, continue
       }
 
-      // Assemble the profile with defensive null checks
       const profile: CamperProfile = {
         id: camperData.id || '',
         first_name: camperData.first_name || '',
@@ -314,7 +304,6 @@ function CamperProfileContent() {
     );
   }
 
-  // Calculate display values with defensive checks
   const ageDisplay = calculateAge(camper.date_of_birth);
   const sessionDisplay = camper.session_name ? ` • ${camper.session_name}` : '';
   const headerSubtitleText = `Age ${ageDisplay}${sessionDisplay}`;
@@ -347,19 +336,15 @@ function CamperProfileContent() {
     }
   }
 
-  // DEFENSIVE: Format swim level with extensive null/undefined checks
   let swimLevelDisplay = null;
   if (camper.swim_level) {
     try {
-      // Ensure it's a string and has content
       const swimLevelStr = String(camper.swim_level).trim();
       if (swimLevelStr.length > 0) {
-        // Safely format the string
         swimLevelDisplay = swimLevelStr.charAt(0).toUpperCase() + swimLevelStr.slice(1).replace(/-/g, ' ');
       }
     } catch (error) {
       console.error('Error formatting swim level:', error);
-      // Fallback to raw value
       swimLevelDisplay = String(camper.swim_level);
     }
   }
