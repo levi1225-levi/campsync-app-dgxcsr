@@ -156,7 +156,7 @@ function EditCamperContent() {
         parsedDate = new Date();
       }
       
-      console.log('Setting state values...');
+      console.log('Setting basic info state values...');
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setDateOfBirth(parsedDate);
@@ -176,25 +176,63 @@ function EditCamperContent() {
       console.log('  - Date of Birth:', parsedDate.toISOString());
       console.log('  - DOB Text:', format(parsedDate, 'MM/dd/yyyy'));
 
-      console.log('Loading medical info for camper:', camperId);
+      console.log('🔍 LOADING MEDICAL INFO for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
         .from('camper_medical_info')
         .select('*')
         .eq('camper_id', camperId)
         .maybeSingle();
 
+      console.log('📋 Medical query completed');
+      console.log('  - Error:', medicalError ? medicalError.message : 'none');
+      console.log('  - Data exists:', !!medicalData);
+
       if (medicalError) {
-        console.error('Medical info error:', medicalError);
+        console.error('❌ Medical info error:', medicalError);
         setHasMedicalInfo(false);
+        
+        console.log('Setting empty medical info state due to error');
+        setAllergiesText('');
+        setMedicationsText('');
+        setDietaryRestrictionsText('');
+        setMedicalConditionsText('');
+        setSpecialCareInstructions('');
+        setDoctorName('');
+        setDoctorPhone('');
+        setInsuranceProvider('');
+        setInsuranceNumber('');
+        setMedicalNotes('');
       } else if (medicalData) {
-        console.log('=== MEDICAL INFO LOADED ===');
+        console.log('=== ✅ MEDICAL INFO FOUND ===');
         console.log('Raw medical data:', JSON.stringify(medicalData, null, 2));
         setHasMedicalInfo(true);
         
-        setAllergiesText((medicalData.allergies || []).join(', '));
-        setMedicationsText((medicalData.medications || []).join(', '));
-        setDietaryRestrictionsText((medicalData.dietary_restrictions || []).join(', '));
-        setMedicalConditionsText((medicalData.medical_conditions || []).join(', '));
+        const allergiesArray = medicalData.allergies || [];
+        const medicationsArray = medicalData.medications || [];
+        const dietaryArray = medicalData.dietary_restrictions || [];
+        const conditionsArray = medicalData.medical_conditions || [];
+        
+        const allergiesStr = allergiesArray.join(', ');
+        const medicationsStr = medicationsArray.join(', ');
+        const dietaryStr = dietaryArray.join(', ');
+        const conditionsStr = conditionsArray.join(', ');
+        
+        console.log('📝 Setting medical info state:');
+        console.log('  - Allergies array:', allergiesArray, '→ string:', allergiesStr);
+        console.log('  - Medications array:', medicationsArray, '→ string:', medicationsStr);
+        console.log('  - Dietary array:', dietaryArray, '→ string:', dietaryStr);
+        console.log('  - Conditions array:', conditionsArray, '→ string:', conditionsStr);
+        console.log('  - Special care:', medicalData.special_care_instructions || '(empty)');
+        console.log('  - Doctor name:', medicalData.doctor_name || '(empty)');
+        console.log('  - Doctor phone:', medicalData.doctor_phone || '(empty)');
+        console.log('  - Insurance provider:', medicalData.insurance_provider || '(empty)');
+        console.log('  - Insurance number:', medicalData.insurance_number || '(empty)');
+        console.log('  - Notes:', medicalData.notes || '(empty)');
+        
+        setAllergiesText(allergiesStr);
+        setMedicationsText(medicationsStr);
+        setDietaryRestrictionsText(dietaryStr);
+        setMedicalConditionsText(conditionsStr);
         setSpecialCareInstructions(medicalData.special_care_instructions || '');
         setDoctorName(medicalData.doctor_name || '');
         setDoctorPhone(medicalData.doctor_phone || '');
@@ -202,12 +240,22 @@ function EditCamperContent() {
         setInsuranceNumber(medicalData.insurance_number || '');
         setMedicalNotes(medicalData.notes || '');
         
-        console.log('✅ Medical info state set:');
-        console.log('  - Allergies:', (medicalData.allergies || []).length, 'items');
-        console.log('  - Medications:', (medicalData.medications || []).length, 'items');
+        console.log('✅ Medical info state set successfully');
       } else {
-        console.log('No medical info found for camper');
+        console.log('ℹ️ No medical info found for camper (null/undefined result)');
         setHasMedicalInfo(false);
+        
+        console.log('Setting empty medical info state (no data)');
+        setAllergiesText('');
+        setMedicationsText('');
+        setDietaryRestrictionsText('');
+        setMedicalConditionsText('');
+        setSpecialCareInstructions('');
+        setDoctorName('');
+        setDoctorPhone('');
+        setInsuranceProvider('');
+        setInsuranceNumber('');
+        setMedicalNotes('');
       }
 
       console.log('=== LOAD COMPLETE - Setting loading to false ===');
@@ -416,6 +464,16 @@ function EditCamperContent() {
   console.log('  - Cabin Assignment:', cabinAssignment);
   console.log('  - Wristband ID:', wristbandId);
   console.log('  - DOB Text:', dobText);
+  console.log('  - Allergies Text:', allergiesText);
+  console.log('  - Medications Text:', medicationsText);
+  console.log('  - Dietary Restrictions Text:', dietaryRestrictionsText);
+  console.log('  - Medical Conditions Text:', medicalConditionsText);
+  console.log('  - Special Care:', specialCareInstructions);
+  console.log('  - Doctor Name:', doctorName);
+  console.log('  - Doctor Phone:', doctorPhone);
+  console.log('  - Insurance Provider:', insuranceProvider);
+  console.log('  - Insurance Number:', insuranceNumber);
+  console.log('  - Medical Notes:', medicalNotes);
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -732,7 +790,10 @@ function EditCamperContent() {
               placeholder="e.g., Peanuts, Tree nuts, Shellfish"
               placeholderTextColor={colors.textSecondary}
               value={allergiesText}
-              onChangeText={setAllergiesText}
+              onChangeText={(text) => {
+                console.log('User typing allergies:', text);
+                setAllergiesText(text);
+              }}
               multiline
               numberOfLines={2}
             />
@@ -744,7 +805,10 @@ function EditCamperContent() {
               placeholder="e.g., Albuterol inhaler, EpiPen"
               placeholderTextColor={colors.textSecondary}
               value={medicationsText}
-              onChangeText={setMedicationsText}
+              onChangeText={(text) => {
+                console.log('User typing medications:', text);
+                setMedicationsText(text);
+              }}
               multiline
               numberOfLines={2}
             />
@@ -756,7 +820,10 @@ function EditCamperContent() {
               placeholder="e.g., Vegetarian, Gluten-free"
               placeholderTextColor={colors.textSecondary}
               value={dietaryRestrictionsText}
-              onChangeText={setDietaryRestrictionsText}
+              onChangeText={(text) => {
+                console.log('User typing dietary restrictions:', text);
+                setDietaryRestrictionsText(text);
+              }}
               multiline
               numberOfLines={2}
             />
@@ -768,7 +835,10 @@ function EditCamperContent() {
               placeholder="e.g., Asthma, Diabetes"
               placeholderTextColor={colors.textSecondary}
               value={medicalConditionsText}
-              onChangeText={setMedicalConditionsText}
+              onChangeText={(text) => {
+                console.log('User typing medical conditions:', text);
+                setMedicalConditionsText(text);
+              }}
               multiline
               numberOfLines={2}
             />
@@ -779,7 +849,10 @@ function EditCamperContent() {
               placeholder="Any special care instructions..."
               placeholderTextColor={colors.textSecondary}
               value={specialCareInstructions}
-              onChangeText={setSpecialCareInstructions}
+              onChangeText={(text) => {
+                console.log('User typing special care instructions:', text);
+                setSpecialCareInstructions(text);
+              }}
               multiline
               numberOfLines={3}
             />
@@ -790,7 +863,10 @@ function EditCamperContent() {
               placeholder="Primary care physician"
               placeholderTextColor={colors.textSecondary}
               value={doctorName}
-              onChangeText={setDoctorName}
+              onChangeText={(text) => {
+                console.log('User typing doctor name:', text);
+                setDoctorName(text);
+              }}
             />
 
             <Text style={[styles.label, { marginTop: 16 }]}>Doctor Phone</Text>
@@ -799,7 +875,10 @@ function EditCamperContent() {
               placeholder="Doctor's phone number"
               placeholderTextColor={colors.textSecondary}
               value={doctorPhone}
-              onChangeText={setDoctorPhone}
+              onChangeText={(text) => {
+                console.log('User typing doctor phone:', text);
+                setDoctorPhone(text);
+              }}
               keyboardType="phone-pad"
             />
 
@@ -809,7 +888,10 @@ function EditCamperContent() {
               placeholder="Insurance company name"
               placeholderTextColor={colors.textSecondary}
               value={insuranceProvider}
-              onChangeText={setInsuranceProvider}
+              onChangeText={(text) => {
+                console.log('User typing insurance provider:', text);
+                setInsuranceProvider(text);
+              }}
             />
 
             <Text style={[styles.label, { marginTop: 16 }]}>Insurance Number</Text>
@@ -818,7 +900,10 @@ function EditCamperContent() {
               placeholder="Policy or member number"
               placeholderTextColor={colors.textSecondary}
               value={insuranceNumber}
-              onChangeText={setInsuranceNumber}
+              onChangeText={(text) => {
+                console.log('User typing insurance number:', text);
+                setInsuranceNumber(text);
+              }}
             />
 
             <Text style={[styles.label, { marginTop: 16 }]}>Additional Notes</Text>
@@ -827,7 +912,10 @@ function EditCamperContent() {
               placeholder="Any additional medical notes..."
               placeholderTextColor={colors.textSecondary}
               value={medicalNotes}
-              onChangeText={setMedicalNotes}
+              onChangeText={(text) => {
+                console.log('User typing medical notes:', text);
+                setMedicalNotes(text);
+              }}
               multiline
               numberOfLines={3}
             />
