@@ -1,13 +1,13 @@
 
 import "react-native-reanimated";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert, Platform } from "react-native";
-import { useNetworkState } from "expo-network";
+import { useColorScheme, Platform, Modal } from "react-native";
+import * as Network from "expo-network";
 import {
   DarkTheme,
   DefaultTheme,
@@ -80,7 +80,8 @@ const errorStyles = StyleSheet.create({
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const networkState = useNetworkState();
+  const [isOffline, setIsOffline] = useState(false);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -91,17 +92,37 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  React.useEffect(() => {
-    if (
-      !networkState.isConnected &&
-      networkState.isInternetReachable === false
-    ) {
-      Alert.alert(
-        "🔌 You are offline",
-        "You can keep using the app! Your changes will be saved locally and synced when you are back online."
-      );
-    }
-  }, [networkState.isConnected, networkState.isInternetReachable]);
+  // Monitor network status
+  useEffect(() => {
+    const checkNetwork = async () => {
+      try {
+        const networkState = await Network.getNetworkStateAsync();
+        const offline = !networkState.isConnected || networkState.isInternetReachable === false;
+        
+        console.log('Network state changed - Connected:', networkState.isConnected, 'Internet:', networkState.isInternetReachable);
+        
+        if (offline && !isOffline) {
+          console.log('🔌 App went offline');
+          setIsOffline(true);
+          setShowOfflineModal(true);
+        } else if (!offline && isOffline) {
+          console.log('✅ App back online');
+          setIsOffline(false);
+          setShowOfflineModal(false);
+        }
+      } catch (error) {
+        console.error('Error checking network:', error);
+      }
+    };
+
+    // Check immediately
+    checkNetwork();
+
+    // Check every 10 seconds
+    const interval = setInterval(checkNetwork, 10000);
+
+    return () => clearInterval(interval);
+  }, [isOffline]);
 
   if (!loaded) {
     return null;
@@ -153,6 +174,7 @@ export default function RootLayout() {
               <Stack.Screen name="forgot-password" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="camper-profile" />
+              <Stack.Screen name="edit-camper" />
               <Stack.Screen name="create-camper" />
               <Stack.Screen name="bulk-import-campers" />
               <Stack.Screen name="user-management" />
@@ -164,9 +186,88 @@ export default function RootLayout() {
               <Stack.Screen name="edit-profile" />
             </Stack>
             <SystemBars style="auto" />
+
+            {/* Offline Mode Modal */}
+            <Modal
+              visible={showOfflineModal}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowOfflineModal(false)}
+            >
+              <View style={offlineStyles.overlay}>
+                <View style={offlineStyles.modal}>
+                  <Text style={offlineStyles.icon}>🔌</Text>
+                  <Text style={offlineStyles.title}>You are offline</Text>
+                  <Text style={offlineStyles.message}>
+                    You can still scan NFC wristbands to view camper information. All data is stored on the wristbands for offline access.
+                  </Text>
+                  <TouchableOpacity
+                    style={offlineStyles.button}
+                    onPress={() => setShowOfflineModal(false)}
+                  >
+                    <Text style={offlineStyles.buttonText}>Got it</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
           </GestureHandlerRootView>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
 }
+
+const offlineStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modal: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  icon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 12,
+    width: '100%',
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+});

@@ -45,6 +45,7 @@ interface CamperProfile {
     insurance_provider: string | null;
     insurance_number: string | null;
     notes: string | null;
+    has_epi_pen: boolean;
   } | null;
   emergency_contacts: {
     full_name: string;
@@ -199,6 +200,7 @@ function CamperProfileContent() {
               insurance_provider: medicalData.insurance_provider || null,
               insurance_number: medicalData.insurance_number || null,
               notes: medicalData.notes || null,
+              has_epi_pen: medicalData.has_epi_pen || false,
             };
             console.log('Medical info loaded successfully:', medicalInfo);
           } else {
@@ -250,6 +252,9 @@ function CamperProfileContent() {
       console.log('Final swim level:', profile.swim_level);
       console.log('Final cabin:', profile.cabin_assignment);
       console.log('Medical info included:', profile.medical_info ? 'YES' : 'NO');
+      if (profile.medical_info) {
+        console.log('Has EpiPen:', profile.medical_info.has_epi_pen);
+      }
       
       setCamper(profile);
       setIsLoading(false);
@@ -552,6 +557,23 @@ function CamperProfileContent() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Medical Information</Text>
             
+            {camper.medical_info.has_epi_pen && (
+              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error, backgroundColor: colors.errorLight + '10' }]}>
+                <View style={styles.medicalHeader}>
+                  <IconSymbol
+                    ios_icon_name="exclamationmark.triangle.fill"
+                    android_material_icon_name="warning"
+                    size={24}
+                    color={colors.error}
+                  />
+                  <Text style={[styles.medicalTitle, { color: colors.error }]}>⚠️ EpiPen Required</Text>
+                </View>
+                <Text style={[styles.medicalText, { color: colors.error, fontWeight: '600' }]}>
+                  This camper requires an EpiPen for severe allergic reactions.
+                </Text>
+              </View>
+            )}
+
             {camper.medical_info.allergies && camper.medical_info.allergies.length > 0 && (
               <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error }]}>
                 <View style={styles.medicalHeader}>
