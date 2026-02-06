@@ -178,7 +178,7 @@ function CamperProfileContent() {
       let medicalInfo = null;
       if (canViewMedical) {
         try {
-          console.log('Loading medical info for camper:', camperId);
+          console.log('🔍 Loading medical info for camper:', camperId);
           const { data: medicalData, error: medicalError } = await supabase
             .from('camper_medical_info')
             .select('*')
@@ -186,14 +186,20 @@ function CamperProfileContent() {
             .maybeSingle();
           
           if (medicalError) {
-            console.error('Medical info error:', medicalError);
+            console.error('❌ Medical info error:', medicalError);
           } else if (medicalData) {
-            console.log('Raw medical data from DB:', medicalData);
+            console.log('✅ Raw medical data from DB:', JSON.stringify(medicalData, null, 2));
+            
+            const allergiesArray = Array.isArray(medicalData.allergies) ? medicalData.allergies : [];
+            const medicationsArray = Array.isArray(medicalData.medications) ? medicalData.medications : [];
+            const dietaryArray = Array.isArray(medicalData.dietary_restrictions) ? medicalData.dietary_restrictions : [];
+            const conditionsArray = Array.isArray(medicalData.medical_conditions) ? medicalData.medical_conditions : [];
+            
             medicalInfo = {
-              allergies: Array.isArray(medicalData.allergies) ? medicalData.allergies : [],
-              medications: Array.isArray(medicalData.medications) ? medicalData.medications : [],
-              dietary_restrictions: Array.isArray(medicalData.dietary_restrictions) ? medicalData.dietary_restrictions : [],
-              medical_conditions: Array.isArray(medicalData.medical_conditions) ? medicalData.medical_conditions : [],
+              allergies: allergiesArray,
+              medications: medicationsArray,
+              dietary_restrictions: dietaryArray,
+              medical_conditions: conditionsArray,
               special_care_instructions: medicalData.special_care_instructions || null,
               doctor_name: medicalData.doctor_name || null,
               doctor_phone: medicalData.doctor_phone || null,
@@ -202,9 +208,17 @@ function CamperProfileContent() {
               notes: medicalData.notes || null,
               has_epi_pen: medicalData.has_epi_pen || false,
             };
-            console.log('Medical info loaded successfully:', medicalInfo);
+            
+            console.log('📋 Parsed medical info:');
+            console.log('  - Allergies:', allergiesArray);
+            console.log('  - Medications:', medicationsArray);
+            console.log('  - Dietary restrictions:', dietaryArray);
+            console.log('  - Medical conditions:', conditionsArray);
+            console.log('  - Has EpiPen:', medicalData.has_epi_pen);
+            console.log('  - Doctor:', medicalData.doctor_name);
+            console.log('  - Insurance:', medicalData.insurance_provider);
           } else {
-            console.log('No medical info found for camper');
+            console.log('ℹ️ No medical info found for camper');
           }
         } catch (medicalErr) {
           console.error('Error loading medical info:', medicalErr);
@@ -253,7 +267,7 @@ function CamperProfileContent() {
       console.log('Final cabin:', profile.cabin_assignment);
       console.log('Medical info included:', profile.medical_info ? 'YES' : 'NO');
       if (profile.medical_info) {
-        console.log('Has EpiPen:', profile.medical_info.has_epi_pen);
+        console.log('Medical info details:', JSON.stringify(profile.medical_info, null, 2));
       }
       
       setCamper(profile);
@@ -381,6 +395,24 @@ function CamperProfileContent() {
       swimLevelDisplay = String(camper.swim_level);
     }
   }
+
+  const hasMedicalInfo = canViewMedical && camper.medical_info;
+  const hasAnyMedicalData = hasMedicalInfo && (
+    camper.medical_info.has_epi_pen ||
+    (camper.medical_info.allergies && camper.medical_info.allergies.length > 0) ||
+    (camper.medical_info.medications && camper.medical_info.medications.length > 0) ||
+    (camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0) ||
+    (camper.medical_info.medical_conditions && camper.medical_info.medical_conditions.length > 0) ||
+    camper.medical_info.special_care_instructions ||
+    camper.medical_info.doctor_name ||
+    camper.medical_info.insurance_provider ||
+    camper.medical_info.notes
+  );
+
+  console.log('🎨 RENDERING PROFILE');
+  console.log('  - Can view medical:', canViewMedical);
+  console.log('  - Has medical info object:', !!camper.medical_info);
+  console.log('  - Has any medical data:', hasAnyMedicalData);
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -553,171 +585,183 @@ function CamperProfileContent() {
           </View>
         </View>
 
-        {canViewMedical && camper.medical_info && (
+        {canViewMedical && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Medical Information</Text>
             
-            {camper.medical_info.has_epi_pen && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error, backgroundColor: colors.errorLight + '10' }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="exclamationmark.triangle.fill"
-                    android_material_icon_name="warning"
-                    size={24}
-                    color={colors.error}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.error }]}>⚠️ EpiPen Required</Text>
-                </View>
-                <Text style={[styles.medicalText, { color: colors.error, fontWeight: '600' }]}>
-                  This camper requires an EpiPen for severe allergic reactions.
+            {!hasAnyMedicalData && (
+              <View style={commonStyles.card}>
+                <Text style={[styles.infoLabel, { textAlign: 'center', color: colors.textSecondary }]}>
+                  No medical information on file
                 </Text>
               </View>
             )}
 
-            {camper.medical_info.allergies && camper.medical_info.allergies.length > 0 && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="exclamationmark.triangle.fill"
-                    android_material_icon_name="warning"
-                    size={24}
-                    color={colors.error}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.error }]}>Allergies</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.allergies.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {camper.medical_info.medications && camper.medical_info.medications.length > 0 && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="pills.fill"
-                    android_material_icon_name="medication"
-                    size={24}
-                    color={colors.secondary}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.secondary }]}>Medications</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.medications.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0 && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.accent }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="fork.knife"
-                    android_material_icon_name="restaurant"
-                    size={24}
-                    color={colors.accent}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.accent }]}>Dietary Restrictions</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.dietary_restrictions.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {camper.medical_info.medical_conditions && camper.medical_info.medical_conditions.length > 0 && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.warning }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="heart.text.square.fill"
-                    android_material_icon_name="favorite"
-                    size={24}
-                    color={colors.warning}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.warning }]}>Medical Conditions</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.medical_conditions.join(', ')}
-                </Text>
-              </View>
-            )}
-
-            {camper.medical_info.special_care_instructions && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.info }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="heart.text.square.fill"
-                    android_material_icon_name="favorite"
-                    size={24}
-                    color={colors.info}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.info }]}>Special Care Instructions</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.special_care_instructions}
-                </Text>
-              </View>
-            )}
-
-            {camper.medical_info.doctor_name && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.primary }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="stethoscope"
-                    android_material_icon_name="local-hospital"
-                    size={24}
-                    color={colors.primary}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.primary }]}>Doctor Information</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.doctor_name}
-                </Text>
-                {camper.medical_info.doctor_phone && (
-                  <Text style={[styles.medicalText, { marginTop: 4 }]}>
-                    {camper.medical_info.doctor_phone}
-                  </Text>
+            {hasAnyMedicalData && camper.medical_info && (
+              <React.Fragment>
+                {camper.medical_info.has_epi_pen && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error, backgroundColor: colors.errorLight + '10' }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="exclamationmark.triangle.fill"
+                        android_material_icon_name="warning"
+                        size={24}
+                        color={colors.error}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.error }]}>⚠️ EpiPen Required</Text>
+                    </View>
+                    <Text style={[styles.medicalText, { color: colors.error, fontWeight: '600' }]}>
+                      This camper requires an EpiPen for severe allergic reactions.
+                    </Text>
+                  </View>
                 )}
-              </View>
-            )}
 
-            {camper.medical_info.insurance_provider && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="creditcard.fill"
-                    android_material_icon_name="credit-card"
-                    size={24}
-                    color={colors.secondary}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.secondary }]}>Insurance</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.insurance_provider}
-                </Text>
-                {camper.medical_info.insurance_number && (
-                  <Text style={[styles.medicalText, { marginTop: 4 }]}>
-                    Policy: {camper.medical_info.insurance_number}
-                  </Text>
+                {camper.medical_info.allergies && camper.medical_info.allergies.length > 0 && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="exclamationmark.triangle.fill"
+                        android_material_icon_name="warning"
+                        size={24}
+                        color={colors.error}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.error }]}>Allergies</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.allergies.join(', ')}
+                    </Text>
+                  </View>
                 )}
-              </View>
-            )}
 
-            {camper.medical_info.notes && (
-              <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.textSecondary }]}>
-                <View style={styles.medicalHeader}>
-                  <IconSymbol
-                    ios_icon_name="note.text"
-                    android_material_icon_name="description"
-                    size={24}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={[styles.medicalTitle, { color: colors.textSecondary }]}>Additional Notes</Text>
-                </View>
-                <Text style={styles.medicalText}>
-                  {camper.medical_info.notes}
-                </Text>
-              </View>
+                {camper.medical_info.medications && camper.medical_info.medications.length > 0 && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="pills.fill"
+                        android_material_icon_name="medication"
+                        size={24}
+                        color={colors.secondary}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.secondary }]}>Medications</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.medications.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0 && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.accent }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="fork.knife"
+                        android_material_icon_name="restaurant"
+                        size={24}
+                        color={colors.accent}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.accent }]}>Dietary Restrictions</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.dietary_restrictions.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {camper.medical_info.medical_conditions && camper.medical_info.medical_conditions.length > 0 && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.warning }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="heart.text.square.fill"
+                        android_material_icon_name="favorite"
+                        size={24}
+                        color={colors.warning}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.warning }]}>Medical Conditions</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.medical_conditions.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {camper.medical_info.special_care_instructions && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.info }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="heart.text.square.fill"
+                        android_material_icon_name="favorite"
+                        size={24}
+                        color={colors.info}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.info }]}>Special Care Instructions</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.special_care_instructions}
+                    </Text>
+                  </View>
+                )}
+
+                {camper.medical_info.doctor_name && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.primary }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="stethoscope"
+                        android_material_icon_name="local-hospital"
+                        size={24}
+                        color={colors.primary}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.primary }]}>Doctor Information</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.doctor_name}
+                    </Text>
+                    {camper.medical_info.doctor_phone && (
+                      <Text style={[styles.medicalText, { marginTop: 4 }]}>
+                        {camper.medical_info.doctor_phone}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {camper.medical_info.insurance_provider && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="creditcard.fill"
+                        android_material_icon_name="credit-card"
+                        size={24}
+                        color={colors.secondary}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.secondary }]}>Insurance</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.insurance_provider}
+                    </Text>
+                    {camper.medical_info.insurance_number && (
+                      <Text style={[styles.medicalText, { marginTop: 4 }]}>
+                        Policy: {camper.medical_info.insurance_number}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {camper.medical_info.notes && (
+                  <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.textSecondary }]}>
+                    <View style={styles.medicalHeader}>
+                      <IconSymbol
+                        ios_icon_name="note.text"
+                        android_material_icon_name="description"
+                        size={24}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={[styles.medicalTitle, { color: colors.textSecondary }]}>Additional Notes</Text>
+                    </View>
+                    <Text style={styles.medicalText}>
+                      {camper.medical_info.notes}
+                    </Text>
+                  </View>
+                )}
+              </React.Fragment>
             )}
           </View>
         )}
