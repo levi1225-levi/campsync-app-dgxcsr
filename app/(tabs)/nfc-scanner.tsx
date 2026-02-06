@@ -407,6 +407,72 @@ function NFCScannerScreenContent() {
                 </React.Fragment>
               )}
 
+              {/* Parent/Guardian Contact */}
+              {scannedData.parentGuardianName && (
+                <React.Fragment>
+                  <View style={styles.infoRow}>
+                    <IconSymbol
+                      ios_icon_name="person.2.fill"
+                      android_material_icon_name="people"
+                      size={20}
+                      color={colors.info}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[commonStyles.textSecondary, { fontWeight: '700', marginBottom: 4 }]}>
+                        Parent/Guardian:
+                      </Text>
+                      <Text style={commonStyles.textSecondary}>
+                        {scannedData.parentGuardianName}
+                      </Text>
+                      {scannedData.parentGuardianPhone && (
+                        <Text style={commonStyles.textSecondary}>
+                          📞 {scannedData.parentGuardianPhone}
+                        </Text>
+                      )}
+                      {scannedData.parentGuardianEmail && (
+                        <Text style={commonStyles.textSecondary}>
+                          ✉️ {scannedData.parentGuardianEmail}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
+              )}
+
+              {/* Emergency Contact */}
+              {scannedData.emergencyContactName && (
+                <React.Fragment>
+                  <View style={styles.alertRow}>
+                    <IconSymbol
+                      ios_icon_name="phone.fill"
+                      android_material_icon_name="phone"
+                      size={20}
+                      color={colors.error}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[commonStyles.textSecondary, { color: colors.error, fontWeight: '700', marginBottom: 4 }]}>
+                        Emergency Contact:
+                      </Text>
+                      <Text style={[commonStyles.textSecondary, { color: colors.error }]}>
+                        {scannedData.emergencyContactName}
+                      </Text>
+                      {scannedData.emergencyContactPhone && (
+                        <Text style={[commonStyles.textSecondary, { color: colors.error }]}>
+                          📞 {scannedData.emergencyContactPhone}
+                        </Text>
+                      )}
+                      {scannedData.emergencyContactRelationship && (
+                        <Text style={[commonStyles.textSecondary, { color: colors.error }]}>
+                          ({scannedData.emergencyContactRelationship})
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
+              )}
+
               {/* Scan Details */}
               <View style={styles.infoRow}>
                 <IconSymbol

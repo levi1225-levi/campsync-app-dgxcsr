@@ -13,6 +13,7 @@ let cachedLockCode: string | null = null;
 
 /**
  * Comprehensive camper data for offline wristband storage
+ * Now includes parent/guardian and emergency contact information
  */
 export interface WristbandCamperData {
   id: string;
@@ -25,6 +26,14 @@ export interface WristbandCamperData {
   cabin: string | null;
   checkInStatus: string;
   sessionId?: string;
+  // Parent/Guardian Information
+  parentGuardianName: string | null;
+  parentGuardianPhone: string | null;
+  parentGuardianEmail: string | null;
+  // Emergency Contact Information (Primary)
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContactRelationship: string | null;
 }
 
 /**
@@ -184,6 +193,7 @@ export function clearLockCodeCache(): void {
 /**
  * Encrypts comprehensive camper data to be written to NFC wristband
  * OPTIMIZED FOR 540 BYTE NFC CHIPS - includes essential offline data
+ * NOW INCLUDES: Parent/Guardian and Emergency Contact Information
  * @param camperData - The comprehensive camper information to encrypt
  * @returns Encrypted string to write to wristband
  */
@@ -206,6 +216,14 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
       cb: camperData.cabin || '',
       // Status
       st: camperData.checkInStatus,
+      // Parent/Guardian Contact Info
+      pgn: camperData.parentGuardianName || '',
+      pgp: camperData.parentGuardianPhone || '',
+      pge: camperData.parentGuardianEmail || '',
+      // Emergency Contact Info (Primary)
+      ecn: camperData.emergencyContactName || '',
+      ecp: camperData.emergencyContactPhone || '',
+      ecr: camperData.emergencyContactRelationship || '',
       // Timestamp for verification
       ts: Date.now(),
     };
@@ -241,7 +259,7 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
     }
     
     console.log('✅ Wristband data encrypted successfully with offline capabilities');
-    console.log('✅ Included: Name, DOB, Allergies, Medications, Swim Level, Cabin');
+    console.log('✅ Included: Name, DOB, Allergies, Medications, Swim Level, Cabin, Parent/Guardian, Emergency Contact');
     
     return encryptedPayload;
   } catch (error) {
@@ -253,6 +271,7 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
 
 /**
  * Decrypts comprehensive camper data read from NFC wristband
+ * NOW INCLUDES: Parent/Guardian and Emergency Contact Information
  * @param encryptedData - The encrypted string read from wristband
  * @returns Decrypted comprehensive camper information
  */
@@ -308,7 +327,7 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
     console.log('✅ Wristband data decrypted and verified successfully');
     console.log('👤 Camper:', data.fn, data.ln);
     
-    // Reconstruct full data structure
+    // Reconstruct full data structure with parent/guardian and emergency contact info
     const fullData: WristbandCamperData & { timestamp: number; isLocked: boolean } = {
       id: data.id,
       firstName: data.fn,
@@ -320,12 +339,22 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
       cabin: data.cb || null,
       checkInStatus: data.st,
       sessionId: undefined,
+      // Parent/Guardian Contact Info
+      parentGuardianName: data.pgn || null,
+      parentGuardianPhone: data.pgp || null,
+      parentGuardianEmail: data.pge || null,
+      // Emergency Contact Info
+      emergencyContactName: data.ecn || null,
+      emergencyContactPhone: data.ecp || null,
+      emergencyContactRelationship: data.ecr || null,
       timestamp: data.ts,
       isLocked: true,
     };
     
     console.log('✅ DECRYPTION COMPLETE - Full data reconstructed');
     console.log('📊 Offline data available: Allergies:', fullData.allergies.length, 'Medications:', fullData.medications.length);
+    console.log('👨‍👩‍👧 Parent/Guardian:', fullData.parentGuardianName || 'Not set');
+    console.log('🚨 Emergency Contact:', fullData.emergencyContactName || 'Not set');
     
     return fullData;
   } catch (error) {

@@ -184,6 +184,8 @@ function CheckInScreenContent() {
       console.log('- Medications:', medicationsArray.length);
       console.log('- Swim Level:', camperData.swim_level || 'Not set');
       console.log('- Cabin:', camperData.cabin_assignment || 'Not assigned');
+      console.log('- Parent/Guardian:', camperData.parent_guardian_name || 'Not set');
+      console.log('- Emergency Contact:', camperData.emergency_contact_name || 'Not set');
       
       return {
         id: camperData.id,
@@ -196,6 +198,14 @@ function CheckInScreenContent() {
         cabin: camperData.cabin_assignment,
         checkInStatus: 'checked-in',
         sessionId: camperData.session_id || undefined,
+        // Parent/Guardian Contact Info
+        parentGuardianName: camperData.parent_guardian_name || null,
+        parentGuardianPhone: camperData.parent_guardian_phone || null,
+        parentGuardianEmail: camperData.parent_guardian_email || null,
+        // Emergency Contact Info
+        emergencyContactName: camperData.emergency_contact_name || null,
+        emergencyContactPhone: camperData.emergency_contact_phone || null,
+        emergencyContactRelationship: camperData.emergency_contact_relationship || null,
       };
     } catch (error) {
       console.error('Error in fetchComprehensiveCamperData:', error);
