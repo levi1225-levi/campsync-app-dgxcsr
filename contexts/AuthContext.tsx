@@ -126,20 +126,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('Initializing auth state...');
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting initial session:', error);
+        setIsLoading(false);
+        return;
+      }
+
       if (session?.user) {
-        console.log('Initial session found');
+        console.log('Initial session found for user:', session.user.email);
+        console.log('Session expires at:', session.expires_at);
+        console.log('Access token exists:', !!session.access_token);
+        
         loadUserProfile(session.user.id, session.user.email!).then((userProfile) => {
           if (userProfile) {
+            console.log('User profile loaded successfully:', userProfile.email, 'Role:', userProfile.role);
             setUser(userProfile);
             setSessionExpiresAt(session.expires_at || null);
+          } else {
+            console.error('Failed to load user profile');
           }
+          setIsLoading(false);
+        }).catch((error) => {
+          console.error('Error loading user profile:', error);
           setIsLoading(false);
         });
       } else {
-        console.log('No initial session found');
+        console.log('No initial session found - user needs to sign in');
         setIsLoading(false);
       }
+    }).catch((error) => {
+      console.error('Exception getting initial session:', error);
+      setIsLoading(false);
     });
 
     // Set up auth state change listener
