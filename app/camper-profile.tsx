@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -60,6 +61,7 @@ function CamperProfileContent() {
   const { hasPermission } = useAuth();
   const [camper, setCamper] = useState<CamperProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const camperId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -108,18 +110,23 @@ function CamperProfileContent() {
     }
   }, []);
 
-  const loadCamperProfile = useCallback(async () => {
+  const loadCamperProfile = useCallback(async (isRefresh = false) => {
     if (!camperId) {
       console.error('loadCamperProfile: No camper ID provided in params:', params);
       setError('No camper ID provided');
       setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
     try {
       console.log('=== LOADING CAMPER PROFILE ===');
       console.log('Camper ID:', camperId);
-      setIsLoading(true);
+      console.log('Is Refresh:', isRefresh);
+      
+      if (!isRefresh) {
+        setIsLoading(true);
+      }
       setError(null);
 
       const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
@@ -233,6 +240,7 @@ function CamperProfileContent() {
       
       setCamper(profile);
       setIsLoading(false);
+      setIsRefreshing(false);
     } catch (error: any) {
       console.error('=== ERROR LOADING PROFILE ===');
       console.error('Error:', error);
@@ -240,15 +248,22 @@ function CamperProfileContent() {
       console.error('Error stack:', error?.stack);
       setError(error?.message || 'Failed to load camper profile');
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [camperId, canViewMedical, params]);
 
   useFocusEffect(
     useCallback(() => {
       console.log('Screen focused - reloading camper profile');
-      loadCamperProfile();
+      loadCamperProfile(false);
     }, [loadCamperProfile])
   );
+
+  const handleRefresh = useCallback(() => {
+    console.log('User pulled to refresh camper profile');
+    setIsRefreshing(true);
+    loadCamperProfile(true);
+  }, [loadCamperProfile]);
 
   const handleBack = useCallback(() => {
     console.log('User tapped Back button');
@@ -415,6 +430,14 @@ function CamperProfileContent() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
