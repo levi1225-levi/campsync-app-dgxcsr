@@ -8,13 +8,13 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { LinearGradient } from 'expo-linear-gradient';
+import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
+import { useAuth } from '@/contexts/AuthContext';
 import { decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
+import { IconSymbol } from '@/components/IconSymbol';
 
 function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
@@ -25,17 +25,6 @@ function NFCScannerScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
 
   const canScan = hasPermission(['super-admin', 'camp-admin', 'staff']);
-
-  const calculateAge = (dateOfBirth: string): number => {
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const initNFC = useCallback(async () => {
     try {
@@ -54,7 +43,7 @@ function NFCScannerScreenContent() {
         setNfcEnabled(enabled);
         setNfcInitialized(true);
         
-        console.log('NFC initialized successfully');
+        console.log('NFC initialized successfully on Android');
       } else {
         console.log('NFC not supported on this device');
         setNfcInitialized(true);
@@ -81,6 +70,17 @@ function NFCScannerScreenContent() {
       cleanupNFC();
     };
   }, [initNFC, cleanupNFC]);
+
+  const calculateAge = (dateOfBirth: string): number => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   const handleScan = useCallback(async () => {
     if (!canScan) {
@@ -175,24 +175,31 @@ function NFCScannerScreenContent() {
   const scanTimestamp = scannedData ? new Date(scannedData.timestamp).toLocaleString() : '';
   const lockStatusText = scannedData?.isLocked ? 'Locked & Secure' : 'Unlocked';
   const lockStatusColor = scannedData?.isLocked ? colors.success : colors.warning;
+  const checkInStatusDisplay = scannedData?.checkInStatus === 'checked-in' ? 'Checked In' : 
+                                scannedData?.checkInStatus === 'checked-out' ? 'Checked Out' : 'Not Arrived';
 
   return (
     <View style={[commonStyles.container, styles.container]}>
-      {/* Fixed Header */}
-      <View style={styles.header}>
-        <IconSymbol
-          ios_icon_name="wave.3.right"
-          android_material_icon_name="nfc"
-          size={32}
-          color="#FFFFFF"
-        />
+      <LinearGradient
+        colors={['#8B5CF6', '#6366F1']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerIcon}>
+          <IconSymbol
+            ios_icon_name="wave.3.right"
+            android_material_icon_name="nfc"
+            size={40}
+            color="#FFFFFF"
+          />
+        </View>
         <Text style={styles.headerTitle}>NFC Scanner</Text>
         <Text style={styles.headerSubtitle}>
           Scan wristbands to view camper details
         </Text>
-      </View>
+      </LinearGradient>
 
-      {/* NFC Status */}
       {nfcInitialized && !nfcSupported && (
         <View style={[styles.statusBanner, { backgroundColor: colors.error }]}>
           <IconSymbol
@@ -204,7 +211,7 @@ function NFCScannerScreenContent() {
           <Text style={styles.statusText}>NFC not supported on this device</Text>
         </View>
       )}
-      
+
       {nfcInitialized && nfcSupported && !nfcEnabled && (
         <View style={[styles.statusBanner, { backgroundColor: colors.warning }]}>
           <IconSymbol
@@ -234,7 +241,6 @@ function NFCScannerScreenContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Scanner Area */}
         <View style={styles.scannerContainer}>
           <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
             <IconSymbol
@@ -257,231 +263,172 @@ function NFCScannerScreenContent() {
             disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
             activeOpacity={0.7}
           >
-            <Text style={styles.scanButtonText}>
-              {!nfcInitialized ? 'Initializing...' : isScanning ? 'Scanning...' : 'Scan Wristband'}
-            </Text>
+            <LinearGradient
+              colors={['#8B5CF6', '#6366F1']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.scanButtonGradient}
+            >
+              <Text style={styles.scanButtonText}>
+                {!nfcInitialized ? 'Initializing...' : isScanning ? 'Scanning...' : 'Scan Wristband'}
+              </Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {scannedData && (
-          <View style={styles.camperDetailsContainer}>
-            {/* Camper Header Card */}
-            <View style={styles.camperHeaderCard}>
-              <LinearGradient
-                colors={['#6366F1', '#8B5CF6']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.camperHeaderGradient}
-              >
-                <View style={styles.camperAvatarLarge}>
+          <View style={styles.camperInfoContainer}>
+            <View style={commonStyles.card}>
+              <View style={styles.camperHeader}>
+                <View style={styles.camperAvatar}>
                   <IconSymbol
                     ios_icon_name="person.fill"
                     android_material_icon_name="person"
-                    size={48}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <Text style={styles.camperNameLarge}>
-                  {scannedData.firstName}
-                </Text>
-                <Text style={styles.camperNameLarge}>
-                  {scannedData.lastName}
-                </Text>
-                <View style={styles.camperAgeBadge}>
-                  <Text style={styles.camperAgeText}>
-                    Age {camperAge}
-                  </Text>
-                </View>
-              </LinearGradient>
-            </View>
-
-            {/* Status Card */}
-            <View style={commonStyles.card}>
-              <View style={styles.statusRow}>
-                <View style={styles.statusItem}>
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check-circle"
-                    size={24}
-                    color={colors.success}
-                  />
-                  <Text style={styles.statusLabel}>Status</Text>
-                  <Text style={styles.statusValue}>{scannedData.checkInStatus}</Text>
-                </View>
-                <View style={styles.statusDivider} />
-                <View style={styles.statusItem}>
-                  <IconSymbol
-                    ios_icon_name={scannedData.isLocked ? "lock.fill" : "lock.open.fill"}
-                    android_material_icon_name={scannedData.isLocked ? "lock" : "lock-open"}
-                    size={24}
-                    color={lockStatusColor}
-                  />
-                  <Text style={styles.statusLabel}>Security</Text>
-                  <Text style={styles.statusValue}>{lockStatusText}</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Medical Information Card */}
-            {(scannedData.allergies.length > 0 || scannedData.medications.length > 0) && (
-              <View style={commonStyles.card}>
-                <View style={styles.sectionHeader}>
-                  <IconSymbol
-                    ios_icon_name="cross.case.fill"
-                    android_material_icon_name="medical-services"
-                    size={24}
-                    color={colors.error}
-                  />
-                  <Text style={styles.sectionTitle}>Medical Information</Text>
-                </View>
-
-                {scannedData.allergies.length > 0 && (
-                  <View style={styles.medicalSection}>
-                    <View style={styles.medicalHeader}>
-                      <IconSymbol
-                        ios_icon_name="exclamationmark.triangle.fill"
-                        android_material_icon_name="warning"
-                        size={20}
-                        color={colors.error}
-                      />
-                      <Text style={styles.medicalLabel}>Allergies</Text>
-                    </View>
-                    {scannedData.allergies.map((allergy, index) => (
-                      <View key={index} style={styles.medicalItem}>
-                        <View style={styles.medicalBullet} />
-                        <Text style={styles.medicalText}>{allergy}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {scannedData.medications.length > 0 && (
-                  <View style={styles.medicalSection}>
-                    <View style={styles.medicalHeader}>
-                      <IconSymbol
-                        ios_icon_name="pills.fill"
-                        android_material_icon_name="medication"
-                        size={20}
-                        color={colors.secondary}
-                      />
-                      <Text style={styles.medicalLabel}>Medications</Text>
-                    </View>
-                    {scannedData.medications.map((medication, index) => (
-                      <View key={index} style={styles.medicalItem}>
-                        <View style={styles.medicalBullet} />
-                        <Text style={styles.medicalText}>{medication}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Activity Information Card */}
-            <View style={commonStyles.card}>
-              <View style={styles.sectionHeader}>
-                <IconSymbol
-                  ios_icon_name="figure.pool.swim"
-                  android_material_icon_name="pool"
-                  size={24}
-                  color={colors.info}
-                />
-                <Text style={styles.sectionTitle}>Activity Information</Text>
-              </View>
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIconContainer}>
-                  <IconSymbol
-                    ios_icon_name="figure.pool.swim"
-                    android_material_icon_name="pool"
-                    size={20}
-                    color={colors.info}
-                  />
-                </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Swim Level</Text>
-                  <Text style={styles.infoValue}>
-                    {scannedData.swimLevel || 'Not set'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={commonStyles.divider} />
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIconContainer}>
-                  <IconSymbol
-                    ios_icon_name="house.fill"
-                    android_material_icon_name="home"
-                    size={20}
-                    color={colors.accent}
-                  />
-                </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Cabin Assignment</Text>
-                  <Text style={styles.infoValue}>
-                    {scannedData.cabin || 'Not assigned'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Scan Details Card */}
-            <View style={commonStyles.card}>
-              <View style={styles.sectionHeader}>
-                <IconSymbol
-                  ios_icon_name="info.circle.fill"
-                  android_material_icon_name="info"
-                  size={24}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.sectionTitle}>Scan Details</Text>
-              </View>
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIconContainer}>
-                  <IconSymbol
-                    ios_icon_name="calendar.fill"
-                    android_material_icon_name="calendar-today"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Scanned At</Text>
-                  <Text style={styles.infoValue}>{scanTimestamp}</Text>
-                </View>
-              </View>
-
-              <View style={commonStyles.divider} />
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIconContainer}>
-                  <IconSymbol
-                    ios_icon_name="wave.3.right"
-                    android_material_icon_name="nfc"
-                    size={20}
+                    size={40}
                     color={colors.primary}
                   />
                 </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Data Source</Text>
-                  <Text style={styles.infoValue}>Offline - Wristband Storage</Text>
+                <View style={styles.camperInfo}>
+                  <Text style={styles.camperName}>
+                    {scannedData.firstName} {scannedData.lastName}
+                  </Text>
+                  <Text style={commonStyles.textSecondary}>
+                    Age {camperAge}
+                  </Text>
+                  {scannedData.cabin && (
+                    <Text style={commonStyles.textSecondary}>
+                      {scannedData.cabin}
+                    </Text>
+                  )}
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        scannedData.checkInStatus === 'checked-in'
+                          ? colors.success
+                          : scannedData.checkInStatus === 'checked-out'
+                          ? colors.warning
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  <Text style={styles.statusBadgeText}>
+                    {checkInStatusDisplay}
+                  </Text>
                 </View>
               </View>
-            </View>
 
-            {/* Offline Notice */}
-            <View style={styles.offlineNotice}>
-              <IconSymbol
-                ios_icon_name="wifi.slash"
-                android_material_icon_name="wifi-off"
-                size={20}
-                color={colors.success}
-              />
-              <Text style={styles.offlineNoticeText}>
-                ✅ All data loaded from wristband - No internet required
-              </Text>
+              <View style={commonStyles.divider} />
+
+              {/* Activity Information */}
+              {scannedData.swimLevel && (
+                <React.Fragment>
+                  <View style={styles.infoRow}>
+                    <IconSymbol
+                      ios_icon_name="figure.pool.swim"
+                      android_material_icon_name="pool"
+                      size={20}
+                      color={colors.info}
+                    />
+                    <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
+                      Swim Level: {scannedData.swimLevel}
+                    </Text>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
+              )}
+
+              {/* Medical Alerts */}
+              {scannedData.allergies.length > 0 && (
+                <React.Fragment>
+                  <View style={styles.alertRow}>
+                    <IconSymbol
+                      ios_icon_name="exclamationmark.triangle.fill"
+                      android_material_icon_name="warning"
+                      size={20}
+                      color={colors.error}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[commonStyles.textSecondary, { color: colors.error, fontWeight: '700', marginBottom: 4 }]}>
+                        Allergies:
+                      </Text>
+                      {scannedData.allergies.map((allergy, index) => (
+                        <Text key={index} style={[commonStyles.textSecondary, { color: colors.error }]}>
+                          • {allergy}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
+              )}
+
+              {scannedData.medications.length > 0 && (
+                <React.Fragment>
+                  <View style={styles.alertRow}>
+                    <IconSymbol
+                      ios_icon_name="pills.fill"
+                      android_material_icon_name="medication"
+                      size={20}
+                      color={colors.secondary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[commonStyles.textSecondary, { fontWeight: '700', marginBottom: 4 }]}>
+                        Medications:
+                      </Text>
+                      {scannedData.medications.map((medication, index) => (
+                        <Text key={index} style={commonStyles.textSecondary}>
+                          • {medication}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
+              )}
+
+              {/* Scan Details */}
+              <View style={styles.infoRow}>
+                <IconSymbol
+                  ios_icon_name="calendar"
+                  android_material_icon_name="calendar-today"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
+                  Scanned: {scanTimestamp}
+                </Text>
+              </View>
+
+              <View style={commonStyles.divider} />
+
+              <View style={styles.infoRow}>
+                <IconSymbol
+                  ios_icon_name={scannedData.isLocked ? "lock.fill" : "lock.open.fill"}
+                  android_material_icon_name={scannedData.isLocked ? "lock" : "lock-open"}
+                  size={20}
+                  color={lockStatusColor}
+                />
+                <Text style={[commonStyles.textSecondary, { flex: 1, color: lockStatusColor }]}>
+                  {lockStatusText}
+                </Text>
+              </View>
+
+              <View style={commonStyles.divider} />
+
+              <View style={styles.offlineNotice}>
+                <IconSymbol
+                  ios_icon_name="wifi.slash"
+                  android_material_icon_name="wifi-off"
+                  size={20}
+                  color={colors.success}
+                />
+                <Text style={styles.offlineNoticeText}>
+                  ✅ All data loaded from wristband - No internet required
+                </Text>
+              </View>
             </View>
           </View>
         )}
@@ -541,28 +488,34 @@ const styles = StyleSheet.create({
     paddingTop: 48,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 28,
-    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 32,
+    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  headerIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 16,
     fontWeight: '500',
     color: '#FFFFFF',
-    opacity: 0.9,
+    opacity: 0.95,
   },
   statusBanner: {
     flexDirection: 'row',
@@ -597,6 +550,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderWidth: 4,
     borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     elevation: 4,
   },
   scannerCircleActive: {
@@ -612,172 +569,89 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   scanButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 12,
-    elevation: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   scanButtonDisabled: {
     opacity: 0.5,
+  },
+  scanButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 48,
   },
   scanButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  camperDetailsContainer: {
+  camperInfoContainer: {
     paddingHorizontal: 16,
-    gap: 16,
+    marginBottom: 24,
   },
-  camperHeaderCard: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    elevation: 6,
-  },
-  camperHeaderGradient: {
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  camperAvatarLarge: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  camperNameLarge: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  camperAgeBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginTop: 12,
-  },
-  camperAgeText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  statusRow: {
+  camperHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  statusItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  statusDivider: {
-    width: 1,
-    height: 60,
-    backgroundColor: colors.border,
-  },
-  statusLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginTop: 8,
-  },
-  statusValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  medicalSection: {
-    marginBottom: 16,
-  },
-  medicalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     marginBottom: 12,
   },
-  medicalLabel: {
-    fontSize: 16,
+  camperAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primaryLight + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  camperInfo: {
+    flex: 1,
+  },
+  camperName: {
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: 4,
   },
-  medicalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    paddingLeft: 28,
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  medicalBullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.error,
-  },
-  medicalText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: colors.text,
-    flex: 1,
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
+    marginTop: 12,
+    gap: 8,
   },
-  infoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 12,
+    gap: 8,
   },
   offlineNotice: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: colors.successLight + '20',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.success,
+    marginTop: 12,
   },
   offlineNoticeText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.success,
     flex: 1,

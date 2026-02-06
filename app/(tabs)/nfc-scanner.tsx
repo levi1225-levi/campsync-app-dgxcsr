@@ -14,10 +14,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import { mockCampers } from '@/data/mockCampers';
-import { Camper } from '@/types/camper';
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { supabase } from '@/app/integrations/supabase/client';
+import { decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
 
 const HEADER_MAX_HEIGHT = 180;
 const HEADER_MIN_HEIGHT = 80;
@@ -27,8 +26,7 @@ function NFCScannerScreenContent() {
   const { hasPermission } = useAuth();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScanning, setIsScanning] = useState(false);
-  const [isWriting, setIsWriting] = useState(false);
-  const [scannedCamper, setScannedCamper] = useState<Camper | null>(null);
+  const [scannedData, setScannedData] = useState<(WristbandCamperData & { timestamp: number; isLocked: boolean }) | null>(null);
   const [nfcSupported, setNfcSupported] = useState(false);
   const [nfcEnabled, setNfcEnabled] = useState(false);
   const [nfcInitialized, setNfcInitialized] = useState(false);
@@ -57,57 +55,6 @@ function NFCScannerScreenContent() {
     }
     return age;
   };
-
-  const lookupCamper = useCallback(async (wristbandId: string) => {
-    try {
-      console.log('Looking up camper with wristband ID:', wristbandId);
-      
-      const { data, error } = await supabase
-        .from('campers')
-        .select('*')
-        .eq('wristband_id', wristbandId)
-        .single();
-      
-      if (error) {
-        console.error('Error looking up camper:', error);
-        
-        const mockCamper = mockCampers.find(c => c.wristbandId === wristbandId);
-        if (mockCamper) {
-          setScannedCamper(mockCamper);
-          Alert.alert('Camper Found', `${mockCamper.firstName} ${mockCamper.lastName}`);
-        } else {
-          Alert.alert('Not Found', 'No camper found with this wristband ID.');
-        }
-        return;
-      }
-      
-      if (data) {
-        const camper: Camper = {
-          id: data.id,
-          firstName: data.first_name,
-          lastName: data.last_name,
-          age: calculateAge(data.date_of_birth),
-          cabin: 'TBD',
-          checkInStatus: data.check_in_status as any,
-          wristbandId: data.wristband_id || '',
-          medicalInfo: {
-            allergies: [],
-            medications: [],
-            conditions: [],
-            notes: '',
-          },
-        };
-        
-        setScannedCamper(camper);
-        Alert.alert('Camper Found', `${camper.firstName} ${camper.lastName}`);
-      } else {
-        Alert.alert('Not Found', 'No camper found with this wristband ID.');
-      }
-    } catch (error) {
-      console.error('Error in lookupCamper:', error);
-      Alert.alert('Error', 'Failed to lookup camper information.');
-    }
-  }, []);
 
   const initNFC = useCallback(async () => {
     try {
@@ -189,40 +136,43 @@ function NFCScannerScreenContent() {
       return;
     }
 
-    console.log('Starting NFC scan...');
+    console.log('User tapped Scan Wristband - Starting NFC scan...');
     setIsScanning(true);
+    setScannedData(null);
     
     try {
       await NfcManager.requestTechnology(NfcTech.Ndef);
       console.log('NFC technology requested');
       
       const tag = await NfcManager.getTag();
-      console.log('NFC Tag detected:', JSON.stringify(tag, null, 2));
+      console.log('NFC Tag detected');
       
-      if (tag) {
-        let wristbandId = '';
-        
-        if (tag.ndefMessage && tag.ndefMessage.length > 0) {
-          try {
-            const ndefRecord = tag.ndefMessage[0];
-            const payload = Ndef.text.decodePayload(ndefRecord.payload);
-            wristbandId = payload;
-            console.log('NDEF payload:', payload);
-          } catch (ndefError) {
-            console.error('Error decoding NDEF:', ndefError);
+      if (tag && tag.ndefMessage && tag.ndefMessage.length > 0) {
+        try {
+          const ndefRecord = tag.ndefMessage[0];
+          const encryptedPayload = Ndef.text.decodePayload(ndefRecord.payload);
+          console.log('Encrypted payload read from wristband');
+
+          const decryptedData = await decryptWristbandData(encryptedPayload);
+
+          if (decryptedData) {
+            console.log('✅ Wristband data decrypted successfully - displaying offline data');
+            console.log('Camper:', decryptedData.firstName, decryptedData.lastName);
+            console.log('Allergies:', decryptedData.allergies.length);
+            console.log('Medications:', decryptedData.medications.length);
+            console.log('Swim Level:', decryptedData.swimLevel || 'Not set');
+            console.log('Cabin:', decryptedData.cabin || 'Not assigned');
+            
+            setScannedData(decryptedData);
+          } else {
+            Alert.alert('Invalid Wristband', 'Could not decrypt wristband data. The wristband may be corrupted or from another system.');
           }
+        } catch (decryptError) {
+          console.error('Error decrypting wristband data:', decryptError);
+          Alert.alert('Decryption Error', 'Failed to decrypt wristband data. The wristband may be corrupted.');
         }
-        
-        if (!wristbandId && tag.id) {
-          wristbandId = tag.id;
-          console.log('Using tag ID:', tag.id);
-        }
-        
-        if (wristbandId) {
-          await lookupCamper(wristbandId);
-        } else {
-          Alert.alert('Invalid Tag', 'Could not read wristband ID. Please try again.');
-        }
+      } else {
+        Alert.alert('Empty Wristband', 'This wristband has not been programmed yet.');
       }
     } catch (error: any) {
       console.error('NFC scan error:', error);
@@ -240,145 +190,14 @@ function NFCScannerScreenContent() {
         console.error('Error cancelling NFC request:', cancelError);
       }
     }
-  }, [canScan, nfcSupported, nfcEnabled, nfcInitialized, lookupCamper]);
+  }, [canScan, nfcSupported, nfcEnabled, nfcInitialized]);
 
-  const writeToWristband = useCallback(async (camperId: string, camperName: string) => {
-    if (!canScan) {
-      Alert.alert('Access Denied', 'You do not have permission to write to NFC wristbands.');
-      return;
-    }
-
-    if (!nfcSupported) {
-      Alert.alert('NFC Not Supported', 'Your device does not support NFC writing.');
-      return;
-    }
-
-    if (!nfcEnabled) {
-      Alert.alert('NFC Disabled', 'Please enable NFC in your device settings.');
-      return;
-    }
-
-    console.log('Starting NFC write for camper:', camperId);
-    setIsWriting(true);
-
-    try {
-      await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('NFC technology requested for writing');
-
-      const bytes = Ndef.encodeMessage([Ndef.textRecord(camperId)]);
-      
-      if (bytes) {
-        await NfcManager.ndefHandler.writeNdefMessage(bytes);
-        console.log('Successfully wrote to NFC tag');
-        
-        Alert.alert(
-          'Write Successful',
-          `Wristband has been programmed for ${camperName}`,
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error: any) {
-      console.error('NFC write error:', error);
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
-      
-      if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
-        console.log('NFC write cancelled by user');
-      } else if (errorMessage.includes('read-only') || errorMessage.includes('readonly')) {
-        Alert.alert('Write Error', 'This wristband is read-only and cannot be written to.');
-      } else {
-        Alert.alert('Write Error', 'Failed to write to NFC tag. Please try again.');
-      }
-    } finally {
-      setIsWriting(false);
-      try {
-        await NfcManager.cancelTechnologyRequest();
-      } catch (cancelError) {
-        console.error('Error cancelling NFC request:', cancelError);
-      }
-    }
-  }, [canScan, nfcSupported, nfcEnabled]);
-
-  const handleCheckIn = useCallback(async () => {
-    if (scannedCamper) {
-      try {
-        console.log('Checking in camper:', scannedCamper.id);
-        const { error } = await supabase
-          .from('campers')
-          .update({
-            check_in_status: 'checked-in',
-            last_check_in: new Date().toISOString(),
-          })
-          .eq('id', scannedCamper.id);
-        
-        if (error) {
-          console.error('Error checking in camper:', error);
-          Alert.alert('Error', 'Failed to check in camper. Please try again.');
-          return;
-        }
-        
-        Alert.alert(
-          'Check In Successful',
-          `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked in.\n\nWould you like to write the check-in status to the wristband?`,
-          [
-            { text: 'Skip', style: 'cancel', onPress: () => setScannedCamper(null) },
-            { 
-              text: 'Write to Wristband', 
-              onPress: async () => {
-                await writeToWristband(
-                  scannedCamper.id, 
-                  `${scannedCamper.firstName} ${scannedCamper.lastName}`
-                );
-                setScannedCamper(null);
-              }
-            }
-          ]
-        );
-      } catch (error) {
-        console.error('Error in handleCheckIn:', error);
-        Alert.alert('Error', 'Failed to check in camper.');
-      }
-    }
-  }, [scannedCamper, writeToWristband]);
-
-  const handleCheckOut = useCallback(async () => {
-    if (scannedCamper) {
-      try {
-        console.log('Checking out camper:', scannedCamper.id);
-        const { error } = await supabase
-          .from('campers')
-          .update({
-            check_in_status: 'checked-out',
-            last_check_out: new Date().toISOString(),
-          })
-          .eq('id', scannedCamper.id);
-        
-        if (error) {
-          console.error('Error checking out camper:', error);
-          Alert.alert('Error', 'Failed to check out camper. Please try again.');
-          return;
-        }
-        
-        Alert.alert(
-          'Check Out Successful',
-          `${scannedCamper.firstName} ${scannedCamper.lastName} has been checked out.`,
-          [{ text: 'OK', onPress: () => setScannedCamper(null) }]
-        );
-      } catch (error) {
-        console.error('Error in handleCheckOut:', error);
-        Alert.alert('Error', 'Failed to check out camper.');
-      }
-    }
-  }, [scannedCamper]);
-
-  const handleLogIncident = useCallback(() => {
-    if (scannedCamper) {
-      Alert.alert(
-        'Log Incident',
-        `Opening incident form for ${scannedCamper.firstName} ${scannedCamper.lastName}`,
-        [{ text: 'OK' }]
-      );
-    }
-  }, [scannedCamper]);
+  const camperAge = scannedData ? calculateAge(scannedData.dateOfBirth) : 0;
+  const scanTimestamp = scannedData ? new Date(scannedData.timestamp).toLocaleString() : '';
+  const lockStatusText = scannedData?.isLocked ? 'Locked & Secure' : 'Unlocked';
+  const lockStatusColor = scannedData?.isLocked ? colors.success : colors.warning;
+  const checkInStatusDisplay = scannedData?.checkInStatus === 'checked-in' ? 'Checked In' : 
+                                scannedData?.checkInStatus === 'checked-out' ? 'Checked Out' : 'Not Arrived';
 
   return (
     <View style={[commonStyles.container, styles.container]}>
@@ -393,7 +212,7 @@ function NFCScannerScreenContent() {
           />
           <Text style={styles.headerTitle}>NFC Scanner</Text>
           <Text style={styles.headerSubtitle}>
-            Scan and write to camper wristbands
+            Scan wristbands to view camper details
           </Text>
         </Animated.View>
       </Animated.View>
@@ -431,7 +250,7 @@ function NFCScannerScreenContent() {
             size={20}
             color="#FFFFFF"
           />
-          <Text style={styles.statusText}>NFC Ready - Read & Write Enabled</Text>
+          <Text style={styles.statusText}>NFC Ready - Offline Mode Enabled</Text>
         </View>
       )}
 
@@ -447,37 +266,35 @@ function NFCScannerScreenContent() {
       >
         {/* Scanner Area */}
         <View style={styles.scannerContainer}>
-          <View style={[styles.scannerCircle, (isScanning || isWriting) && styles.scannerCircleActive]}>
+          <View style={[styles.scannerCircle, isScanning && styles.scannerCircleActive]}>
             <IconSymbol
               ios_icon_name="wave.3.right"
               android_material_icon_name="nfc"
               size={80}
-              color={(isScanning || isWriting) ? colors.primary : colors.textSecondary}
+              color={isScanning ? colors.primary : colors.textSecondary}
             />
           </View>
 
           <Text style={styles.scannerText}>
-            {isWriting 
-              ? 'Writing to wristband...' 
-              : isScanning 
+            {isScanning 
               ? 'Hold wristband near device...' 
               : 'Tap to scan NFC wristband'}
           </Text>
 
           <TouchableOpacity
-            style={[styles.scanButton, (isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
+            style={[styles.scanButton, (isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized) && styles.scanButtonDisabled]}
             onPress={handleScan}
-            disabled={isScanning || isWriting || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
+            disabled={isScanning || !canScan || !nfcSupported || !nfcEnabled || !nfcInitialized}
             activeOpacity={0.7}
           >
             <Text style={styles.scanButtonText}>
-              {!nfcInitialized ? 'Initializing...' : isWriting ? 'Writing...' : isScanning ? 'Scanning...' : 'Start Scan'}
+              {!nfcInitialized ? 'Initializing...' : isScanning ? 'Scanning...' : 'Scan Wristband'}
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Scanned Camper Info */}
-        {scannedCamper && (
+        {scannedData && (
           <View style={styles.camperInfoContainer}>
             <View style={commonStyles.card}>
               <View style={styles.camperHeader}>
@@ -491,158 +308,187 @@ function NFCScannerScreenContent() {
                 </View>
                 <View style={styles.camperInfo}>
                   <Text style={styles.camperName}>
-                    {scannedCamper.firstName} {scannedCamper.lastName}
+                    {scannedData.firstName} {scannedData.lastName}
                   </Text>
                   <Text style={commonStyles.textSecondary}>
-                    Age {scannedCamper.age} • Cabin {scannedCamper.cabin}
+                    Age {camperAge}
                   </Text>
+                  {scannedData.cabin && (
+                    <Text style={commonStyles.textSecondary}>
+                      {scannedData.cabin}
+                    </Text>
+                  )}
                 </View>
                 <View
                   style={[
                     styles.statusBadge,
                     {
                       backgroundColor:
-                        scannedCamper.checkInStatus === 'checked-in'
+                        scannedData.checkInStatus === 'checked-in'
                           ? colors.success
-                          : scannedCamper.checkInStatus === 'checked-out'
+                          : scannedData.checkInStatus === 'checked-out'
                           ? colors.warning
                           : colors.textSecondary,
                     },
                   ]}
                 >
                   <Text style={styles.statusBadgeText}>
-                    {scannedCamper.checkInStatus === 'checked-in'
-                      ? 'Checked In'
-                      : scannedCamper.checkInStatus === 'checked-out'
-                      ? 'Checked Out'
-                      : 'Not Arrived'}
+                    {checkInStatusDisplay}
                   </Text>
                 </View>
               </View>
 
               <View style={commonStyles.divider} />
 
+              {/* Activity Information */}
+              {scannedData.swimLevel && (
+                <React.Fragment>
+                  <View style={styles.infoRow}>
+                    <IconSymbol
+                      ios_icon_name="figure.pool.swim"
+                      android_material_icon_name="pool"
+                      size={20}
+                      color={colors.info}
+                    />
+                    <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
+                      Swim Level: {scannedData.swimLevel}
+                    </Text>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
+              )}
+
               {/* Medical Alerts */}
-              {scannedCamper.medicalInfo.allergies.length > 0 && (
-                <View style={styles.alertRow}>
-                  <IconSymbol
-                    ios_icon_name="exclamationmark.triangle.fill"
-                    android_material_icon_name="warning"
-                    size={20}
-                    color={colors.error}
-                  />
-                  <Text style={[commonStyles.textSecondary, { color: colors.error, flex: 1 }]}>
-                    Allergies: {scannedCamper.medicalInfo.allergies.join(', ')}
-                  </Text>
-                </View>
+              {scannedData.allergies.length > 0 && (
+                <React.Fragment>
+                  <View style={styles.alertRow}>
+                    <IconSymbol
+                      ios_icon_name="exclamationmark.triangle.fill"
+                      android_material_icon_name="warning"
+                      size={20}
+                      color={colors.error}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[commonStyles.textSecondary, { color: colors.error, fontWeight: '700', marginBottom: 4 }]}>
+                        Allergies:
+                      </Text>
+                      {scannedData.allergies.map((allergy, index) => (
+                        <Text key={index} style={[commonStyles.textSecondary, { color: colors.error }]}>
+                          • {allergy}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
               )}
 
-              {scannedCamper.medicalInfo.medications.length > 0 && (
-                <View style={styles.alertRow}>
-                  <IconSymbol
-                    ios_icon_name="pills.fill"
-                    android_material_icon_name="medication"
-                    size={20}
-                    color={colors.secondary}
-                  />
-                  <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
-                    Medications: {scannedCamper.medicalInfo.medications.join(', ')}
-                  </Text>
-                </View>
+              {scannedData.medications.length > 0 && (
+                <React.Fragment>
+                  <View style={styles.alertRow}>
+                    <IconSymbol
+                      ios_icon_name="pills.fill"
+                      android_material_icon_name="medication"
+                      size={20}
+                      color={colors.secondary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[commonStyles.textSecondary, { fontWeight: '700', marginBottom: 4 }]}>
+                        Medications:
+                      </Text>
+                      {scannedData.medications.map((medication, index) => (
+                        <Text key={index} style={commonStyles.textSecondary}>
+                          • {medication}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={commonStyles.divider} />
+                </React.Fragment>
               )}
 
-              {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.success }]}
-                  onPress={handleCheckIn}
-                  activeOpacity={0.7}
-                >
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check-circle"
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.actionButtonText}>Check In</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.warning }]}
-                  onPress={handleCheckOut}
-                  activeOpacity={0.7}
-                >
-                  <IconSymbol
-                    ios_icon_name="arrow.right.circle.fill"
-                    android_material_icon_name="exit-to-app"
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.actionButtonText}>Check Out</Text>
-                </TouchableOpacity>
+              {/* Scan Details */}
+              <View style={styles.infoRow}>
+                <IconSymbol
+                  ios_icon_name="calendar"
+                  android_material_icon_name="calendar-today"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+                <Text style={[commonStyles.textSecondary, { flex: 1 }]}>
+                  Scanned: {scanTimestamp}
+                </Text>
               </View>
 
-              <TouchableOpacity
-                style={[styles.actionButton, styles.incidentButton]}
-                onPress={handleLogIncident}
-                activeOpacity={0.7}
-              >
+              <View style={commonStyles.divider} />
+
+              <View style={styles.infoRow}>
                 <IconSymbol
-                  ios_icon_name="exclamationmark.triangle.fill"
-                  android_material_icon_name="report"
-                  size={24}
-                  color="#FFFFFF"
+                  ios_icon_name={scannedData.isLocked ? "lock.fill" : "lock.open.fill"}
+                  android_material_icon_name={scannedData.isLocked ? "lock" : "lock-open"}
+                  size={20}
+                  color={lockStatusColor}
                 />
-                <Text style={styles.actionButtonText}>Log Incident</Text>
-              </TouchableOpacity>
+                <Text style={[commonStyles.textSecondary, { flex: 1, color: lockStatusColor }]}>
+                  {lockStatusText}
+                </Text>
+              </View>
+
+              <View style={commonStyles.divider} />
+
+              <View style={styles.offlineNotice}>
+                <IconSymbol
+                  ios_icon_name="wifi.slash"
+                  android_material_icon_name="wifi-off"
+                  size={20}
+                  color={colors.success}
+                />
+                <Text style={styles.offlineNoticeText}>
+                  ✅ All data loaded from wristband - No internet required
+                </Text>
+              </View>
             </View>
           </View>
         )}
 
         {/* Instructions */}
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsTitle}>How to use:</Text>
-          <View style={styles.instructionRow}>
-            <View style={styles.instructionNumber}>
-              <Text style={styles.instructionNumberText}>1</Text>
+        {!scannedData && (
+          <View style={styles.instructions}>
+            <Text style={styles.instructionsTitle}>Offline NFC Scanner</Text>
+            <View style={styles.instructionRow}>
+              <View style={styles.instructionNumber}>
+                <Text style={styles.instructionNumberText}>1</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>
+                Tap &quot;Scan Wristband&quot; button above
+              </Text>
             </View>
-            <Text style={commonStyles.textSecondary}>
-              Tap &quot;Start Scan&quot; button
-            </Text>
-          </View>
-          <View style={styles.instructionRow}>
-            <View style={styles.instructionNumber}>
-              <Text style={styles.instructionNumberText}>2</Text>
+            <View style={styles.instructionRow}>
+              <View style={styles.instructionNumber}>
+                <Text style={styles.instructionNumberText}>2</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>
+                Hold the device near the camper&apos;s NFC wristband
+              </Text>
             </View>
-            <Text style={commonStyles.textSecondary}>
-              Hold the device near the camper&apos;s NFC wristband
-            </Text>
-          </View>
-          <View style={styles.instructionRow}>
-            <View style={styles.instructionNumber}>
-              <Text style={styles.instructionNumberText}>3</Text>
+            <View style={styles.instructionRow}>
+              <View style={styles.instructionNumber}>
+                <Text style={styles.instructionNumberText}>3</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>
+                View complete camper details instantly - even offline
+              </Text>
             </View>
-            <Text style={commonStyles.textSecondary}>
-              Wait for the scan to complete
-            </Text>
-          </View>
-          <View style={styles.instructionRow}>
-            <View style={styles.instructionNumber}>
-              <Text style={styles.instructionNumberText}>4</Text>
+            <View style={styles.instructionRow}>
+              <View style={styles.instructionNumber}>
+                <Text style={styles.instructionNumberText}>4</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>
+                All data is encrypted and stored securely on the wristband
+              </Text>
             </View>
-            <Text style={commonStyles.textSecondary}>
-              Review camper information and take action
-            </Text>
           </View>
-          <View style={styles.instructionRow}>
-            <View style={styles.instructionNumber}>
-              <Text style={styles.instructionNumberText}>5</Text>
-            </View>
-            <Text style={commonStyles.textSecondary}>
-              Check in will offer to write status to wristband
-            </Text>
-          </View>
-        </View>
+        )}
       </Animated.ScrollView>
     </View>
   );
@@ -791,44 +637,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
   alertRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginTop: 12,
     gap: 8,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    marginTop: 16,
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
+  offlineNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
+    gap: 12,
+    backgroundColor: colors.successLight + '20',
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  incidentButton: {
-    backgroundColor: colors.secondary,
+    borderWidth: 2,
+    borderColor: colors.success,
     marginTop: 12,
   },
-  actionButtonText: {
-    fontSize: 16,
+  offlineNoticeText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.success,
+    flex: 1,
   },
   instructions: {
     paddingHorizontal: 16,
-    marginTop: 'auto',
+    marginTop: 24,
     paddingBottom: 40,
   },
   instructionsTitle: {

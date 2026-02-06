@@ -20,7 +20,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { format } from 'date-fns';
 
 interface CamperData {
   id: string;
@@ -47,6 +46,14 @@ interface MedicalInfo {
   insurance_provider: string | null;
   insurance_number: string | null;
   notes: string | null;
+}
+
+// Helper function to format date as MM/dd/yyyy
+function formatDate(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
 }
 
 function EditCamperContent() {
@@ -160,7 +167,7 @@ function EditCamperContent() {
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setDateOfBirth(parsedDate);
-      setDobText(format(parsedDate, 'MM/dd/yyyy'));
+      setDobText(formatDate(parsedDate));
       setWristbandId(data.wristband_id || '');
       setCheckInStatus(data.check_in_status || 'not-arrived');
       setSwimLevel(data.swim_level || '');
@@ -174,7 +181,7 @@ function EditCamperContent() {
       console.log('  - Cabin:', data.cabin_assignment || '(empty)');
       console.log('  - Wristband ID:', data.wristband_id || '(empty)');
       console.log('  - Date of Birth:', parsedDate.toISOString());
-      console.log('  - DOB Text:', format(parsedDate, 'MM/dd/yyyy'));
+      console.log('  - DOB Text:', formatDate(parsedDate));
 
       console.log('🔍 LOADING MEDICAL INFO for camper:', camperId);
       const { data: medicalData, error: medicalError } = await supabase
@@ -294,7 +301,7 @@ function EditCamperContent() {
     if (event.type === 'set') {
       console.log('User selected date:', currentDate.toISOString());
       setDateOfBirth(currentDate);
-      setDobText(format(currentDate, 'MM/dd/yyyy'));
+      setDobText(formatDate(currentDate));
       
       if (Platform.OS === 'ios') {
         setShowDatePicker(false);
