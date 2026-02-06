@@ -118,30 +118,26 @@ function EditCamperContent() {
     }
 
     try {
-      console.log('=== 🔄 NEW APPROACH: LOADING CAMPER WITH COMPREHENSIVE DATA ===');
+      console.log('=== 🔄 NEW APPROACH: TWO-QUERY STRATEGY ===');
       console.log('📋 Camper ID:', camperId);
       setLoading(true);
 
-      // ✅ NEW APPROACH: Use get_comprehensive_camper_data RPC which returns ALL data in one call
-      console.log('🔍 Calling get_comprehensive_camper_data RPC...');
-      const { data: comprehensiveData, error: rpcError } = await supabase.rpc(
-        'get_comprehensive_camper_data',
-        { p_camper_id: camperId }
-      );
+      // ✅ STEP 1: Get basic camper data from get_all_campers
+      console.log('🔍 Step 1: Fetching basic camper data from get_all_campers...');
+      const { data: allCampers, error: campersError } = await supabase.rpc('get_all_campers');
 
-      if (rpcError) {
-        console.error('❌ RPC Error:', rpcError);
-        Alert.alert(
-          'Database Error',
-          `Failed to load camper: ${rpcError.message}. Please try again.`,
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
-        setLoading(false);
-        return;
+      if (campersError) {
+        console.error('❌ Error fetching campers:', campersError);
+        throw new Error(`Failed to load camper: ${campersError.message}`);
       }
 
-      if (!comprehensiveData || comprehensiveData.length === 0) {
-        console.error('❌ No data returned from get_comprehensive_camper_data');
+      console.log('✅ All campers fetched, count:', allCampers?.length || 0);
+      
+      // Find the specific camper
+      const camperData = allCampers?.find((c: any) => c.id === camperId);
+      
+      if (!camperData) {
+        console.error('❌ Camper not found in results');
         Alert.alert(
           'Camper Not Found',
           'The camper you are trying to edit could not be found.',
@@ -151,17 +147,16 @@ function EditCamperContent() {
         return;
       }
 
-      const data = comprehensiveData[0];
-      console.log('✅ Comprehensive data loaded successfully');
-      console.log('📊 Raw data:', JSON.stringify(data, null, 2));
+      console.log('✅ Camper found:', camperData.first_name, camperData.last_name);
+      console.log('📊 Basic camper data:', JSON.stringify(camperData, null, 2));
 
       // Parse date
       let parsedDate = new Date();
       try {
-        if (data.date_of_birth) {
-          parsedDate = new Date(data.date_of_birth);
+        if (camperData.date_of_birth) {
+          parsedDate = new Date(camperData.date_of_birth);
           if (isNaN(parsedDate.getTime())) {
-            console.error('⚠️ Invalid date:', data.date_of_birth);
+            console.error('⚠️ Invalid date:', camperData.date_of_birth);
             parsedDate = new Date();
           } else {
             console.log('✅ Date parsed:', parsedDate.toISOString());
@@ -174,37 +169,48 @@ function EditCamperContent() {
       
       // Set basic info
       console.log('📝 Setting basic info state...');
-      setFirstName(data.first_name || '');
-      setLastName(data.last_name || '');
+      setFirstName(camperData.first_name || '');
+      setLastName(camperData.last_name || '');
       setDateOfBirth(parsedDate);
       setDobText(formatDate(parsedDate));
-      setWristbandId(data.wristband_id || '');
-      setCheckInStatus(data.check_in_status || 'not-arrived');
-      setSwimLevel(data.swim_level || '');
-      setCabinAssignment(data.cabin_assignment || '');
-      setRegistrationStatus(data.registration_status || 'pending');
+      setWristbandId(camperData.wristband_id || '');
+      setCheckInStatus(camperData.check_in_status || 'not-arrived');
+      setSwimLevel(camperData.swim_level || '');
+      setCabinAssignment(camperData.cabin_assignment || '');
+      setRegistrationStatus(camperData.registration_status || 'pending');
 
       console.log('✅ Basic info set:');
-      console.log('  👤 Name:', data.first_name, data.last_name);
-      console.log('  🏊 Swim Level:', data.swim_level || '(empty)');
-      console.log('  🏠 Cabin:', data.cabin_assignment || '(empty)');
-      console.log('  🎫 Wristband:', data.wristband_id || '(empty)');
+      console.log('  👤 Name:', camperData.first_name, camperData.last_name);
+      console.log('  🏊 Swim Level:', camperData.swim_level || '(empty)');
+      console.log('  🏠 Cabin:', camperData.cabin_assignment || '(empty)');
+      console.log('  🎫 Wristband:', camperData.wristband_id || '(empty)');
 
-      // ✅ NEW APPROACH: Medical info is already included in comprehensive data
-      console.log('🏥 Processing medical info from comprehensive data...');
+      // ✅ STEP 2: Get medical data directly from camper_medical_info table
+      console.log('🔍 Step 2: Fetching medical data directly from camper_medical_info table...');
+      const { data: medicalData, error: medicalError } = await supabase
+        .from('camper_medical_info')
+        .select('*')
+        .eq('camper_id', camperId)
+        .maybeSingle();
+
+      if (medicalError) {
+        console.error('⚠️ Error fetching medical data (non-fatal):', medicalError);
+        // Don't throw - medical data might not exist yet
+      }
+
+      console.log('📊 Medical data query result:', medicalData ? 'Found' : 'Not found');
       
-      if (data.medical_info && typeof data.medical_info === 'object') {
-        console.log('✅ Medical info object found');
-        console.log('📋 Medical info raw:', JSON.stringify(data.medical_info, null, 2));
+      if (medicalData) {
+        console.log('✅ Medical info found');
+        console.log('📋 Medical data raw:', JSON.stringify(medicalData, null, 2));
         
-        const medInfo = data.medical_info;
         setHasMedicalInfo(true);
         
         // Parse arrays safely
-        const allergiesArray = parseArrayField(medInfo.allergies);
-        const medicationsArray = parseArrayField(medInfo.medications);
-        const dietaryArray = parseArrayField(medInfo.dietary_restrictions);
-        const conditionsArray = parseArrayField(medInfo.medical_conditions);
+        const allergiesArray = parseArrayField(medicalData.allergies);
+        const medicationsArray = parseArrayField(medicalData.medications);
+        const dietaryArray = parseArrayField(medicalData.dietary_restrictions);
+        const conditionsArray = parseArrayField(medicalData.medical_conditions);
         
         // Convert arrays to comma-separated strings for TextInput
         const allergiesStr = allergiesArray.join(', ');
@@ -217,29 +223,29 @@ function EditCamperContent() {
         console.log('  💉 Medications:', medicationsArray.length, 'items →', medicationsStr);
         console.log('  🍽️ Dietary:', dietaryArray.length, 'items →', dietaryStr);
         console.log('  🏥 Conditions:', conditionsArray.length, 'items →', conditionsStr);
-        console.log('  📋 Special care:', medInfo.special_care_instructions || '(empty)');
-        console.log('  👨‍⚕️ Doctor:', medInfo.doctor_name || '(empty)');
-        console.log('  📞 Doctor phone:', medInfo.doctor_phone || '(empty)');
-        console.log('  🏥 Insurance:', medInfo.insurance_provider || '(empty)');
-        console.log('  🔢 Insurance #:', medInfo.insurance_number || '(empty)');
-        console.log('  📝 Notes:', medInfo.notes || '(empty)');
-        console.log('  💉 EpiPen:', medInfo.has_epi_pen || false);
+        console.log('  📋 Special care:', medicalData.special_care_instructions || '(empty)');
+        console.log('  👨‍⚕️ Doctor:', medicalData.doctor_name || '(empty)');
+        console.log('  📞 Doctor phone:', medicalData.doctor_phone || '(empty)');
+        console.log('  🏥 Insurance:', medicalData.insurance_provider || '(empty)');
+        console.log('  🔢 Insurance #:', medicalData.insurance_number || '(empty)');
+        console.log('  📝 Notes:', medicalData.notes || '(empty)');
+        console.log('  💉 EpiPen:', medicalData.has_epi_pen || false);
         
         setAllergiesText(allergiesStr);
         setMedicationsText(medicationsStr);
         setDietaryRestrictionsText(dietaryStr);
         setMedicalConditionsText(conditionsStr);
-        setSpecialCareInstructions(medInfo.special_care_instructions || '');
-        setDoctorName(medInfo.doctor_name || '');
-        setDoctorPhone(medInfo.doctor_phone || '');
-        setInsuranceProvider(medInfo.insurance_provider || '');
-        setInsuranceNumber(medInfo.insurance_number || '');
-        setMedicalNotes(medInfo.notes || '');
-        setHasEpiPen(medInfo.has_epi_pen || false);
+        setSpecialCareInstructions(medicalData.special_care_instructions || '');
+        setDoctorName(medicalData.doctor_name || '');
+        setDoctorPhone(medicalData.doctor_phone || '');
+        setInsuranceProvider(medicalData.insurance_provider || '');
+        setInsuranceNumber(medicalData.insurance_number || '');
+        setMedicalNotes(medicalData.notes || '');
+        setHasEpiPen(medicalData.has_epi_pen || false);
         
         console.log('✅ Medical info state set successfully');
       } else {
-        console.log('ℹ️ No medical info found in comprehensive data');
+        console.log('ℹ️ No medical info found for this camper');
         setHasMedicalInfo(false);
         
         // Clear all medical fields
