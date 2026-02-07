@@ -57,7 +57,7 @@ function formatDate(date: Date): string {
   return `${month}/${day}/${year}`;
 }
 
-// Helper to safely parse arrays from database
+// Helper to safely parse arrays from database - MOVED OUTSIDE COMPONENT
 function parseArrayField(field: any): string[] {
   if (!field) return [];
   if (Array.isArray(field)) return field;
@@ -212,29 +212,44 @@ function EditCamperContent() {
         const dietaryArray = parseArrayField(medicalData.dietary_restrictions);
         const conditionsArray = parseArrayField(medicalData.medical_conditions);
         
+        console.log('🔍 Parsed arrays:');
+        console.log('  Allergies array:', allergiesArray);
+        console.log('  Medications array:', medicationsArray);
+        console.log('  Dietary array:', dietaryArray);
+        console.log('  Conditions array:', conditionsArray);
+        
         // Convert arrays to comma-separated strings for TextInput
         const allergiesStr = allergiesArray.join(', ');
         const medicationsStr = medicationsArray.join(', ');
         const dietaryStr = dietaryArray.join(', ');
         const conditionsStr = conditionsArray.join(', ');
         
-        console.log('📝 Setting medical info state:');
-        console.log('  💊 Allergies:', allergiesArray.length, 'items →', allergiesStr);
-        console.log('  💉 Medications:', medicationsArray.length, 'items →', medicationsStr);
-        console.log('  🍽️ Dietary:', dietaryArray.length, 'items →', dietaryStr);
-        console.log('  🏥 Conditions:', conditionsArray.length, 'items →', conditionsStr);
-        console.log('  📋 Special care:', medicalData.special_care_instructions || '(empty)');
-        console.log('  👨‍⚕️ Doctor:', medicalData.doctor_name || '(empty)');
-        console.log('  📞 Doctor phone:', medicalData.doctor_phone || '(empty)');
-        console.log('  🏥 Insurance:', medicalData.insurance_provider || '(empty)');
-        console.log('  🔢 Insurance #:', medicalData.insurance_number || '(empty)');
-        console.log('  📝 Notes:', medicalData.notes || '(empty)');
+        console.log('📝 Converted to strings for TextInput:');
+        console.log('  💊 Allergies:', allergiesArray.length, 'items →', `"${allergiesStr}"`);
+        console.log('  💉 Medications:', medicationsArray.length, 'items →', `"${medicationsStr}"`);
+        console.log('  🍽️ Dietary:', dietaryArray.length, 'items →', `"${dietaryStr}"`);
+        console.log('  🏥 Conditions:', conditionsArray.length, 'items →', `"${conditionsStr}"`);
+        console.log('  📋 Special care:', `"${medicalData.special_care_instructions || ''}"`);
+        console.log('  👨‍⚕️ Doctor:', `"${medicalData.doctor_name || ''}"`);
+        console.log('  📞 Doctor phone:', `"${medicalData.doctor_phone || ''}"`);
+        console.log('  🏥 Insurance:', `"${medicalData.insurance_provider || ''}"`);
+        console.log('  🔢 Insurance #:', `"${medicalData.insurance_number || ''}"`);
+        console.log('  📝 Notes:', `"${medicalData.notes || ''}"`);
         console.log('  💉 EpiPen:', medicalData.has_epi_pen || false);
         
+        console.log('🔄 Calling setState functions...');
         setAllergiesText(allergiesStr);
+        console.log('  ✅ setAllergiesText called with:', `"${allergiesStr}"`);
+        
         setMedicationsText(medicationsStr);
+        console.log('  ✅ setMedicationsText called with:', `"${medicationsStr}"`);
+        
         setDietaryRestrictionsText(dietaryStr);
+        console.log('  ✅ setDietaryRestrictionsText called with:', `"${dietaryStr}"`);
+        
         setMedicalConditionsText(conditionsStr);
+        console.log('  ✅ setMedicalConditionsText called with:', `"${conditionsStr}"`);
+        
         setSpecialCareInstructions(medicalData.special_care_instructions || '');
         setDoctorName(medicalData.doctor_name || '');
         setDoctorPhone(medicalData.doctor_phone || '');
@@ -243,7 +258,7 @@ function EditCamperContent() {
         setMedicalNotes(medicalData.notes || '');
         setHasEpiPen(medicalData.has_epi_pen || false);
         
-        console.log('✅ Medical info state set successfully');
+        console.log('✅ All medical info setState calls completed');
       } else {
         console.log('ℹ️ No medical info found for this camper');
         setHasMedicalInfo(false);
@@ -274,7 +289,7 @@ function EditCamperContent() {
       );
       setLoading(false);
     }
-  }, [camperId, router]);
+  }, [camperId, router]); // parseArrayField removed from dependencies since it's now stable
 
   useFocusEffect(
     useCallback(() => {
@@ -460,16 +475,22 @@ function EditCamperContent() {
   }
 
   console.log('=== 🎨 RENDERING FORM ===');
-  console.log('📊 Current state values:');
+  console.log('📊 Current state values (these will be shown in TextInputs):');
   console.log('  👤 Name:', firstName, lastName);
   console.log('  🏊 Swim Level:', swimLevel);
   console.log('  🏠 Cabin:', cabinAssignment);
   console.log('  🎫 Wristband:', wristbandId);
   console.log('  📅 DOB:', dobText);
-  console.log('  💊 Allergies:', allergiesText);
-  console.log('  💉 Medications:', medicationsText);
-  console.log('  🍽️ Dietary:', dietaryRestrictionsText);
-  console.log('  🏥 Conditions:', medicalConditionsText);
+  console.log('  💊 Allergies value prop:', `"${allergiesText}"`, '(length:', allergiesText.length, ')');
+  console.log('  💉 Medications value prop:', `"${medicationsText}"`, '(length:', medicationsText.length, ')');
+  console.log('  🍽️ Dietary value prop:', `"${dietaryRestrictionsText}"`, '(length:', dietaryRestrictionsText.length, ')');
+  console.log('  🏥 Conditions value prop:', `"${medicalConditionsText}"`, '(length:', medicalConditionsText.length, ')');
+  console.log('  📋 Special care value prop:', `"${specialCareInstructions}"`, '(length:', specialCareInstructions.length, ')');
+  console.log('  👨‍⚕️ Doctor name value prop:', `"${doctorName}"`, '(length:', doctorName.length, ')');
+  console.log('  📞 Doctor phone value prop:', `"${doctorPhone}"`, '(length:', doctorPhone.length, ')');
+  console.log('  🏥 Insurance provider value prop:', `"${insuranceProvider}"`, '(length:', insuranceProvider.length, ')');
+  console.log('  🔢 Insurance number value prop:', `"${insuranceNumber}"`, '(length:', insuranceNumber.length, ')');
+  console.log('  📝 Medical notes value prop:', `"${medicalNotes}"`, '(length:', medicalNotes.length, ')');
   console.log('  💉 EpiPen:', hasEpiPen);
 
   return (
