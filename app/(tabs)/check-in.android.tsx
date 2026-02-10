@@ -175,17 +175,25 @@ function CheckInScreenContent() {
       
       const camperData = data[0];
       
-      const allergiesArray = Array.isArray(camperData.allergies) ? camperData.allergies : [];
-      const medicationsArray = Array.isArray(camperData.medications) ? camperData.medications : [];
+      // Extract medical info from JSONB
+      const medicalInfo = camperData.medical_info || {};
+      const allergiesArray = Array.isArray(medicalInfo.allergies) ? medicalInfo.allergies : [];
+      const medicationsArray = Array.isArray(medicalInfo.medications) ? medicalInfo.medications : [];
       
-      console.log('Comprehensive data fetched via RPC:');
+      // Extract parent/guardian info from JSONB
+      const parentInfo = camperData.parent_guardian_info || {};
+      
+      // Extract emergency contact info from JSONB
+      const emergencyInfo = camperData.emergency_contact_info || {};
+      
+      console.log('📊 Comprehensive data fetched via RPC:');
       console.log('- Name:', camperData.first_name, camperData.last_name);
-      console.log('- Allergies:', allergiesArray.length);
-      console.log('- Medications:', medicationsArray.length);
+      console.log('- Allergies:', allergiesArray.length, 'items:', allergiesArray);
+      console.log('- Medications:', medicationsArray.length, 'items:', medicationsArray);
       console.log('- Swim Level:', camperData.swim_level || 'Not set');
       console.log('- Cabin:', camperData.cabin_assignment || 'Not assigned');
-      console.log('- Parent/Guardian:', camperData.parent_guardian_name || 'Not set');
-      console.log('- Emergency Contact:', camperData.emergency_contact_name || 'Not set');
+      console.log('- Parent/Guardian:', parentInfo.full_name || 'Not set');
+      console.log('- Emergency Contact:', emergencyInfo.full_name || 'Not set');
       
       return {
         id: camperData.id,
@@ -199,13 +207,13 @@ function CheckInScreenContent() {
         checkInStatus: 'checked-in',
         sessionId: camperData.session_id || undefined,
         // Parent/Guardian Contact Info
-        parentGuardianName: camperData.parent_guardian_name || null,
-        parentGuardianPhone: camperData.parent_guardian_phone || null,
-        parentGuardianEmail: camperData.parent_guardian_email || null,
+        parentGuardianName: parentInfo.full_name || null,
+        parentGuardianPhone: parentInfo.phone || null,
+        parentGuardianEmail: parentInfo.email || null,
         // Emergency Contact Info
-        emergencyContactName: camperData.emergency_contact_name || null,
-        emergencyContactPhone: camperData.emergency_contact_phone || null,
-        emergencyContactRelationship: camperData.emergency_contact_relationship || null,
+        emergencyContactName: emergencyInfo.full_name || null,
+        emergencyContactPhone: emergencyInfo.phone || null,
+        emergencyContactRelationship: emergencyInfo.relationship || null,
       };
     } catch (error) {
       console.error('Error in fetchComprehensiveCamperData:', error);
