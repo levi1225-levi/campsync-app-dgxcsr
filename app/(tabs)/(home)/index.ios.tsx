@@ -89,6 +89,12 @@ function HomeScreenContent() {
     }
   }, [router]);
 
+  const handleStatCardPress = useCallback((type: 'total' | 'checkedIn' | 'checkedOut' | 'notArrived') => {
+    console.log('User tapped stat card:', type);
+    // Navigate to campers page - in the future, we can add filtering
+    handleNavigation('/(tabs)/campers');
+  }, [handleNavigation]);
+
   return (
     <ScrollView 
       style={[styles.container, { paddingTop: insets.top }]}
@@ -125,7 +131,11 @@ function HomeScreenContent() {
       </LinearGradient>
 
       <View style={styles.statsGrid}>
-        <View style={[styles.statCard, styles.statCardPrimary]}>
+        <TouchableOpacity 
+          style={[styles.statCard, styles.statCardPrimary]}
+          onPress={() => handleStatCardPress('checkedIn')}
+          activeOpacity={0.7}
+        >
           <LinearGradient
             colors={[colors.success, colors.success + 'CC']}
             start={{ x: 0, y: 0 }}
@@ -141,9 +151,13 @@ function HomeScreenContent() {
             <Text style={styles.statNumber}>{stats.checkedIn}</Text>
             <Text style={styles.statLabel}>Checked In</Text>
           </LinearGradient>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.statCard, styles.statCardSecondary]}>
+        <TouchableOpacity 
+          style={[styles.statCard, styles.statCardSecondary]}
+          onPress={() => handleStatCardPress('total')}
+          activeOpacity={0.7}
+        >
           <LinearGradient
             colors={[colors.primary, colors.primaryDark]}
             start={{ x: 0, y: 0 }}
@@ -159,9 +173,13 @@ function HomeScreenContent() {
             <Text style={styles.statNumber}>{stats.totalCampers}</Text>
             <Text style={styles.statLabel}>Total Campers</Text>
           </LinearGradient>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.statCard, styles.statCardWarning]}>
+        <TouchableOpacity 
+          style={[styles.statCard, styles.statCardWarning]}
+          onPress={() => handleStatCardPress('checkedOut')}
+          activeOpacity={0.7}
+        >
           <LinearGradient
             colors={[colors.warning, colors.warning + 'CC']}
             start={{ x: 0, y: 0 }}
@@ -177,9 +195,13 @@ function HomeScreenContent() {
             <Text style={styles.statNumber}>{stats.checkedOut}</Text>
             <Text style={styles.statLabel}>Checked Out</Text>
           </LinearGradient>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.statCard, styles.statCardInfo]}>
+        <TouchableOpacity 
+          style={[styles.statCard, styles.statCardInfo]}
+          onPress={() => handleStatCardPress('notArrived')}
+          activeOpacity={0.7}
+        >
           <LinearGradient
             colors={[colors.textSecondary, colors.textSecondary + 'CC']}
             start={{ x: 0, y: 0 }}
@@ -195,7 +217,7 @@ function HomeScreenContent() {
             <Text style={styles.statNumber}>{stats.notArrived}</Text>
             <Text style={styles.statLabel}>Not Arrived</Text>
           </LinearGradient>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.quickActionsSection}>

@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Crypto from 'expo-crypto';
 
 interface OutdatedCamper {
   id: string;
@@ -32,6 +33,7 @@ interface OutdatedCamper {
   cabin_assignment: string | null;
   wristband_data_hash: string | null;
   current_data_hash: string;
+  updated_at: string;
 }
 
 function WristbandUpdatesContent() {
@@ -55,28 +57,48 @@ function WristbandUpdatesContent() {
     return age;
   };
 
+  const createDataHash = async (camperData: any): Promise<string> => {
+    // Create a consistent hash of the camper's data
+    const dataString = JSON.stringify({
+      first_name: camperData.first_name,
+      last_name: camperData.last_name,
+      date_of_birth: camperData.date_of_birth,
+      medical_info: camperData.medical_info || {},
+      swim_level: camperData.swim_level,
+      cabin_assignment: camperData.cabin_assignment,
+      parent_guardian_info: camperData.parent_guardian_info || {},
+      emergency_contact_info: camperData.emergency_contact_info || {},
+    });
+    
+    const hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      dataString
+    );
+    
+    return hash;
+  };
+
   const loadOutdatedWristbands = useCallback(async () => {
     console.log('Loading campers with outdated wristbands...');
     try {
       // Get all checked-in campers with wristbands
-      const { data: allCampers, error: campersError } = await supabase.rpc('get_all_campers');
+      const { data: campers, error: campersError } = await supabase
+        .from('campers')
+        .select('*')
+        .eq('check_in_status', 'checked-in')
+        .not('wristband_id', 'is', null);
 
       if (campersError) {
         console.error('Error loading campers:', campersError);
         throw new Error(`Failed to load campers: ${campersError.message}`);
       }
 
-      // Filter for checked-in campers with wristbands
-      const checkedInWithWristbands = (allCampers || []).filter(
-        (c: any) => c.check_in_status === 'checked-in' && c.wristband_id
-      );
-
-      console.log('Found', checkedInWithWristbands.length, 'checked-in campers with wristbands');
+      console.log('Found', campers?.length || 0, 'checked-in campers with wristbands');
 
       // For each camper, check if their data has changed since wristband was programmed
       const outdated: OutdatedCamper[] = [];
 
-      for (const camper of checkedInWithWristbands) {
+      for (const camper of campers || []) {
         // Get comprehensive data including medical info
         const { data: comprehensiveData, error: dataError } = await supabase
           .rpc('get_comprehensive_camper_data', { p_camper_id: camper.id });
@@ -88,29 +110,25 @@ function WristbandUpdatesContent() {
 
         const camperData = comprehensiveData[0];
 
-        // Create a hash of current data to compare
-        const currentDataString = JSON.stringify({
-          first_name: camperData.first_name,
-          last_name: camperData.last_name,
-          date_of_birth: camperData.date_of_birth,
-          allergies: camperData.allergies || [],
-          medications: camperData.medications || [],
-          swim_level: camperData.swim_level,
-          cabin_assignment: camperData.cabin_assignment,
-        });
-
-        // For now, we'll assume any camper checked in more than 1 hour ago might have outdated data
-        // In a real implementation, you'd store the data hash when programming the wristband
-        const checkInTime = new Date(camper.last_check_in).getTime();
-        const now = new Date().getTime();
-        const hoursSinceCheckIn = (now - checkInTime) / (1000 * 60 * 60);
+        // Create a hash of current data
+        const currentHash = await createDataHash(camperData);
 
         // Check if data was updated after check-in
-        const camperUpdatedAt = new Date(camper.updated_at || camper.last_check_in).getTime();
+        const checkInTime = new Date(camper.last_check_in || camper.created_at).getTime();
+        const camperUpdatedAt = new Date(camper.updated_at || camper.created_at).getTime();
         const dataUpdatedAfterCheckIn = camperUpdatedAt > checkInTime;
 
-        if (dataUpdatedAfterCheckIn) {
-          console.log('Camper has outdated wristband:', camper.first_name, camper.last_name);
+        // Also check if the wristband_data_hash exists and differs from current hash
+        const hashMismatch = camper.wristband_data_hash && camper.wristband_data_hash !== currentHash;
+
+        if (dataUpdatedAfterCheckIn || hashMismatch) {
+          console.log('Camper has outdated wristband:', camper.first_name, camper.last_name, {
+            dataUpdatedAfterCheckIn,
+            hashMismatch,
+            checkInTime: new Date(checkInTime).toISOString(),
+            updatedAt: new Date(camperUpdatedAt).toISOString(),
+          });
+          
           outdated.push({
             id: camper.id,
             first_name: camper.first_name,
@@ -118,11 +136,12 @@ function WristbandUpdatesContent() {
             date_of_birth: camper.date_of_birth,
             check_in_status: camper.check_in_status,
             wristband_id: camper.wristband_id,
-            last_check_in: camper.last_check_in,
+            last_check_in: camper.last_check_in || camper.created_at,
             swim_level: camper.swim_level,
             cabin_assignment: camper.cabin_assignment,
-            wristband_data_hash: null,
-            current_data_hash: currentDataString,
+            wristband_data_hash: camper.wristband_data_hash,
+            current_data_hash: currentHash,
+            updated_at: camper.updated_at,
           });
         }
       }
@@ -288,6 +307,19 @@ function WristbandUpdatesContent() {
                     <Text style={styles.infoLabel}>Last Programmed:</Text>
                     <Text style={styles.infoValue}>
                       {new Date(camper.last_check_in).toLocaleDateString()}
+                    </Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <IconSymbol
+                      ios_icon_name="pencil"
+                      android_material_icon_name="edit"
+                      size={18}
+                      color={colors.warning}
+                    />
+                    <Text style={styles.infoLabel}>Last Updated:</Text>
+                    <Text style={styles.infoValue}>
+                      {new Date(camper.updated_at).toLocaleDateString()}
                     </Text>
                   </View>
 
