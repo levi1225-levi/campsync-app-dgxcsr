@@ -191,7 +191,44 @@ export function clearLockCodeCache(): void {
 }
 
 /**
+ * Simple XOR encryption for data obfuscation
+ * This is NOT military-grade encryption, but provides basic data protection
+ * Combined with password-protected NFC tags, it provides good security for camp use
+ */
+function xorEncrypt(data: string, key: string): string {
+  let result = '';
+  for (let i = 0; i < data.length; i++) {
+    const charCode = data.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+    result += String.fromCharCode(charCode);
+  }
+  return result;
+}
+
+/**
+ * Base64 encode with URL-safe characters
+ */
+function base64Encode(str: string): string {
+  // Convert to base64 and make URL-safe
+  const base64 = Buffer.from(str, 'binary').toString('base64');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+/**
+ * Base64 decode from URL-safe characters
+ */
+function base64Decode(str: string): string {
+  // Convert from URL-safe base64
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if needed
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return Buffer.from(base64, 'base64').toString('binary');
+}
+
+/**
  * Encrypts comprehensive camper data to be written to NFC wristband
+ * 🔐 ALL DATA IS NOW ENCRYPTED INCLUDING THE NAME
  * OPTIMIZED FOR 540 BYTE NFC CHIPS - includes essential offline data
  * NOW INCLUDES: Parent/Guardian and Emergency Contact Information
  * @param camperData - The comprehensive camper information to encrypt
@@ -199,10 +236,11 @@ export function clearLockCodeCache(): void {
  */
 export async function encryptWristbandData(camperData: WristbandCamperData): Promise<string> {
   try {
-    console.log('🔐 ENCRYPTION START - Encrypting comprehensive wristband data for camper:', camperData.id);
+    console.log('🔐 ENCRYPTION START - Encrypting ALL wristband data (including name) for camper:', camperData.id);
     console.log('📊 Input data:', JSON.stringify(camperData, null, 2));
     
     // Create compact data structure with essential offline information
+    // 🔐 ALL FIELDS WILL BE ENCRYPTED
     const compactData = {
       id: camperData.id,
       fn: camperData.firstName,
@@ -231,15 +269,24 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
     // Create a compact JSON string
     const dataString = JSON.stringify(compactData);
     console.log('📦 Compact data string created (size):', dataString.length, 'bytes');
-    console.log('📦 Compact data:', dataString);
+    console.log('📦 Compact data (BEFORE ENCRYPTION):', dataString);
     
-    // Create a hash for verification using the encryption key
-    const dataToEncrypt = `${ENCRYPTION_KEY}:${dataString}`;
-    console.log('🔐 Creating SHA256 hash for verification...');
+    // 🔐 STEP 1: XOR encrypt the entire data string (including name)
+    console.log('🔐 Step 1: XOR encrypting ALL data including name...');
+    const encryptedData = xorEncrypt(dataString, ENCRYPTION_KEY);
+    console.log('✅ Data XOR encrypted');
     
+    // 🔐 STEP 2: Base64 encode the encrypted data for safe NFC storage
+    console.log('🔐 Step 2: Base64 encoding encrypted data...');
+    const base64Encrypted = base64Encode(encryptedData);
+    console.log('✅ Data base64 encoded, size:', base64Encrypted.length, 'bytes');
+    
+    // 🔐 STEP 3: Create a hash for verification using the encryption key
+    console.log('🔐 Step 3: Creating SHA256 hash for verification...');
+    const dataToHash = `${ENCRYPTION_KEY}:${dataString}`;
     const fullHash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
-      dataToEncrypt
+      dataToHash
     );
     
     console.log('✅ Full hash generated:', fullHash);
@@ -248,18 +295,19 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
     const shortHash = fullHash.substring(0, 8);
     console.log('✅ Short hash (first 8 chars):', shortHash);
     
-    // Combine hash with data
-    const encryptedPayload = `${shortHash}:${dataString}`;
+    // 🔐 STEP 4: Combine hash with encrypted data
+    const encryptedPayload = `${shortHash}:${base64Encrypted}`;
     
     console.log('✅ ENCRYPTION COMPLETE - Final encrypted payload size:', encryptedPayload.length, 'bytes');
-    console.log('📦 Encrypted payload preview:', encryptedPayload.substring(0, 100) + '...');
+    console.log('📦 Encrypted payload preview (UNREADABLE):', encryptedPayload.substring(0, 100) + '...');
     
     if (encryptedPayload.length > 500) {
       console.warn('⚠️ WARNING: Encrypted payload is large. May not fit on some NFC chips.');
     }
     
-    console.log('✅ Wristband data encrypted successfully with offline capabilities');
-    console.log('✅ Included: Name, DOB, Allergies, Medications, Swim Level, Cabin, Parent/Guardian, Emergency Contact');
+    console.log('✅ Wristband data FULLY ENCRYPTED successfully with offline capabilities');
+    console.log('🔐 ALL DATA ENCRYPTED: Name, DOB, Allergies, Medications, Swim Level, Cabin, Parent/Guardian, Emergency Contact');
+    console.log('🔒 Data is now unreadable without the encryption key');
     
     return encryptedPayload;
   } catch (error) {
@@ -271,6 +319,7 @@ export async function encryptWristbandData(camperData: WristbandCamperData): Pro
 
 /**
  * Decrypts comprehensive camper data read from NFC wristband
+ * 🔓 DECRYPTS ALL DATA INCLUDING THE NAME
  * NOW INCLUDES: Parent/Guardian and Emergency Contact Information
  * @param encryptedData - The encrypted string read from wristband
  * @returns Decrypted comprehensive camper information
@@ -282,7 +331,7 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
   try {
     console.log('🔓 DECRYPTION START - Decrypting comprehensive wristband data...');
     console.log('📦 Encrypted data length:', encryptedData.length, 'bytes');
-    console.log('📦 Encrypted data preview:', encryptedData.substring(0, 100) + '...');
+    console.log('📦 Encrypted data preview (UNREADABLE):', encryptedData.substring(0, 100) + '...');
     
     // Split the encrypted payload
     const parts = encryptedData.split(':');
@@ -292,23 +341,41 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
     }
     
     const shortHash = parts[0];
-    const dataString = parts.slice(1).join(':');
+    const base64Encrypted = parts.slice(1).join(':');
     
     console.log('🔍 Extracted short hash:', shortHash);
-    console.log('🔍 Extracted data string length:', dataString.length, 'bytes');
+    console.log('🔍 Extracted base64 encrypted data length:', base64Encrypted.length, 'bytes');
     
-    // Parse the data
+    // 🔓 STEP 1: Base64 decode the encrypted data
+    console.log('🔓 Step 1: Base64 decoding encrypted data...');
+    let encryptedBinary: string;
+    try {
+      encryptedBinary = base64Decode(base64Encrypted);
+      console.log('✅ Data base64 decoded');
+    } catch (decodeError) {
+      console.error('❌ Failed to base64 decode data:', decodeError);
+      return null;
+    }
+    
+    // 🔓 STEP 2: XOR decrypt the data
+    console.log('🔓 Step 2: XOR decrypting data...');
+    const dataString = xorEncrypt(encryptedBinary, ENCRYPTION_KEY);
+    console.log('✅ Data XOR decrypted');
+    console.log('📦 Decrypted data string length:', dataString.length, 'bytes');
+    
+    // Parse the decrypted data
     let data;
     try {
       data = JSON.parse(dataString);
       console.log('✅ Data parsed successfully:', JSON.stringify(data, null, 2));
     } catch (parseError) {
-      console.error('❌ Failed to parse wristband data:', parseError);
+      console.error('❌ Failed to parse decrypted wristband data:', parseError);
+      console.error('❌ Decrypted string:', dataString.substring(0, 200));
       return null;
     }
     
-    // Verify the hash
-    console.log('🔐 Verifying hash...');
+    // 🔐 STEP 3: Verify the hash
+    console.log('🔐 Step 3: Verifying hash...');
     const dataToVerify = `${ENCRYPTION_KEY}:${dataString}`;
     const verifyHash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
@@ -323,7 +390,7 @@ export async function decryptWristbandData(encryptedData: string): Promise<Wrist
       return null;
     }
     
-    console.log('✅ Hash verification successful');
+    console.log('✅ Hash verification successful - data integrity confirmed');
     console.log('✅ Wristband data decrypted and verified successfully');
     console.log('👤 Camper:', data.fn, data.ln);
     

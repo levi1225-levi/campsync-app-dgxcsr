@@ -221,6 +221,7 @@ function CheckInScreenContent() {
     console.log('🚀 Starting check-in process for:', camper.id);
     setIsProgramming(true);
     let nfcWriteSuccess = false;
+    let passwordProtected = false;
     let wristbandId = '';
 
     try {
@@ -229,7 +230,10 @@ function CheckInScreenContent() {
         throw new Error('Failed to fetch comprehensive camper data');
       }
       
+      console.log('🔐 Encrypting ALL data including name...');
       const encryptedData = await encryptWristbandData(comprehensiveData);
+      console.log('✅ Data fully encrypted, size:', encryptedData.length, 'bytes');
+      
       if (encryptedData.length > 500) {
         throw new Error(`Data too large (${encryptedData.length} bytes). Maximum is 500 bytes.`);
       }
@@ -243,12 +247,17 @@ function CheckInScreenContent() {
         alertMessage: `Hold wristband near device to check in ${camper.first_name} ${camper.last_name}`,
       });
 
+      console.log('✍️ Writing encrypted data to wristband...');
       await NfcManager.ndefHandler.writeNdefMessage(bytes);
+      console.log('✅ Encrypted data written to wristband');
       nfcWriteSuccess = true;
 
-      // Password protection
+      // 🔒 Password protection - CRITICAL SECURITY STEP
+      console.log('🔒 CRITICAL: Applying password protection to prevent tampering...');
       try {
         const lockCode = await getWristbandLockCode();
+        console.log('🔐 Lock code retrieved for password protection');
+        
         const tag = await NfcManager.getTag();
         
         if (tag) {
@@ -257,17 +266,28 @@ function CheckInScreenContent() {
             passwordBytes.push(lockCode.charCodeAt(i % lockCode.length));
           }
           
-          try {
-            await NfcManager.transceive([0xA2, 0xE5, ...passwordBytes]);
-            await NfcManager.transceive([0xA2, 0xE6, passwordBytes[0], passwordBytes[1], 0x00, 0x00]);
-            await NfcManager.transceive([0xA2, 0xE3, 0x04, 0x00, 0x00, 0x00]);
-            console.log('✅ Wristband password-protected');
-          } catch (lockError: any) {
-            console.warn('⚠️ Password protection failed:', lockError.message);
-          }
+          console.log('🔐 Setting password on wristband...');
+          await NfcManager.transceive([0xA2, 0xE5, ...passwordBytes]);
+          console.log('✅ Password set successfully');
+          
+          console.log('🔐 Setting PACK (password acknowledge)...');
+          await NfcManager.transceive([0xA2, 0xE6, passwordBytes[0], passwordBytes[1], 0x00, 0x00]);
+          console.log('✅ PACK set successfully');
+          
+          console.log('🔐 Setting AUTH0 to protect data pages...');
+          await NfcManager.transceive([0xA2, 0xE3, 0x04, 0x00, 0x00, 0x00]);
+          console.log('✅ AUTH0 set successfully');
+          
+          passwordProtected = true;
+          console.log('🔒✅ WRISTBAND IS NOW PASSWORD-PROTECTED AND LOCKED');
+        } else {
+          console.warn('⚠️ Could not get tag for password protection');
+          throw new Error('Tag not available for password protection');
         }
       } catch (lockError: any) {
-        console.warn('⚠️ Password protection error:', lockError.message);
+        console.error('❌ PASSWORD PROTECTION FAILED:', lockError.message);
+        console.error('❌ This is a SECURITY ISSUE - wristband is NOT locked');
+        throw new Error(`Password protection failed: ${lockError.message}. Wristband is NOT secure.`);
       }
 
       const tag = await NfcManager.getTag();
@@ -287,9 +307,13 @@ function CheckInScreenContent() {
 
       console.log('✅ Database updated successfully:', dbResult);
 
+      const securityStatus = passwordProtected 
+        ? '🔒 Wristband is encrypted and password-protected'
+        : '⚠️ Wristband is encrypted but NOT password-protected';
+
       Alert.alert(
         'Check-In Successful! ✅',
-        `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}`,
+        `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}\n\n${securityStatus}\n\n🔐 All data including name is encrypted`,
         [{ text: 'OK', onPress: () => {
           setSelectedCamper(null);
           setSearchQuery('');
@@ -302,6 +326,10 @@ function CheckInScreenContent() {
       let errorMessage = 'Failed to write to wristband. ';
       if (error.message?.includes('too large')) {
         errorMessage = error.message;
+      } else if (error.message?.includes('Password protection failed')) {
+        errorMessage = error.message + '\n\nThe wristband data was written but is NOT secure. Please try again with a new wristband.';
+      } else if (nfcWriteSuccess && !passwordProtected) {
+        errorMessage = 'Wristband programmed but password protection failed. The wristband is NOT secure. Please try again.';
       } else if (nfcWriteSuccess) {
         errorMessage = 'Wristband programmed but database update failed.';
       } else {
@@ -322,6 +350,7 @@ function CheckInScreenContent() {
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
     setIsProgramming(true);
     let nfcEraseSuccess = false;
+    let passwordRemoved = false;
 
     try {
       const lockCode = await getWristbandLockCode();
@@ -334,10 +363,13 @@ function CheckInScreenContent() {
         alertMessage: `Hold wristband near device to check out ${camper.first_name} ${camper.last_name}`,
       });
 
+      console.log('🔓 Unlocking wristband with password...');
       try {
         await NfcManager.transceive([0x1B, ...passwordBytes]);
+        console.log('✅ Wristband unlocked successfully');
       } catch (unlockError: any) {
         console.warn('⚠️ Unlock failed:', unlockError.message);
+        console.log('ℹ️ Attempting to erase anyway...');
       }
 
       const emptyBytes = Ndef.encodeMessage([Ndef.textRecord('')]);
@@ -345,13 +377,19 @@ function CheckInScreenContent() {
         throw new Error('Failed to encode empty message');
       }
 
+      console.log('🗑️ Erasing wristband data...');
       await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
+      console.log('✅ Wristband data erased');
       nfcEraseSuccess = true;
 
+      console.log('🔓 Removing password protection...');
       try {
         await NfcManager.transceive([0xA2, 0xE3, 0xFF, 0x00, 0x00, 0x00]);
+        console.log('✅ Password protection removed - wristband reset to factory defaults');
+        passwordRemoved = true;
       } catch (resetError: any) {
-        console.warn('⚠️ Could not remove password:', resetError.message);
+        console.error('❌ Could not remove password protection:', resetError.message);
+        throw new Error(`Password removal failed: ${resetError.message}`);
       }
 
       await NfcManager.cancelTechnologyRequest();
@@ -369,7 +407,7 @@ function CheckInScreenContent() {
 
       Alert.alert(
         'Check-Out Successful! ✅',
-        `${camper.first_name} ${camper.last_name} has been checked out.`,
+        `${camper.first_name} ${camper.last_name} has been checked out.\n\n🔓 Wristband erased and unlocked\n✅ Ready for next camper`,
         [{ text: 'OK', onPress: () => {
           setSelectedCamper(null);
           setSearchQuery('');
@@ -381,7 +419,11 @@ function CheckInScreenContent() {
       
       let errorMessage = 'Failed to erase wristband. ';
       if (error.message?.includes('authentication')) {
-        errorMessage = 'Could not unlock wristband. Try using NFC Tools.';
+        errorMessage = 'Could not unlock wristband. The password may be different. Try using NFC Tools to unlock manually.';
+      } else if (error.message?.includes('Password removal failed')) {
+        errorMessage = error.message + '\n\nThe wristband data was erased but is still password-protected. Use NFC Tools to unlock it.';
+      } else if (nfcEraseSuccess && !passwordRemoved) {
+        errorMessage = 'Wristband erased but password protection could not be removed. Use NFC Tools to unlock it.';
       } else if (nfcEraseSuccess) {
         errorMessage = 'Wristband erased but database update failed.';
       } else {
@@ -436,7 +478,7 @@ function CheckInScreenContent() {
             <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check-circle" size={40} color="#FFFFFF" />
           </View>
           <Text style={styles.headerTitle}>Check-In & Check-Out</Text>
-          <Text style={styles.headerSubtitle}>Manage camper arrivals and departures</Text>
+          <Text style={styles.headerSubtitle}>Secure encrypted wristband programming</Text>
         </LinearGradient>
       </View>
 
@@ -450,7 +492,7 @@ function CheckInScreenContent() {
       {nfcInitialized && nfcSupported && nfcEnabled && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
           <IconSymbol ios_icon_name="checkmark.shield.fill" android_material_icon_name="verified-user" size={20} color="#FFFFFF" />
-          <Text style={styles.statusText}>🔒 NFC Ready</Text>
+          <Text style={styles.statusText}>🔒 NFC Ready - Encrypted & Locked Mode</Text>
         </BlurView>
       )}
 
@@ -507,13 +549,13 @@ function CheckInScreenContent() {
 
               <TouchableOpacity style={styles.actionButton} onPress={() => handleCheckIn(selectedCamper)} disabled={isProgramming}>
                 <LinearGradient colors={['#10B981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.buttonGradient}>
-                  <Text style={styles.actionButtonText}>Check In</Text>
+                  <Text style={styles.actionButtonText}>Check In & Lock Wristband</Text>
                 </LinearGradient>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.actionButton} onPress={() => handleCheckOutPress(selectedCamper)} disabled={isProgramming}>
                 <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.buttonGradient}>
-                  <Text style={styles.actionButtonText}>Check Out</Text>
+                  <Text style={styles.actionButtonText}>Check Out & Unlock Wristband</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </GlassCard>
@@ -524,7 +566,7 @@ function CheckInScreenContent() {
       <ConfirmModal
         visible={showCheckOutModal}
         title="Check Out & Erase Wristband"
-        message={`Check out ${camperFullName}?`}
+        message={`Check out ${camperFullName}? This will erase and unlock their wristband.`}
         confirmText="Check Out"
         cancelText="Cancel"
         confirmStyle="destructive"
