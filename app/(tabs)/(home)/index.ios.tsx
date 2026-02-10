@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'expo-router';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import * as Network from 'expo-network';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, commonStyles } from '@/styles/commonStyles';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
+import * as Network from 'expo-network';
+import { colors, commonStyles } from '@/styles/commonStyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function HomeScreenContent() {
@@ -39,8 +39,9 @@ function HomeScreenContent() {
     try {
       console.log('Loading camper stats...');
       
-      // Use RPC to bypass RLS and get all campers
-      const { data: campers, error } = await supabase.rpc('get_all_campers');
+      const { data: campers, error } = await supabase
+        .from('campers')
+        .select('check_in_status');
       
       if (error) {
         console.error('Error loading camper stats:', error);
@@ -48,18 +49,9 @@ function HomeScreenContent() {
       }
       
       if (campers) {
-        // Count campers by status - handle both hyphen and underscore formats
-        const checkedIn = campers.filter((c: any) => 
-          c.check_in_status === 'checked-in' || c.check_in_status === 'checked_in'
-        ).length;
-        
-        const checkedOut = campers.filter((c: any) => 
-          c.check_in_status === 'checked-out' || c.check_in_status === 'checked_out'
-        ).length;
-        
-        const notArrived = campers.filter((c: any) => 
-          c.check_in_status === 'not-arrived' || c.check_in_status === 'not_arrived'
-        ).length;
+        const checkedIn = campers.filter(c => c.check_in_status === 'checked-in' || c.check_in_status === 'checked_in').length;
+        const checkedOut = campers.filter(c => c.check_in_status === 'checked-out' || c.check_in_status === 'checked_out').length;
+        const notArrived = campers.filter(c => c.check_in_status === 'not-arrived' || c.check_in_status === 'not_arrived').length;
         
         setStats({
           checkedIn,
@@ -110,35 +102,35 @@ function HomeScreenContent() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
     >
-      <View style={{ paddingTop: insets.top }}>
-        <LinearGradient 
-          colors={[colors.primary, colors.primaryDark]} 
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerGreeting}>Welcome back,</Text>
-              <Text style={styles.headerTitle}>{user?.fullName || user?.full_name || 'User'}</Text>
-              <View style={styles.roleBadge}>
-                <IconSymbol
-                  ios_icon_name="person.circle.fill"
-                  android_material_icon_name="account-circle"
-                  size={16}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.roleText}>{user?.role || 'Staff'}</Text>
-              </View>
-            </View>
-            <View style={[styles.statusIndicator, { backgroundColor: isOnline ? colors.success : colors.error }]}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
+      {/* Header with proper iOS spacing */}
+      <LinearGradient 
+        colors={[colors.primary, colors.primaryDark]} 
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerGreeting}>Welcome back,</Text>
+            <Text style={styles.headerTitle}>{user?.fullName || user?.full_name || 'User'}</Text>
+            <View style={styles.roleBadge}>
+              <IconSymbol
+                ios_icon_name="person.circle.fill"
+                android_material_icon_name="account-circle"
+                size={16}
+                color="#FFFFFF"
+              />
+              <Text style={styles.roleText}>{user?.role || 'Staff'}</Text>
             </View>
           </View>
-        </LinearGradient>
-      </View>
+          <View style={[styles.statusIndicator, { backgroundColor: isOnline ? colors.success : colors.error }]}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
+          </View>
+        </View>
+      </LinearGradient>
 
+      {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <TouchableOpacity 
           style={[styles.statCard, styles.statCardPrimary]}
@@ -229,6 +221,7 @@ function HomeScreenContent() {
         </TouchableOpacity>
       </View>
 
+      {/* Quick Actions */}
       <View style={styles.quickActionsSection}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         
@@ -329,6 +322,7 @@ function HomeScreenContent() {
         </TouchableOpacity>
       </View>
 
+      {/* Admin Actions - Super Admin Only */}
       {isSuperAdmin && (
         <View style={styles.quickActionsSection}>
           <Text style={styles.sectionTitle}>Admin Actions</Text>
@@ -420,15 +414,9 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 20,
     paddingBottom: 32,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
   },
   headerContent: {
     flexDirection: 'row',
@@ -500,8 +488,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowRadius: 8,
   },
   statCardPrimary: {},
   statCardSecondary: {},
@@ -543,10 +530,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   actionCardGradient: {
     flexDirection: 'row',

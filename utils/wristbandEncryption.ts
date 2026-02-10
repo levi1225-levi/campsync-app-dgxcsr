@@ -205,25 +205,87 @@ function xorEncrypt(data: string, key: string): string {
 }
 
 /**
- * Base64 encode with URL-safe characters
+ * Base64 encode with URL-safe characters - FIXED for React Native
  */
 function base64Encode(str: string): string {
-  // Convert to base64 and make URL-safe
-  const base64 = Buffer.from(str, 'binary').toString('base64');
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  try {
+    // Convert string to byte array
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      bytes.push(str.charCodeAt(i));
+    }
+    
+    // Convert byte array to base64 string manually
+    const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let result = '';
+    
+    for (let i = 0; i < bytes.length; i += 3) {
+      const byte1 = bytes[i];
+      const byte2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+      const byte3 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+      
+      const encoded1 = byte1 >> 2;
+      const encoded2 = ((byte1 & 3) << 4) | (byte2 >> 4);
+      const encoded3 = ((byte2 & 15) << 2) | (byte3 >> 6);
+      const encoded4 = byte3 & 63;
+      
+      result += base64Chars[encoded1];
+      result += base64Chars[encoded2];
+      result += i + 1 < bytes.length ? base64Chars[encoded3] : '=';
+      result += i + 2 < bytes.length ? base64Chars[encoded4] : '=';
+    }
+    
+    // Make URL-safe
+    return result.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  } catch (error) {
+    console.error('❌ Base64 encode error:', error);
+    throw new Error('Failed to encode data');
+  }
 }
 
 /**
- * Base64 decode from URL-safe characters
+ * Base64 decode from URL-safe characters - FIXED for React Native
  */
 function base64Decode(str: string): string {
-  // Convert from URL-safe base64
-  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-  // Add padding if needed
-  while (base64.length % 4) {
-    base64 += '=';
+  try {
+    // Convert from URL-safe base64
+    let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Add padding if needed
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    
+    // Decode base64 manually
+    const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    const bytes: number[] = [];
+    
+    for (let i = 0; i < base64.length; i += 4) {
+      const encoded1 = base64Chars.indexOf(base64[i]);
+      const encoded2 = base64Chars.indexOf(base64[i + 1]);
+      const encoded3 = base64Chars.indexOf(base64[i + 2]);
+      const encoded4 = base64Chars.indexOf(base64[i + 3]);
+      
+      const byte1 = (encoded1 << 2) | (encoded2 >> 4);
+      const byte2 = ((encoded2 & 15) << 4) | (encoded3 >> 2);
+      const byte3 = ((encoded3 & 3) << 6) | encoded4;
+      
+      bytes.push(byte1);
+      if (encoded3 !== -1 && base64[i + 2] !== '=') bytes.push(byte2);
+      if (encoded4 !== -1 && base64[i + 3] !== '=') bytes.push(byte3);
+    }
+    
+    // Convert byte array back to string
+    let result = '';
+    for (let i = 0; i < bytes.length; i++) {
+      result += String.fromCharCode(bytes[i]);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Base64 decode error:', error);
+    throw new Error('Failed to decode data');
   }
-  return Buffer.from(base64, 'base64').toString('binary');
 }
 
 /**
