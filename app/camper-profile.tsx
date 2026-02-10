@@ -130,26 +130,22 @@ function CamperProfileContent() {
       }
       setError(null);
 
-      const { data: allCampers, error: rpcError } = await supabase.rpc('get_all_campers');
+      // Use get_comprehensive_camper_data RPC which includes medical info
+      console.log('🔍 Fetching comprehensive camper data with RLS bypass...');
+      const { data: comprehensiveDataArray, error: rpcError } = await supabase
+        .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
       
       if (rpcError) {
         console.error('RPC Error:', rpcError);
-        throw new Error(`Failed to load campers: ${rpcError.message}`);
+        throw new Error(`Failed to load camper: ${rpcError.message}`);
       }
 
-      if (!allCampers || !Array.isArray(allCampers)) {
-        console.error('Invalid response from get_all_campers:', allCampers);
-        throw new Error('Invalid response from database');
-      }
-
-      console.log('Total campers loaded:', allCampers.length);
-
-      const camperData = allCampers.find((c: any) => c.id === camperId);
-
-      if (!camperData) {
+      if (!comprehensiveDataArray || comprehensiveDataArray.length === 0) {
         console.error('Camper not found with ID:', camperId);
         throw new Error('Camper not found');
       }
+
+      const camperData = comprehensiveDataArray[0];
 
       console.log('=== CAMPER DATA LOADED ===');
       console.log('Name:', camperData.first_name, camperData.last_name);
@@ -177,51 +173,45 @@ function CamperProfileContent() {
 
       let medicalInfo = null;
       if (canViewMedical) {
-        try {
-          console.log('🔍 Loading medical info for camper:', camperId);
-          const { data: medicalData, error: medicalError } = await supabase
-            .from('camper_medical_info')
-            .select('*')
-            .eq('camper_id', camperId)
-            .maybeSingle();
+        // Medical info comes from the RPC response
+        const medicalData = camperData.medical_info;
+        
+        console.log('🔍 Checking medical_info from RPC response...');
+        console.log('📊 Medical data exists:', !!medicalData);
+        
+        if (medicalData) {
+          console.log('✅ Medical info found in comprehensive data');
+          console.log('📋 Medical data raw:', JSON.stringify(medicalData, null, 2));
           
-          if (medicalError) {
-            console.error('❌ Medical info error:', medicalError);
-          } else if (medicalData) {
-            console.log('✅ Raw medical data from DB:', JSON.stringify(medicalData, null, 2));
-            
-            const allergiesArray = Array.isArray(medicalData.allergies) ? medicalData.allergies : [];
-            const medicationsArray = Array.isArray(medicalData.medications) ? medicalData.medications : [];
-            const dietaryArray = Array.isArray(medicalData.dietary_restrictions) ? medicalData.dietary_restrictions : [];
-            const conditionsArray = Array.isArray(medicalData.medical_conditions) ? medicalData.medical_conditions : [];
-            
-            medicalInfo = {
-              allergies: allergiesArray,
-              medications: medicationsArray,
-              dietary_restrictions: dietaryArray,
-              medical_conditions: conditionsArray,
-              special_care_instructions: medicalData.special_care_instructions || null,
-              doctor_name: medicalData.doctor_name || null,
-              doctor_phone: medicalData.doctor_phone || null,
-              insurance_provider: medicalData.insurance_provider || null,
-              insurance_number: medicalData.insurance_number || null,
-              notes: medicalData.notes || null,
-              has_epi_pen: medicalData.has_epi_pen || false,
-            };
-            
-            console.log('📋 Parsed medical info:');
-            console.log('  - Allergies:', allergiesArray);
-            console.log('  - Medications:', medicationsArray);
-            console.log('  - Dietary restrictions:', dietaryArray);
-            console.log('  - Medical conditions:', conditionsArray);
-            console.log('  - Has EpiPen:', medicalData.has_epi_pen);
-            console.log('  - Doctor:', medicalData.doctor_name);
-            console.log('  - Insurance:', medicalData.insurance_provider);
-          } else {
-            console.log('ℹ️ No medical info found for camper');
-          }
-        } catch (medicalErr) {
-          console.error('Error loading medical info:', medicalErr);
+          const allergiesArray = Array.isArray(medicalData.allergies) ? medicalData.allergies : [];
+          const medicationsArray = Array.isArray(medicalData.medications) ? medicalData.medications : [];
+          const dietaryArray = Array.isArray(medicalData.dietary_restrictions) ? medicalData.dietary_restrictions : [];
+          const conditionsArray = Array.isArray(medicalData.medical_conditions) ? medicalData.medical_conditions : [];
+          
+          medicalInfo = {
+            allergies: allergiesArray,
+            medications: medicationsArray,
+            dietary_restrictions: dietaryArray,
+            medical_conditions: conditionsArray,
+            special_care_instructions: medicalData.special_care_instructions || null,
+            doctor_name: medicalData.doctor_name || null,
+            doctor_phone: medicalData.doctor_phone || null,
+            insurance_provider: medicalData.insurance_provider || null,
+            insurance_number: medicalData.insurance_number || null,
+            notes: medicalData.notes || null,
+            has_epi_pen: medicalData.has_epi_pen || false,
+          };
+          
+          console.log('📋 Parsed medical info:');
+          console.log('  - Allergies:', allergiesArray);
+          console.log('  - Medications:', medicationsArray);
+          console.log('  - Dietary restrictions:', dietaryArray);
+          console.log('  - Medical conditions:', conditionsArray);
+          console.log('  - Has EpiPen:', medicalData.has_epi_pen);
+          console.log('  - Doctor:', medicalData.doctor_name);
+          console.log('  - Insurance:', medicalData.insurance_provider);
+        } else {
+          console.log('ℹ️ No medical info found for camper');
         }
       }
 
@@ -397,22 +387,38 @@ function CamperProfileContent() {
   }
 
   const hasMedicalInfo = canViewMedical && camper.medical_info;
+  
+  // Helper function to check if an array has actual content
+  const hasArrayContent = (arr: any[] | null | undefined): boolean => {
+    return Array.isArray(arr) && arr.length > 0 && arr.some(item => item && String(item).trim().length > 0);
+  };
+  
+  // Helper function to check if a string has actual content
+  const hasStringContent = (str: string | null | undefined): boolean => {
+    return typeof str === 'string' && str.trim().length > 0;
+  };
+  
   const hasAnyMedicalData = hasMedicalInfo && (
     camper.medical_info.has_epi_pen ||
-    (camper.medical_info.allergies && camper.medical_info.allergies.length > 0) ||
-    (camper.medical_info.medications && camper.medical_info.medications.length > 0) ||
-    (camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0) ||
-    (camper.medical_info.medical_conditions && camper.medical_info.medical_conditions.length > 0) ||
-    camper.medical_info.special_care_instructions ||
-    camper.medical_info.doctor_name ||
-    camper.medical_info.insurance_provider ||
-    camper.medical_info.notes
+    hasArrayContent(camper.medical_info.allergies) ||
+    hasArrayContent(camper.medical_info.medications) ||
+    hasArrayContent(camper.medical_info.dietary_restrictions) ||
+    hasArrayContent(camper.medical_info.medical_conditions) ||
+    hasStringContent(camper.medical_info.special_care_instructions) ||
+    hasStringContent(camper.medical_info.doctor_name) ||
+    hasStringContent(camper.medical_info.insurance_provider) ||
+    hasStringContent(camper.medical_info.notes)
   );
 
   console.log('🎨 RENDERING PROFILE');
   console.log('  - Can view medical:', canViewMedical);
   console.log('  - Has medical info object:', !!camper.medical_info);
   console.log('  - Has any medical data:', hasAnyMedicalData);
+  if (camper.medical_info) {
+    console.log('  - Allergies:', camper.medical_info.allergies);
+    console.log('  - Medications:', camper.medical_info.medications);
+    console.log('  - Has EpiPen:', camper.medical_info.has_epi_pen);
+  }
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -616,7 +622,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.allergies && camper.medical_info.allergies.length > 0 && (
+                {hasArrayContent(camper.medical_info.allergies) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.error }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -633,7 +639,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.medications && camper.medical_info.medications.length > 0 && (
+                {hasArrayContent(camper.medical_info.medications) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -650,7 +656,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.dietary_restrictions && camper.medical_info.dietary_restrictions.length > 0 && (
+                {hasArrayContent(camper.medical_info.dietary_restrictions) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.accent }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -667,7 +673,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.medical_conditions && camper.medical_info.medical_conditions.length > 0 && (
+                {hasArrayContent(camper.medical_info.medical_conditions) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.warning }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -684,7 +690,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.special_care_instructions && (
+                {hasStringContent(camper.medical_info.special_care_instructions) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.info }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -701,7 +707,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.doctor_name && (
+                {hasStringContent(camper.medical_info.doctor_name) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.primary }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -715,7 +721,7 @@ function CamperProfileContent() {
                     <Text style={styles.medicalText}>
                       {camper.medical_info.doctor_name}
                     </Text>
-                    {camper.medical_info.doctor_phone && (
+                    {hasStringContent(camper.medical_info.doctor_phone) && (
                       <Text style={[styles.medicalText, { marginTop: 4 }]}>
                         {camper.medical_info.doctor_phone}
                       </Text>
@@ -723,7 +729,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.insurance_provider && (
+                {hasStringContent(camper.medical_info.insurance_provider) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.secondary }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
@@ -737,7 +743,7 @@ function CamperProfileContent() {
                     <Text style={styles.medicalText}>
                       {camper.medical_info.insurance_provider}
                     </Text>
-                    {camper.medical_info.insurance_number && (
+                    {hasStringContent(camper.medical_info.insurance_number) && (
                       <Text style={[styles.medicalText, { marginTop: 4 }]}>
                         Policy: {camper.medical_info.insurance_number}
                       </Text>
@@ -745,7 +751,7 @@ function CamperProfileContent() {
                   </View>
                 )}
 
-                {camper.medical_info.notes && (
+                {hasStringContent(camper.medical_info.notes) && (
                   <View style={[commonStyles.card, styles.medicalCard, { borderLeftColor: colors.textSecondary }]}>
                     <View style={styles.medicalHeader}>
                       <IconSymbol
