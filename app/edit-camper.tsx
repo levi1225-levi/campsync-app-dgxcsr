@@ -82,6 +82,7 @@ function EditCamperContent() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dataLoadedKey, setDataLoadedKey] = useState(0); // Force re-render key
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState(new Date());
@@ -264,6 +265,9 @@ function EditCamperContent() {
         setHasEpiPen(false);
       }
 
+      // Force re-render by updating key
+      setDataLoadedKey(prev => prev + 1);
+      
       console.log('✅ LOAD COMPLETE - All data loaded successfully');
       setLoading(false);
     } catch (error: any) {
@@ -479,6 +483,7 @@ function EditCamperContent() {
   console.log('  🔢 Insurance number value prop:', `"${insuranceNumber}"`, '(length:', insuranceNumber.length, ')');
   console.log('  📝 Medical notes value prop:', `"${medicalNotes}"`, '(length:', medicalNotes.length, ')');
   console.log('  💉 EpiPen:', hasEpiPen);
+  console.log('  🔑 Data loaded key:', dataLoadedKey);
 
   return (
     <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top }]}>
@@ -508,6 +513,7 @@ function EditCamperContent() {
       </LinearGradient>
 
       <ScrollView
+        key={dataLoadedKey}
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -519,6 +525,7 @@ function EditCamperContent() {
           <View style={commonStyles.card}>
             <Text style={styles.label}>First Name *</Text>
             <TextInput
+              key={`firstName-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Enter first name"
               placeholderTextColor={colors.textSecondary}
@@ -532,6 +539,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Last Name *</Text>
             <TextInput
+              key={`lastName-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Enter last name"
               placeholderTextColor={colors.textSecondary}
@@ -575,6 +583,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Wristband ID</Text>
             <TextInput
+              key={`wristband-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Enter wristband ID (optional)"
               placeholderTextColor={colors.textSecondary}
@@ -619,6 +628,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Cabin Assignment</Text>
             <TextInput
+              key={`cabin-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Enter cabin assignment (optional)"
               placeholderTextColor={colors.textSecondary}
@@ -791,6 +801,7 @@ function EditCamperContent() {
             <Text style={styles.label}>Allergies</Text>
             <Text style={styles.helperText}>Separate multiple items with commas</Text>
             <TextInput
+              key={`allergies-${dataLoadedKey}`}
               style={[styles.input, styles.multilineInput]}
               placeholder="e.g., Peanuts, Tree nuts, Shellfish"
               placeholderTextColor={colors.textSecondary}
@@ -806,6 +817,7 @@ function EditCamperContent() {
             <Text style={[styles.label, { marginTop: 16 }]}>Medications</Text>
             <Text style={styles.helperText}>Separate multiple items with commas</Text>
             <TextInput
+              key={`medications-${dataLoadedKey}`}
               style={[styles.input, styles.multilineInput]}
               placeholder="e.g., Albuterol inhaler, EpiPen"
               placeholderTextColor={colors.textSecondary}
@@ -843,6 +855,7 @@ function EditCamperContent() {
             <Text style={[styles.label, { marginTop: 16 }]}>Dietary Restrictions</Text>
             <Text style={styles.helperText}>Separate multiple items with commas</Text>
             <TextInput
+              key={`dietary-${dataLoadedKey}`}
               style={[styles.input, styles.multilineInput]}
               placeholder="e.g., Vegetarian, Gluten-free"
               placeholderTextColor={colors.textSecondary}
@@ -858,6 +871,7 @@ function EditCamperContent() {
             <Text style={[styles.label, { marginTop: 16 }]}>Medical Conditions</Text>
             <Text style={styles.helperText}>Separate multiple items with commas</Text>
             <TextInput
+              key={`conditions-${dataLoadedKey}`}
               style={[styles.input, styles.multilineInput]}
               placeholder="e.g., Asthma, Diabetes"
               placeholderTextColor={colors.textSecondary}
@@ -872,6 +886,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Special Care Instructions</Text>
             <TextInput
+              key={`specialCare-${dataLoadedKey}`}
               style={[styles.input, styles.multilineInput]}
               placeholder="Any special care instructions..."
               placeholderTextColor={colors.textSecondary}
@@ -886,6 +901,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Doctor Name</Text>
             <TextInput
+              key={`doctorName-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Primary care physician"
               placeholderTextColor={colors.textSecondary}
@@ -898,6 +914,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Doctor Phone</Text>
             <TextInput
+              key={`doctorPhone-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Doctor's phone number"
               placeholderTextColor={colors.textSecondary}
@@ -911,6 +928,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Insurance Provider</Text>
             <TextInput
+              key={`insurance-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Insurance company name"
               placeholderTextColor={colors.textSecondary}
@@ -923,6 +941,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Insurance Number</Text>
             <TextInput
+              key={`insuranceNumber-${dataLoadedKey}`}
               style={styles.input}
               placeholder="Policy or member number"
               placeholderTextColor={colors.textSecondary}
@@ -935,6 +954,7 @@ function EditCamperContent() {
 
             <Text style={[styles.label, { marginTop: 16 }]}>Additional Notes</Text>
             <TextInput
+              key={`notes-${dataLoadedKey}`}
               style={[styles.input, styles.multilineInput]}
               placeholder="Any additional medical notes..."
               placeholderTextColor={colors.textSecondary}
