@@ -22,14 +22,14 @@ export default function TabLayout() {
         <Icon sf={{ default: 'checkmark.circle', selected: 'checkmark.circle.fill' }} drawable="check-circle" />
       </NativeTabs.Trigger>
       
-      <NativeTabs.Trigger name="nfc-scanner">
-        <Label>NFC</Label>
-        <Icon sf={{ default: 'wave.3.right', selected: 'wave.3.right.circle.fill' }} drawable="nfc" />
-      </NativeTabs.Trigger>
-      
       <NativeTabs.Trigger name="wristband-updates">
         <Label>Updates</Label>
         <Icon sf={{ default: 'arrow.clockwise', selected: 'arrow.clockwise.circle.fill' }} drawable="sync" />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="nfc-scanner">
+        <Label>NFC</Label>
+        <Icon sf={{ default: 'wave.3.right', selected: 'wave.3.right.circle.fill' }} drawable="nfc" />
       </NativeTabs.Trigger>
       
       <NativeTabs.Trigger name="profile">

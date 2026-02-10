@@ -165,12 +165,12 @@ function CheckInScreenContent() {
       
       if (error) {
         console.error('Error fetching comprehensive camper data via RPC:', error);
-        return null;
+        throw new Error(`Failed to fetch camper data: ${error.message}`);
       }
       
       if (!data || data.length === 0) {
         console.error('No camper data returned from RPC');
-        return null;
+        throw new Error('No camper data found');
       }
       
       const camperData = data[0];
@@ -215,9 +215,9 @@ function CheckInScreenContent() {
         emergencyContactPhone: emergencyInfo.phone || null,
         emergencyContactRelationship: emergencyInfo.relationship || null,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in fetchComprehensiveCamperData:', error);
-      return null;
+      throw error;
     }
   };
 
@@ -400,6 +400,8 @@ function CheckInScreenContent() {
         errorMessage += 'NFC scan timed out. Make sure the wristband is close to your device and hold it steady.';
       } else if (error.message?.includes('not writable') || error.message?.includes('write protection')) {
         errorMessage = 'This wristband is write-protected or locked. Please use a new, writable wristband or unlock it first.';
+      } else if (error.message?.includes('Failed to fetch') || error.message?.includes('No camper data')) {
+        errorMessage = `Could not load camper data from database. ${error.message}`;
       } else if (nfcWriteSuccess) {
         errorMessage = 'The wristband was programmed successfully but there was an issue updating the database. Please contact support.';
       } else {
@@ -592,9 +594,9 @@ function CheckInScreenContent() {
   }, [nfcSupported, nfcEnabled, eraseNFCTag]);
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      {/* Fixed Header */}
-      <View style={styles.headerContainer}>
+    <View style={commonStyles.container}>
+      {/* Fixed Header with proper iOS spacing */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
         <LinearGradient
           colors={['#6366F1', '#8B5CF6', '#EC4899']}
           start={{ x: 0, y: 0 }}

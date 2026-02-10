@@ -34,7 +34,7 @@ const HEADER_MIN_HEIGHT = 100;
 const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 function NFCScannerScreenContent() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScanning, setIsScanning] = useState(false);
@@ -45,7 +45,7 @@ function NFCScannerScreenContent() {
   const [isOffline, setIsOffline] = useState(false);
 
   // Allow scanning if authenticated with permission OR if offline (emergency access)
-  const canScan = isOffline || hasPermission(['super-admin', 'camp-admin', 'staff']);
+  const canScan = isOffline || (isAuthenticated && hasPermission(['super-admin', 'camp-admin', 'staff']));
 
   const headerHeight = scrollY.interpolate({
     inputRange: [0, HEADER_SCROLL_DISTANCE],
@@ -215,9 +215,9 @@ function NFCScannerScreenContent() {
   const modeColor = isOffline ? colors.warning : colors.success;
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      {/* Animated Header */}
-      <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
+    <View style={commonStyles.container}>
+      {/* Animated Header with proper iOS spacing */}
+      <Animated.View style={[styles.headerContainer, { height: headerHeight, paddingTop: insets.top }]}>
         <LinearGradient
           colors={['#8B5CF6', '#6366F1']}
           start={{ x: 0, y: 0 }}

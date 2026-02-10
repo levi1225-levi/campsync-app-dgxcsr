@@ -152,18 +152,20 @@ function WristbandUpdatesContent() {
 
   if (isLoading) {
     return (
-      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
-          Checking wristband data...
-        </Text>
+      <View style={[commonStyles.container, styles.loadingContainer]}>
+        <View style={{ paddingTop: insets.top }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
+            Checking wristband data...
+          </Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={[commonStyles.container, { paddingTop: insets.top }]}>
-      <View style={styles.headerContainer}>
+    <View style={commonStyles.container}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
         <LinearGradient
           colors={['#F59E0B', '#D97706', '#B45309']}
           start={{ x: 0, y: 0 }}

@@ -104,38 +104,40 @@ function HomeScreenContent() {
 
   return (
     <ScrollView 
-      style={[styles.container, { paddingTop: insets.top }]}
+      style={styles.container}
       contentContainerStyle={styles.contentContainer}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
     >
-      <LinearGradient 
-        colors={[colors.primary, colors.primaryDark]} 
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerGreeting}>Welcome back,</Text>
-            <Text style={styles.headerTitle}>{user?.fullName || user?.full_name || 'User'}</Text>
-            <View style={styles.roleBadge}>
-              <IconSymbol
-                ios_icon_name="person.circle.fill"
-                android_material_icon_name="account-circle"
-                size={16}
-                color="#FFFFFF"
-              />
-              <Text style={styles.roleText}>{user?.role || 'Staff'}</Text>
+      <View style={{ paddingTop: insets.top }}>
+        <LinearGradient 
+          colors={[colors.primary, colors.primaryDark]} 
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerGreeting}>Welcome back,</Text>
+              <Text style={styles.headerTitle}>{user?.fullName || user?.full_name || 'User'}</Text>
+              <View style={styles.roleBadge}>
+                <IconSymbol
+                  ios_icon_name="person.circle.fill"
+                  android_material_icon_name="account-circle"
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.roleText}>{user?.role || 'Staff'}</Text>
+              </View>
+            </View>
+            <View style={[styles.statusIndicator, { backgroundColor: isOnline ? colors.success : colors.error }]}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
             </View>
           </View>
-          <View style={[styles.statusIndicator, { backgroundColor: isOnline ? colors.success : colors.error }]}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
-          </View>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </View>
 
       <View style={styles.statsGrid}>
         <TouchableOpacity 
