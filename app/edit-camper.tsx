@@ -125,7 +125,7 @@ function EditCamperContent() {
 
       // ✅ Use get_comprehensive_camper_data which bypasses RLS and includes medical info
       console.log('🔍 Fetching comprehensive camper data with RLS bypass...');
-      const { data: comprehensiveData, error: comprehensiveError } = await supabase
+      const { data: comprehensiveDataArray, error: comprehensiveError } = await supabase
         .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
 
       if (comprehensiveError) {
@@ -133,7 +133,7 @@ function EditCamperContent() {
         throw new Error(`Failed to load camper: ${comprehensiveError.message}`);
       }
 
-      if (!comprehensiveData) {
+      if (!comprehensiveDataArray || comprehensiveDataArray.length === 0) {
         console.error('❌ Camper not found');
         Alert.alert(
           'Camper Not Found',
@@ -144,6 +144,9 @@ function EditCamperContent() {
         return;
       }
 
+      // Extract the first (and only) result from the array
+      const comprehensiveData = comprehensiveDataArray[0];
+      
       console.log('✅ Comprehensive data fetched successfully');
       console.log('📊 Full data structure:', JSON.stringify(comprehensiveData, null, 2));
 
