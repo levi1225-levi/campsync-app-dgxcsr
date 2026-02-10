@@ -39,9 +39,8 @@ function HomeScreenContent() {
     try {
       console.log('Loading camper stats...');
       
-      const { data: campers, error } = await supabase
-        .from('campers')
-        .select('check_in_status');
+      // Use RPC to bypass RLS and get all campers
+      const { data: campers, error } = await supabase.rpc('get_all_campers');
       
       if (error) {
         console.error('Error loading camper stats:', error);
@@ -49,9 +48,18 @@ function HomeScreenContent() {
       }
       
       if (campers) {
-        const checkedIn = campers.filter(c => c.check_in_status === 'checked-in' || c.check_in_status === 'checked_in').length;
-        const checkedOut = campers.filter(c => c.check_in_status === 'checked-out' || c.check_in_status === 'checked_out').length;
-        const notArrived = campers.filter(c => c.check_in_status === 'not-arrived' || c.check_in_status === 'not_arrived').length;
+        // Count campers by status - handle both hyphen and underscore formats
+        const checkedIn = campers.filter((c: any) => 
+          c.check_in_status === 'checked-in' || c.check_in_status === 'checked_in'
+        ).length;
+        
+        const checkedOut = campers.filter((c: any) => 
+          c.check_in_status === 'checked-out' || c.check_in_status === 'checked_out'
+        ).length;
+        
+        const notArrived = campers.filter((c: any) => 
+          c.check_in_status === 'not-arrived' || c.check_in_status === 'not_arrived'
+        ).length;
         
         setStats({
           checkedIn,
@@ -91,7 +99,6 @@ function HomeScreenContent() {
 
   const handleStatCardPress = useCallback((type: 'total' | 'checkedIn' | 'checkedOut' | 'notArrived') => {
     console.log('User tapped stat card:', type);
-    // Navigate to campers page - in the future, we can add filtering
     handleNavigation('/(tabs)/campers');
   }, [handleNavigation]);
 
@@ -411,7 +418,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 20,
     paddingBottom: 32,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
