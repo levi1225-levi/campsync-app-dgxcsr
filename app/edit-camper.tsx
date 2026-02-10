@@ -118,26 +118,22 @@ function EditCamperContent() {
     }
 
     try {
-      console.log('=== 🔄 NEW APPROACH: TWO-QUERY STRATEGY ===');
+      console.log('=== 🔄 LOADING CAMPER DATA (RLS BYPASS APPROACH) ===');
       console.log('📋 Camper ID:', camperId);
       setLoading(true);
 
-      // ✅ STEP 1: Get basic camper data from get_all_campers
-      console.log('🔍 Step 1: Fetching basic camper data from get_all_campers...');
-      const { data: allCampers, error: campersError } = await supabase.rpc('get_all_campers');
+      // ✅ Use get_comprehensive_camper_data which bypasses RLS and includes medical info
+      console.log('🔍 Fetching comprehensive camper data with RLS bypass...');
+      const { data: comprehensiveData, error: comprehensiveError } = await supabase
+        .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
 
-      if (campersError) {
-        console.error('❌ Error fetching campers:', campersError);
-        throw new Error(`Failed to load camper: ${campersError.message}`);
+      if (comprehensiveError) {
+        console.error('❌ Error fetching comprehensive data:', comprehensiveError);
+        throw new Error(`Failed to load camper: ${comprehensiveError.message}`);
       }
 
-      console.log('✅ All campers fetched, count:', allCampers?.length || 0);
-      
-      // Find the specific camper
-      const camperData = allCampers?.find((c: any) => c.id === camperId);
-      
-      if (!camperData) {
-        console.error('❌ Camper not found in results');
+      if (!comprehensiveData) {
+        console.error('❌ Camper not found');
         Alert.alert(
           'Camper Not Found',
           'The camper you are trying to edit could not be found.',
@@ -147,16 +143,16 @@ function EditCamperContent() {
         return;
       }
 
-      console.log('✅ Camper found:', camperData.first_name, camperData.last_name);
-      console.log('📊 Basic camper data:', JSON.stringify(camperData, null, 2));
+      console.log('✅ Comprehensive data fetched successfully');
+      console.log('📊 Full data structure:', JSON.stringify(comprehensiveData, null, 2));
 
       // Parse date
       let parsedDate = new Date();
       try {
-        if (camperData.date_of_birth) {
-          parsedDate = new Date(camperData.date_of_birth);
+        if (comprehensiveData.date_of_birth) {
+          parsedDate = new Date(comprehensiveData.date_of_birth);
           if (isNaN(parsedDate.getTime())) {
-            console.error('⚠️ Invalid date:', camperData.date_of_birth);
+            console.error('⚠️ Invalid date:', comprehensiveData.date_of_birth);
             parsedDate = new Date();
           } else {
             console.log('✅ Date parsed:', parsedDate.toISOString());
@@ -169,39 +165,30 @@ function EditCamperContent() {
       
       // Set basic info
       console.log('📝 Setting basic info state...');
-      setFirstName(camperData.first_name || '');
-      setLastName(camperData.last_name || '');
+      setFirstName(comprehensiveData.first_name || '');
+      setLastName(comprehensiveData.last_name || '');
       setDateOfBirth(parsedDate);
       setDobText(formatDate(parsedDate));
-      setWristbandId(camperData.wristband_id || '');
-      setCheckInStatus(camperData.check_in_status || 'not-arrived');
-      setSwimLevel(camperData.swim_level || '');
-      setCabinAssignment(camperData.cabin_assignment || '');
-      setRegistrationStatus(camperData.registration_status || 'pending');
+      setWristbandId(comprehensiveData.wristband_id || '');
+      setCheckInStatus(comprehensiveData.check_in_status || 'not-arrived');
+      setSwimLevel(comprehensiveData.swim_level || '');
+      setCabinAssignment(comprehensiveData.cabin_assignment || '');
+      setRegistrationStatus(comprehensiveData.registration_status || 'pending');
 
       console.log('✅ Basic info set:');
-      console.log('  👤 Name:', camperData.first_name, camperData.last_name);
-      console.log('  🏊 Swim Level:', camperData.swim_level || '(empty)');
-      console.log('  🏠 Cabin:', camperData.cabin_assignment || '(empty)');
-      console.log('  🎫 Wristband:', camperData.wristband_id || '(empty)');
+      console.log('  👤 Name:', comprehensiveData.first_name, comprehensiveData.last_name);
+      console.log('  🏊 Swim Level:', comprehensiveData.swim_level || '(empty)');
+      console.log('  🏠 Cabin:', comprehensiveData.cabin_assignment || '(empty)');
+      console.log('  🎫 Wristband:', comprehensiveData.wristband_id || '(empty)');
 
-      // ✅ STEP 2: Get medical data directly from camper_medical_info table
-      console.log('🔍 Step 2: Fetching medical data directly from camper_medical_info table...');
-      const { data: medicalData, error: medicalError } = await supabase
-        .from('camper_medical_info')
-        .select('*')
-        .eq('camper_id', camperId)
-        .maybeSingle();
-
-      if (medicalError) {
-        console.error('⚠️ Error fetching medical data (non-fatal):', medicalError);
-        // Don't throw - medical data might not exist yet
-      }
-
-      console.log('📊 Medical data query result:', medicalData ? 'Found' : 'Not found');
+      // Check if medical_info exists in the response
+      const medicalData = comprehensiveData.medical_info;
+      
+      console.log('🔍 Checking medical_info in response...');
+      console.log('📊 Medical data exists:', !!medicalData);
       
       if (medicalData) {
-        console.log('✅ Medical info found');
+        console.log('✅ Medical info found in comprehensive data');
         console.log('📋 Medical data raw:', JSON.stringify(medicalData, null, 2));
         
         setHasMedicalInfo(true);
@@ -289,7 +276,7 @@ function EditCamperContent() {
       );
       setLoading(false);
     }
-  }, [camperId, router]); // parseArrayField removed from dependencies since it's now stable
+  }, [camperId, router]);
 
   useFocusEffect(
     useCallback(() => {
