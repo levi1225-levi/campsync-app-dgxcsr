@@ -1,80 +1,41 @@
 
 import React from 'react';
-import { Tabs } from 'expo-router';
-import { Platform, Text } from 'react-native';
+import { Platform } from 'react-native';
 import { colors } from '@/styles/commonStyles';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 
 export default function TabLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 5,
-          paddingTop: 5,
-          height: Platform.OS === 'ios' ? 85 : 60,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="(home)"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>🏠</Text>;
-          },
-        }}
-      />
-      <Tabs.Screen
-        name="campers"
-        options={{
-          title: 'Campers',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>👥</Text>;
-          },
-        }}
-      />
-      <Tabs.Screen
-        name="check-in"
-        options={{
-          title: 'Check-In',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>✅</Text>;
-          },
-        }}
-      />
-      <Tabs.Screen
-        name="nfc-scanner"
-        options={{
-          title: 'NFC',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>📱</Text>;
-          },
-        }}
-      />
-      <Tabs.Screen
-        name="wristband-updates"
-        options={{
-          title: 'Updates',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>🔄</Text>;
-          },
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => {
-            return <Text style={{ fontSize: 24 }}>👤</Text>;
-          },
-        }}
-      />
-    </Tabs>
+    <NativeTabs>
+      <NativeTabs.Trigger name="(home)">
+        <Label>Home</Label>
+        <Icon sf={{ default: 'house', selected: 'house.fill' }} drawable="home" />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="campers">
+        <Label>Campers</Label>
+        <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} drawable="group" />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="check-in">
+        <Label>Check-In</Label>
+        <Icon sf={{ default: 'checkmark.circle', selected: 'checkmark.circle.fill' }} drawable="check-circle" />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="nfc-scanner">
+        <Label>NFC</Label>
+        <Icon sf={{ default: 'wave.3.right', selected: 'wave.3.right.circle.fill' }} drawable="nfc" />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="wristband-updates">
+        <Label>Updates</Label>
+        <Icon sf={{ default: 'arrow.clockwise', selected: 'arrow.clockwise.circle.fill' }} drawable="sync" />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="profile">
+        <Label>Profile</Label>
+        <Icon sf={{ default: 'person.circle', selected: 'person.circle.fill' }} drawable="account-circle" />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

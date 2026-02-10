@@ -17,13 +17,12 @@ interface AuthContextType {
   hasPermission: (requiredRoles: UserRole[]) => boolean;
   updateUser: (user: User) => Promise<void>;
   refreshSession: () => Promise<void>;
-  sessionExpiresAt: number | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SESSION_KEY = 'campsync_session';
-const AUTH_TIMEOUT_MS = 5000; // 5 second timeout for auth operations when offline
+const AUTH_TIMEOUT_MS = 8000; // 8 second timeout for auth operations
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -36,7 +35,6 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
 
   const saveSession = useCallback(async (session: AuthSession) => {
     try {
@@ -81,7 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const redirectAfterLogin = useCallback((authenticatedUser: User) => {
     console.log('Redirecting after login, role:', authenticatedUser.role);
     
-    // Use a longer timeout for iOS to ensure state is fully updated
     const timeout = Platform.OS === 'ios' ? 300 : 100;
     
     setTimeout(() => {
@@ -112,9 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (userProfile) {
           setUser(userProfile);
-          setSessionExpiresAt(session.expires_at || null);
 
-          // Save session to secure storage
           const authSession: AuthSession = {
             user: userProfile,
             accessToken: session.access_token,
@@ -128,13 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           console.error('Failed to load user profile');
           setUser(null);
-          setSessionExpiresAt(null);
         }
       }
     } else if (event === 'SIGNED_OUT') {
       console.log('User signed out');
       setUser(null);
-      setSessionExpiresAt(null);
       await SecureStore.deleteItemAsync(SESSION_KEY);
     } else if (event === 'USER_UPDATED') {
       console.log('User updated');
@@ -147,23 +140,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadUserProfile, saveSession, redirectAfterLogin]);
 
-  // Initialize auth state and set up listener
   useEffect(() => {
     console.log('Initializing auth state...');
 
     const initAuth = async () => {
       try {
-        // Check network status first
         const networkState = await Network.getNetworkStateAsync();
         const isOffline = !networkState.isConnected || networkState.isInternetReachable === false;
         
         if (isOffline) {
-          console.log('🔌 OFFLINE - Skipping auth session check, setting loading to false');
+          console.log('🔌 OFFLINE - Skipping auth session check');
           setIsLoading(false);
           return;
         }
 
-        // Online - get session with timeout
         console.log('📡 ONLINE - Checking auth session...');
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise<{ data: { session: null }, error: null }>((resolve) => {
@@ -183,14 +173,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           console.log('Initial session found for user:', session.user.email);
-          console.log('Session expires at:', session.expires_at);
-          console.log('Access token exists:', !!session.access_token);
           
           const userProfile = await loadUserProfile(session.user.id, session.user.email!);
           if (userProfile) {
             console.log('User profile loaded successfully:', userProfile.email, 'Role:', userProfile.role);
             setUser(userProfile);
-            setSessionExpiresAt(session.expires_at || null);
           } else {
             console.error('Failed to load user profile');
           }
@@ -206,7 +193,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
 
-    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     return () => {
@@ -221,9 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       await SecureStore.deleteItemAsync(SESSION_KEY);
       setUser(null);
-      setSessionExpiresAt(null);
       
-      // Use a longer timeout for iOS
       const timeout = Platform.OS === 'ios' ? 300 : 100;
       setTimeout(() => {
         try {
@@ -234,15 +218,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, timeout);
     } catch (error) {
       console.error('Sign out error:', error);
-      // Always clear local state even if API call fails
       setUser(null);
-      setSessionExpiresAt(null);
       await SecureStore.deleteItemAsync(SESSION_KEY);
       router.replace('/sign-in');
     }
   }, []);
 
-  // Monitor app state and refresh session when app comes to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active' && user) {
@@ -262,29 +243,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user, signOut]);
 
-  // Periodic session check (every 5 minutes)
-  useEffect(() => {
-    if (!user) return;
-
-    const interval = setInterval(async () => {
-      console.log('Periodic session check...');
-      const timeRemaining = await sessionManager.getTimeUntilExpiry();
-      
-      if (timeRemaining <= 0) {
-        console.log('Session expired, signing out...');
-        await signOut();
-      } else if (timeRemaining < 300) {
-        // Less than 5 minutes remaining, refresh proactively
-        console.log('Session expiring soon, refreshing...');
-        await sessionManager.refreshSession();
-      } else {
-        console.log(`Session valid, expires in ${Math.floor(timeRemaining / 60)} minutes`);
-      }
-    }, 5 * 60 * 1000); // Check every 5 minutes
-
-    return () => clearInterval(interval);
-  }, [user, signOut]);
-
   const signIn = useCallback(async (email: string, password: string) => {
     try {
       console.log('Signing in...');
@@ -296,7 +254,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authError) {
         console.error('Auth error:', authError);
         
-        // Check for email confirmation error
         if (authError.message.includes('Email not confirmed') || 
             authError.message.includes('email_not_confirmed') ||
             authError.status === 400) {
@@ -311,15 +268,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('Auth successful, user ID:', authData.user.id);
-      console.log('Email confirmed:', authData.user.email_confirmed_at ? 'Yes' : 'No');
 
-      // Check if email is confirmed
       if (!authData.user.email_confirmed_at) {
         console.error('Email not confirmed for user:', authData.user.email);
         throw new Error('Email not confirmed. Please check your inbox for the verification link.');
       }
 
-      // The auth state change listener will handle the rest
       console.log('Sign in complete, waiting for auth state change...');
     } catch (error) {
       console.error('Sign in error:', error);
@@ -347,7 +301,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Manually refreshing session...');
       const session = await sessionManager.refreshSession();
       if (session) {
-        setSessionExpiresAt(session.expires_at || null);
         console.log('Session refreshed successfully');
       } else {
         console.log('Failed to refresh session, signing out...');
@@ -375,7 +328,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPermission,
         updateUser,
         refreshSession,
-        sessionExpiresAt,
       }}
     >
       {children}

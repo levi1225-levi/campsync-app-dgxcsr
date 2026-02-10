@@ -15,7 +15,6 @@ import { IconSymbol } from '@/components/IconSymbol.ios';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SessionMonitor } from '@/components/SessionMonitor';
 
 function ProfileScreenContent() {
   const router = useRouter();
@@ -137,8 +136,6 @@ function ProfileScreenContent() {
             </Text>
           </View>
         </LinearGradient>
-
-        <SessionMonitor showDetails={true} />
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>

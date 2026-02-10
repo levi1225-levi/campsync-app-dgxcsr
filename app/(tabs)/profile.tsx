@@ -14,7 +14,6 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SessionMonitor } from '@/components/SessionMonitor';
 import { ConfirmModal } from '@/components/ConfirmModal';
 
 function ProfileScreenContent() {
@@ -105,7 +104,6 @@ function ProfileScreenContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Gradient */}
         <LinearGradient
           colors={[colors.primary, colors.primaryDark]}
           start={{ x: 0, y: 0 }}
@@ -131,9 +129,6 @@ function ProfileScreenContent() {
           </View>
         </LinearGradient>
 
-        <SessionMonitor showDetails={true} />
-
-        {/* Profile Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
           
@@ -191,7 +186,6 @@ function ProfileScreenContent() {
           </View>
         </View>
 
-        {/* Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
 
@@ -243,7 +237,6 @@ function ProfileScreenContent() {
             </View>
           </TouchableOpacity>
 
-          {/* Admin - Wristband Security */}
           {(displayRole === 'super-admin' || displayRole === 'camp-admin') && (
             <TouchableOpacity
               style={commonStyles.card}
@@ -270,7 +263,6 @@ function ProfileScreenContent() {
             </TouchableOpacity>
           )}
 
-          {/* Super Admin Only - User Management */}
           {displayRole === 'super-admin' && (
             <TouchableOpacity
               style={commonStyles.card}
@@ -322,7 +314,6 @@ function ProfileScreenContent() {
           </TouchableOpacity>
         </View>
 
-        {/* App Info */}
         <View style={styles.section}>
           <View style={styles.appInfo}>
             <Text style={styles.appInfoText}>CampSync v1.0.0</Text>
