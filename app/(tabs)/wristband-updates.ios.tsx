@@ -165,12 +165,12 @@ function WristbandUpdatesContent() {
 
   return (
     <View style={commonStyles.container}>
-      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+      <View style={styles.headerContainer}>
         <LinearGradient
           colors={['#F59E0B', '#D97706', '#B45309']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={[styles.header, { paddingTop: insets.top + 16 }]}
         >
           <View style={styles.headerIcon}>
             <IconSymbol
@@ -339,9 +339,9 @@ export default function WristbandUpdatesScreen() {
 const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   headerContainer: { overflow: 'hidden' },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
+  header: { paddingHorizontal: 24, paddingBottom: 32, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
   headerIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255, 255, 255, 0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 8, textAlign: 'center' },
+  headerTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 8, textAlign: 'center', letterSpacing: -0.5 },
   headerSubtitle: { fontSize: 15, fontWeight: '500', color: '#FFFFFF', opacity: 0.95, textAlign: 'center' },
   scrollView: { flex: 1 },
   contentContainer: { paddingBottom: 120 },
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 12, textAlign: 'center' },
   emptySubtitle: { fontSize: 16, fontWeight: '400', color: colors.textSecondary, textAlign: 'center', lineHeight: 24 },
   section: { paddingHorizontal: 20, marginTop: 28 },
-  sectionTitle: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 12 },
+  sectionTitle: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 12, letterSpacing: -0.5 },
   sectionDescription: { fontSize: 15, fontWeight: '400', color: colors.textSecondary, marginBottom: 20, lineHeight: 22 },
   camperHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   camperAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(99, 102, 241, 0.15)', alignItems: 'center', justifyContent: 'center' },

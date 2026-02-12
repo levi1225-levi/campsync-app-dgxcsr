@@ -18,6 +18,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Camper {
   id: string;
@@ -31,6 +32,7 @@ interface Camper {
 
 function CampersScreenContent() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [campers, setCampers] = useState<Camper[]>([]);
@@ -158,18 +160,28 @@ function CampersScreenContent() {
 
   return (
     <View style={commonStyles.container}>
-      {/* Fixed Header with Gradient */}
-      <LinearGradient
-        colors={[colors.primary, colors.primaryDark]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>Campers</Text>
-        <Text style={styles.headerSubtitle}>
-          {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
-        </Text>
-      </LinearGradient>
+      {/* Fixed Header with Gradient and proper iOS spacing */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + 16 }]}
+        >
+          <View style={styles.headerIcon}>
+            <IconSymbol
+              ios_icon_name="person.3.fill"
+              android_material_icon_name="group"
+              size={40}
+              color="#FFFFFF"
+            />
+          </View>
+          <Text style={styles.headerTitle}>Campers</Text>
+          <Text style={styles.headerSubtitle}>
+            {filteredCampers.length} camper{filteredCampers.length !== 1 ? 's' : ''}
+          </Text>
+        </LinearGradient>
+      </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -213,13 +225,20 @@ function CampersScreenContent() {
             onPress={handleCreateCamper}
             activeOpacity={0.8}
           >
-            <IconSymbol
-              ios_icon_name="plus.circle.fill"
-              android_material_icon_name="add-circle"
-              size={24}
-              color="#FFFFFF"
-            />
-            <Text style={styles.addButtonText}>Create Camper</Text>
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.addButtonGradient}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={24}
+                color="#FFFFFF"
+              />
+              <Text style={styles.addButtonText}>Create Camper</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       )}
@@ -321,32 +340,46 @@ function CampersScreenContent() {
                     {/* Action Buttons */}
                     <View style={styles.actionButtons}>
                       <TouchableOpacity 
-                        style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                        style={styles.actionButton}
                         onPress={() => handleViewFullProfile(camper)}
                         activeOpacity={0.8}
                       >
-                        <IconSymbol
-                          ios_icon_name="doc.text.fill"
-                          android_material_icon_name="description"
-                          size={20}
-                          color="#FFFFFF"
-                        />
-                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>View Full Profile</Text>
+                        <LinearGradient
+                          colors={[colors.primary, colors.primaryDark]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.actionButtonGradient}
+                        >
+                          <IconSymbol
+                            ios_icon_name="doc.text.fill"
+                            android_material_icon_name="description"
+                            size={20}
+                            color="#FFFFFF"
+                          />
+                          <Text style={styles.actionButtonText}>View Full Profile</Text>
+                        </LinearGradient>
                       </TouchableOpacity>
 
                       {canEdit && (
                         <TouchableOpacity 
-                          style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+                          style={styles.actionButton}
                           onPress={() => handleEditCamper(camper)}
                           activeOpacity={0.8}
                         >
-                          <IconSymbol
-                            ios_icon_name="pencil"
-                            android_material_icon_name="edit"
-                            size={20}
-                            color="#FFFFFF"
-                          />
-                          <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Edit</Text>
+                          <LinearGradient
+                            colors={[colors.secondary, colors.secondary + 'DD']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.actionButtonGradient}
+                          >
+                            <IconSymbol
+                              ios_icon_name="pencil"
+                              android_material_icon_name="edit"
+                              size={20}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.actionButtonText}>Edit</Text>
+                          </LinearGradient>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -370,25 +403,39 @@ export default function CampersScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerContainer: {
+    overflow: 'hidden',
+  },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  headerIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 8,
     letterSpacing: -0.5,
+    textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: '#FFFFFF',
-    opacity: 0.9,
+    opacity: 0.95,
+    textAlign: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -418,19 +465,21 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
     borderRadius: 12,
-    gap: 8,
+    overflow: 'hidden',
     shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 4,
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    gap: 8,
   },
   addButtonText: {
     fontSize: 16,
@@ -527,22 +576,26 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
     borderRadius: 12,
-    gap: 8,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 2,
   },
+  actionButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
   actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#FFFFFF',
     letterSpacing: 0.3,
   },
 });
