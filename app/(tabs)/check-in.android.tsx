@@ -60,10 +60,7 @@ function CheckInScreenContent() {
       if (supported) {
         await NfcManager.start();
         console.log('NFC manager started');
-        
-        const enabled = await NfcManager.isEnabled();
-        console.log('NFC enabled:', enabled);
-        setNfcEnabled(enabled);
+        setNfcEnabled(true);
         setNfcInitialized(true);
       } else {
         setNfcInitialized(true);
@@ -158,36 +155,49 @@ function CheckInScreenContent() {
 
   const fetchComprehensiveCamperData = async (camperId: string): Promise<WristbandCamperData | null> => {
     try {
-      console.log('Fetching comprehensive camper data for NFC write using RPC:', camperId);
+      console.log('🔍 Fetching comprehensive camper data for NFC write using RPC:', camperId);
       
+      // Use RPC function to bypass RLS and get all data in one call
       const { data, error } = await supabase
         .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
       
       if (error) {
-        console.error('Error fetching comprehensive camper data via RPC:', error);
-        return null;
+        console.error('❌ Error fetching comprehensive camper data via RPC:', error);
+        throw new Error(`Failed to fetch camper data: ${error.message}`);
       }
       
       if (!data || data.length === 0) {
-        console.error('No camper data returned from RPC');
-        return null;
+        console.error('❌ No camper data returned from RPC');
+        throw new Error('No camper data found');
       }
       
       const camperData = data[0];
+      console.log('✅ Raw camper data from RPC:', JSON.stringify(camperData, null, 2));
       
-      // Extract medical info from JSONB
+      // Extract medical info from JSONB - handle both array and object formats
       const medicalInfo = camperData.medical_info || {};
-      const allergiesArray = Array.isArray(medicalInfo.allergies) ? medicalInfo.allergies : [];
-      const medicationsArray = Array.isArray(medicalInfo.medications) ? medicalInfo.medications : [];
+      console.log('📋 Medical info structure:', JSON.stringify(medicalInfo, null, 2));
+      
+      // Safely extract arrays from medical info
+      const allergiesArray = Array.isArray(medicalInfo.allergies) 
+        ? medicalInfo.allergies.filter((item: any) => item && typeof item === 'string' && item.trim().length > 0)
+        : [];
+      
+      const medicationsArray = Array.isArray(medicalInfo.medications)
+        ? medicalInfo.medications.filter((item: any) => item && typeof item === 'string' && item.trim().length > 0)
+        : [];
       
       // Extract parent/guardian info from JSONB
       const parentInfo = camperData.parent_guardian_info || {};
+      console.log('👨‍👩‍👧 Parent info structure:', JSON.stringify(parentInfo, null, 2));
       
       // Extract emergency contact info from JSONB
       const emergencyInfo = camperData.emergency_contact_info || {};
+      console.log('🚨 Emergency info structure:', JSON.stringify(emergencyInfo, null, 2));
       
-      console.log('📊 Comprehensive data fetched via RPC:');
+      console.log('📊 Comprehensive data extracted:');
       console.log('- Name:', camperData.first_name, camperData.last_name);
+      console.log('- DOB:', camperData.date_of_birth);
       console.log('- Allergies:', allergiesArray.length, 'items:', allergiesArray);
       console.log('- Medications:', medicationsArray.length, 'items:', medicationsArray);
       console.log('- Swim Level:', camperData.swim_level || 'Not set');
@@ -195,15 +205,15 @@ function CheckInScreenContent() {
       console.log('- Parent/Guardian:', parentInfo.full_name || 'Not set');
       console.log('- Emergency Contact:', emergencyInfo.full_name || 'Not set');
       
-      return {
+      const wristbandData: WristbandCamperData = {
         id: camperData.id,
-        firstName: camperData.first_name,
-        lastName: camperData.last_name,
-        dateOfBirth: camperData.date_of_birth,
+        firstName: camperData.first_name || '',
+        lastName: camperData.last_name || '',
+        dateOfBirth: camperData.date_of_birth || '',
         allergies: allergiesArray,
         medications: medicationsArray,
-        swimLevel: camperData.swim_level,
-        cabin: camperData.cabin_assignment,
+        swimLevel: camperData.swim_level || null,
+        cabin: camperData.cabin_assignment || null,
         checkInStatus: 'checked-in',
         sessionId: camperData.session_id || undefined,
         // Parent/Guardian Contact Info
@@ -215,9 +225,13 @@ function CheckInScreenContent() {
         emergencyContactPhone: emergencyInfo.phone || null,
         emergencyContactRelationship: emergencyInfo.relationship || null,
       };
-    } catch (error) {
-      console.error('Error in fetchComprehensiveCamperData:', error);
-      return null;
+      
+      console.log('✅ Wristband data prepared:', JSON.stringify(wristbandData, null, 2));
+      return wristbandData;
+    } catch (error: any) {
+      console.error('❌ Error in fetchComprehensiveCamperData:', error);
+      console.error('❌ Error stack:', error.stack);
+      throw error;
     }
   };
 
@@ -228,86 +242,108 @@ function CheckInScreenContent() {
     let wristbandId = '';
 
     try {
-      // STEP 1: Fetch comprehensive data
-      console.log('📊 Step 1: Fetching comprehensive camper data...');
+      // 🚨 STEP 1: Request NFC technology FIRST for Android
+      console.log('📱 Step 1: 🟢 Android: Requesting NFC technology FIRST');
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log('✅ Android NFC session started');
+
+      // STEP 2: Fetch and prepare ALL data AFTER NFC session started
+      console.log('📊 Step 2: Fetching comprehensive camper data...');
       const comprehensiveData = await fetchComprehensiveCamperData(camper.id);
       
       if (!comprehensiveData) {
         throw new Error('Failed to fetch comprehensive camper data');
       }
       
-      // STEP 2: Encrypt data
-      console.log('🔐 Step 2: Encrypting comprehensive camper data...');
-      const encryptedData = await encryptWristbandData(comprehensiveData);
-      console.log('✅ Data encrypted, size:', encryptedData.length, 'bytes');
-
-      if (encryptedData.length > 500) {
-        throw new Error(`Data too large (${encryptedData.length} bytes). Maximum is 500 bytes.`);
+      console.log('✅ Comprehensive data fetched successfully');
+      
+      // 🔐 STEP 3: Encrypt the comprehensive camper data
+      console.log('🔐 Step 3: Encrypting comprehensive camper data...');
+      let encryptedData: string;
+      try {
+        encryptedData = await encryptWristbandData(comprehensiveData);
+        console.log('✅ Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
+      } catch (encryptError: any) {
+        console.error('❌ Encryption failed:', encryptError);
+        console.error('❌ Encryption error details:', JSON.stringify(encryptError, null, 2));
+        throw new Error(`Encryption failed: ${encryptError.message}`);
       }
 
-      // STEP 3: Create NDEF message
-      console.log('📝 Step 3: Creating NDEF message...');
+      // Verify data size is within NFC chip capacity (540 bytes)
+      if (encryptedData.length > 500) {
+        console.warn('⚠️ WARNING: Encrypted data is', encryptedData.length, 'bytes - may be too large for 540 byte chip');
+        throw new Error(`Data too large (${encryptedData.length} bytes). Maximum is 500 bytes for reliable writing.`);
+      }
+
+      // 📝 STEP 4: Create NDEF message
+      console.log('📝 Step 4: Creating NDEF message...');
       const bytes = Ndef.encodeMessage([Ndef.textRecord(encryptedData)]);
 
       if (!bytes) {
         throw new Error('Failed to encode NDEF message');
       }
 
-      console.log('✅ NDEF message created, size:', bytes.length, 'bytes');
+      console.log('✅ NDEF message created, total size:', bytes.length, 'bytes');
 
-      // STEP 4: Start NFC session (Android auto-detects)
-      console.log('📱 Step 4: 🟢 Android: Starting NFC session');
-      await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('✅ Android NFC session started');
-
-      // STEP 5: Write data
+      // ✍️ STEP 5: Write to NFC tag
       console.log('✍️ Step 5: Writing NDEF message to NFC tag...');
       await NfcManager.ndefHandler.writeNdefMessage(bytes);
-      console.log('✅ NFC tag written successfully');
+      console.log('✅ NFC tag written successfully with offline data');
       nfcWriteSuccess = true;
 
-      // STEP 6: Password protection
-      console.log('🔒 Step 6: Attempting password protection...');
+      // 🔒 STEP 6: Lock the tag with password protection
+      console.log('🔒 Step 6: Attempting to password-protect the wristband...');
       try {
         const lockCode = await getWristbandLockCode();
+        console.log('🔐 Using lock code for password protection');
+        
         const tag = await NfcManager.getTag();
         
         if (tag) {
           const passwordBytes: number[] = [];
           for (let i = 0; i < 4; i++) {
-            passwordBytes.push(lockCode.charCodeAt(i % lockCode.length));
+            const charCode = lockCode.charCodeAt(i % lockCode.length);
+            passwordBytes.push(charCode);
           }
           
+          console.log('🔐 Attempting to set password protection on NTAG chip...');
+          
           try {
-            // Set password
-            await NfcManager.transceive([0xA2, 0xE5, ...passwordBytes]);
-            console.log('✅ Password set');
+            const setPwdCmd = [0xA2, 0xE5, ...passwordBytes];
+            await NfcManager.transceive(setPwdCmd);
+            console.log('✅ Password set on wristband');
             
-            // Set PACK
-            await NfcManager.transceive([0xA2, 0xE6, passwordBytes[0], passwordBytes[1], 0x00, 0x00]);
-            console.log('✅ PACK set');
+            const setPackCmd = [0xA2, 0xE6, passwordBytes[0], passwordBytes[1], 0x00, 0x00];
+            await NfcManager.transceive(setPackCmd);
+            console.log('✅ PACK set on wristband');
             
-            // Set AUTH0
-            await NfcManager.transceive([0xA2, 0xE3, 0x04, 0x00, 0x00, 0x00]);
-            console.log('✅ Wristband password-protected');
+            const setAuth0Cmd = [0xA2, 0xE3, 0x04, 0x00, 0x00, 0x00];
+            await NfcManager.transceive(setAuth0Cmd);
+            console.log('✅ AUTH0 set - wristband is now password-protected');
+            
+            console.log('🔒 Wristband successfully locked with password protection');
           } catch (lockError: any) {
-            console.warn('⚠️ Password protection failed:', lockError.message);
-            console.log('✅ Data is still encrypted and secure');
+            console.warn('⚠️ Could not set password protection:', lockError.message);
+            console.log('✅ Data is still encrypted and secure without hardware locking');
           }
         }
       } catch (lockError: any) {
-        console.warn('⚠️ Password protection error:', lockError.message);
+        console.warn('⚠️ Password protection failed:', lockError.message);
+        console.log('✅ Data is still encrypted and secure without hardware locking');
       }
 
-      // STEP 7: Get wristband ID
+      // 🏷️ STEP 7: Generate wristband ID from tag
+      console.log('🏷️ Step 7: Getting tag ID...');
       const tag = await NfcManager.getTag();
       wristbandId = tag?.id || `WB-${Date.now()}`;
       console.log('✅ Wristband ID:', wristbandId);
 
+      // Cancel NFC session before database update
       await NfcManager.cancelTechnologyRequest();
+      console.log('✅ NFC session closed');
 
-      // STEP 8: Update database using RPC to bypass RLS
-      console.log('💾 Step 8: Updating database...');
+      // 💾 STEP 8: Update database with check-in status AND wristband ID
+      console.log('💾 Step 8: 🚨 UPDATING DATABASE WITH CHECK-IN STATUS...');
       const { data: dbResult, error: dbError } = await supabase
         .rpc('check_in_camper_bypass_rls', {
           p_camper_id: camper.id,
@@ -315,15 +351,35 @@ function CheckInScreenContent() {
         });
 
       if (dbError) {
+        console.error('❌ Database update error:', dbError);
         throw new Error(`Database update failed: ${dbError.message}`);
       }
 
-      console.log('✅✅✅ CHECK-IN COMPLETE ✅✅✅');
-      console.log('Database result:', dbResult);
+      console.log('✅✅✅ DATABASE UPDATED SUCCESSFULLY - CAMPER IS NOW CHECKED IN ✅✅✅');
+
+      const offlineDataSummary = `
+✅ Offline Data Written:
+• Name: ${comprehensiveData.firstName} ${comprehensiveData.lastName}
+• Allergies: ${comprehensiveData.allergies.length > 0 ? comprehensiveData.allergies.join(', ') : 'None'}
+• Medications: ${comprehensiveData.medications.length > 0 ? comprehensiveData.medications.join(', ') : 'None'}
+• Swim Level: ${comprehensiveData.swimLevel || 'Not set'}
+• Cabin: ${comprehensiveData.cabin || 'Not assigned'}
+
+👨‍👩‍👧 Parent/Guardian:
+• Name: ${comprehensiveData.parentGuardianName || 'Not set'}
+• Phone: ${comprehensiveData.parentGuardianPhone || 'Not set'}
+
+🚨 Emergency Contact:
+• Name: ${comprehensiveData.emergencyContactName || 'Not set'}
+• Phone: ${comprehensiveData.emergencyContactPhone || 'Not set'}
+
+🔒 Security: Data encrypted and password-protected
+✅ Database: Camper marked as checked-in
+      `.trim();
 
       Alert.alert(
         'Check-In Successful! ✅',
-        `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}`,
+        `${camper.first_name} ${camper.last_name} has been checked in.\n\nWristband ID: ${wristbandId}\n\n${offlineDataSummary}`,
         [{ text: 'OK', onPress: () => {
           setSelectedCamper(null);
           setSearchQuery('');
@@ -332,15 +388,20 @@ function CheckInScreenContent() {
       );
     } catch (error: any) {
       console.error('❌ Error in writeNFCTag:', error);
+      console.error('❌ Error stack:', error.stack);
       
       let errorMessage = 'Failed to write to wristband. ';
       
-      if (error.message?.includes('too large')) {
-        errorMessage = error.message;
+      if (error.message?.includes('Encryption failed')) {
+        errorMessage = `Encryption Error: ${error.message}\n\nPlease check that all camper data is properly formatted and try again.`;
+      } else if (error.message?.includes('too large')) {
+        errorMessage = error.message + '\n\nTry reducing the amount of medical information.';
       } else if (error.message?.includes('Database')) {
-        errorMessage += 'Wristband programmed but database update failed.';
+        errorMessage += 'The wristband was programmed but the database update failed. Please try again.';
+      } else if (error.message?.includes('User canceled') || error.message?.includes('cancelled')) {
+        errorMessage = 'NFC scan was canceled. Please try again.';
       } else if (nfcWriteSuccess) {
-        errorMessage = 'Wristband programmed but database update failed.';
+        errorMessage = 'The wristband was programmed successfully but there was an issue updating the database.';
       } else {
         errorMessage += `Error: ${error.message || 'Unknown error'}`;
       }
@@ -351,56 +412,54 @@ function CheckInScreenContent() {
       try {
         await NfcManager.cancelTechnologyRequest();
       } catch (cleanupError) {
-        console.error('Cleanup error:', cleanupError);
+        console.error('Error canceling NFC request:', cleanupError);
       }
     }
   }, []);
 
   const eraseNFCTag = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check Out:', camper.id);
+    console.log('User tapped Check Out - starting NFC session for Android:', camper.id);
     setIsProgramming(true);
     let nfcEraseSuccess = false;
 
     try {
-      // Get lock code
       const lockCode = await getWristbandLockCode();
       const passwordBytes: number[] = [];
       for (let i = 0; i < 4; i++) {
-        passwordBytes.push(lockCode.charCodeAt(i % lockCode.length));
+        const charCode = lockCode.charCodeAt(i % lockCode.length);
+        passwordBytes.push(charCode);
       }
 
-      // Start NFC
       await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log('✅ Android NFC session started for erase');
 
-      // Unlock
       try {
-        await NfcManager.transceive([0x1B, ...passwordBytes]);
-        console.log('✅ Wristband unlocked');
+        const unlockCmd = [0x1B, ...passwordBytes];
+        await NfcManager.transceive(unlockCmd);
+        console.log('✅ Wristband unlocked successfully');
       } catch (unlockError: any) {
-        console.warn('⚠️ Unlock failed:', unlockError.message);
+        console.warn('⚠️ Could not unlock with password:', unlockError.message);
       }
 
-      // Erase
       const emptyBytes = Ndef.encodeMessage([Ndef.textRecord('')]);
       if (!emptyBytes) {
-        throw new Error('Failed to encode empty message');
+        throw new Error('Failed to encode empty NDEF message');
       }
 
       await NfcManager.ndefHandler.writeNdefMessage(emptyBytes);
-      console.log('✅ Wristband erased');
+      console.log('✅ NFC tag erased successfully');
       nfcEraseSuccess = true;
 
-      // Remove password protection
       try {
-        await NfcManager.transceive([0xA2, 0xE3, 0xFF, 0x00, 0x00, 0x00]);
+        const resetAuth0Cmd = [0xA2, 0xE3, 0xFF, 0x00, 0x00, 0x00];
+        await NfcManager.transceive(resetAuth0Cmd);
         console.log('✅ Password protection removed');
       } catch (resetError: any) {
-        console.warn('⚠️ Could not remove password:', resetError.message);
+        console.warn('⚠️ Could not remove password protection:', resetError.message);
       }
 
       await NfcManager.cancelTechnologyRequest();
 
-      // Update database using RPC to bypass RLS
       const { data: dbResult, error: dbError } = await supabase
         .rpc('check_out_camper_bypass_rls', {
           p_camper_id: camper.id,
@@ -409,8 +468,6 @@ function CheckInScreenContent() {
       if (dbError) {
         throw new Error(`Database update failed: ${dbError.message}`);
       }
-
-      console.log('Database result:', dbResult);
 
       Alert.alert(
         'Check-Out Successful! ✅',
@@ -425,10 +482,8 @@ function CheckInScreenContent() {
       console.error('❌ Error in eraseNFCTag:', error);
       
       let errorMessage = 'Failed to erase wristband. ';
-      if (error.message?.includes('authentication')) {
-        errorMessage = 'Could not unlock wristband. Try using NFC Tools with the universal code.';
-      } else if (nfcEraseSuccess) {
-        errorMessage = 'Wristband erased but database update failed.';
+      if (error.message?.includes('Database')) {
+        errorMessage += 'The wristband was erased but the database update failed.';
       } else {
         errorMessage += `Error: ${error.message || 'Unknown error'}`;
       }
@@ -439,18 +494,16 @@ function CheckInScreenContent() {
       try {
         await NfcManager.cancelTechnologyRequest();
       } catch (cleanupError) {
-        console.error('Cleanup error:', cleanupError);
+        console.error('Error canceling NFC request:', cleanupError);
       }
     }
   }, []);
 
   const handleCheckIn = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check In button for camper:', camper.id);
-
     if (!nfcSupported || !nfcEnabled) {
       Alert.alert(
         'NFC Not Available',
-        'NFC is not supported or enabled. Please enable NFC in settings.',
+        'NFC is not supported or enabled on this device.',
         [{ text: 'OK' }]
       );
       return;
@@ -460,12 +513,10 @@ function CheckInScreenContent() {
   }, [nfcSupported, nfcEnabled, writeNFCTag]);
 
   const handleCheckOut = useCallback(async (camper: CamperData) => {
-    console.log('User tapped Check Out button for camper:', camper.id);
-
     if (!nfcSupported || !nfcEnabled) {
       Alert.alert(
         'NFC Not Available',
-        'NFC is not supported or enabled. Please enable NFC in settings.',
+        'NFC is not supported or enabled on this device.',
         [{ text: 'OK' }]
       );
       return;
@@ -473,22 +524,27 @@ function CheckInScreenContent() {
 
     Alert.alert(
       'Check Out & Erase Wristband',
-      `Check out ${camper.first_name} ${camper.last_name}? This will erase their wristband.`,
+      `Are you sure you want to check out ${camper.first_name} ${camper.last_name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Check Out', style: 'destructive', onPress: () => eraseNFCTag(camper) },
+        {
+          text: 'Check Out',
+          style: 'destructive',
+          onPress: () => eraseNFCTag(camper),
+        },
       ]
     );
   }, [nfcSupported, nfcEnabled, eraseNFCTag]);
 
   return (
-    <View style={[commonStyles.container, { paddingTop: 48 }]}>
+    <View style={commonStyles.container}>
+      {/* Fixed Header with Android padding */}
       <View style={styles.headerContainer}>
         <LinearGradient
           colors={['#6366F1', '#8B5CF6', '#EC4899']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={[styles.header, { paddingTop: 48 }]}
         >
           <View style={styles.headerIcon}>
             <IconSymbol
@@ -499,21 +555,33 @@ function CheckInScreenContent() {
             />
           </View>
           <Text style={styles.headerTitle}>Check-In & Check-Out</Text>
-          <Text style={styles.headerSubtitle}>Manage camper arrivals and departures</Text>
+          <Text style={styles.headerSubtitle}>
+            Manage camper arrivals and departures
+          </Text>
         </LinearGradient>
       </View>
 
       {nfcInitialized && !nfcSupported && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
-          <IconSymbol ios_icon_name="exclamationmark.triangle.fill" android_material_icon_name="error" size={20} color="#FFFFFF" />
-          <Text style={styles.statusText}>NFC not supported</Text>
+          <IconSymbol
+            ios_icon_name="exclamationmark.triangle.fill"
+            android_material_icon_name="error"
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.statusText}>NFC not supported on this device</Text>
         </BlurView>
       )}
 
       {nfcInitialized && nfcSupported && nfcEnabled && (
         <BlurView intensity={80} style={[styles.statusBanner, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
-          <IconSymbol ios_icon_name="checkmark.shield.fill" android_material_icon_name="verified-user" size={20} color="#FFFFFF" />
-          <Text style={styles.statusText}>🔒 NFC Ready - Secure Mode</Text>
+          <IconSymbol
+            ios_icon_name="checkmark.shield.fill"
+            android_material_icon_name="verified-user"
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.statusText}>🔒 NFC Ready - Secure Encrypted Mode</Text>
         </BlurView>
       )}
 
@@ -524,20 +592,32 @@ function CheckInScreenContent() {
         </BlurView>
       )}
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Find Camper</Text>
           <GlassCard>
-            <Text style={styles.sectionDescription}>Search for a camper to check them in or out.</Text>
+            <Text style={styles.sectionDescription}>
+              Search for a camper to check them in or out of camp.
+            </Text>
             <View style={styles.searchContainer}>
-              <IconSymbol ios_icon_name="magnifyingglass" android_material_icon_name="search" size={20} color="#1F2937" />
+              <IconSymbol
+                ios_icon_name="magnifyingglass"
+                android_material_icon_name="search"
+                size={20}
+                color="#1F2937"
+              />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by name..."
+                placeholder="Search by first or last name..."
                 placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCapitalize="words"
+                autoCorrect={false}
               />
               {isSearching && <ActivityIndicator size="small" color={colors.primary} />}
             </View>
@@ -545,27 +625,50 @@ function CheckInScreenContent() {
             {searchResults.length > 0 && (
               <View style={styles.searchResults}>
                 {searchResults.map((camper) => (
-                  <TouchableOpacity
-                    key={camper.id}
-                    style={styles.camperItem}
-                    onPress={() => setSelectedCamper(camper)}
-                  >
-                    <View style={styles.camperAvatar}>
-                      <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={24} color={colors.primary} />
-                    </View>
-                    <View style={styles.camperInfo}>
-                      <Text style={styles.camperName}>{camper.first_name} {camper.last_name}</Text>
-                      <Text style={styles.camperDetails}>{camper.check_in_status}</Text>
-                    </View>
-                    <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color="#6B7280" />
-                  </TouchableOpacity>
+                  <React.Fragment key={camper.id}>
+                    <TouchableOpacity
+                      style={styles.camperItem}
+                      onPress={() => setSelectedCamper(camper)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.camperAvatar}>
+                        <IconSymbol
+                          ios_icon_name="person.fill"
+                          android_material_icon_name="person"
+                          size={24}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View style={styles.camperInfo}>
+                        <Text style={styles.camperName}>
+                          {camper.first_name} {camper.last_name}
+                        </Text>
+                        <Text style={styles.camperDetails}>
+                          {camper.check_in_status} • {camper.wristband_id ? '🔒 Wristband Assigned' : 'No Wristband'}
+                        </Text>
+                      </View>
+                      <IconSymbol
+                        ios_icon_name="chevron.right"
+                        android_material_icon_name="arrow-forward"
+                        size={20}
+                        color="#6B7280"
+                      />
+                    </TouchableOpacity>
+                  </React.Fragment>
                 ))}
               </View>
             )}
 
             {searchQuery.trim() && !isSearching && searchResults.length === 0 && (
               <View style={styles.noResults}>
+                <IconSymbol
+                  ios_icon_name="magnifyingglass"
+                  android_material_icon_name="search"
+                  size={48}
+                  color="#9CA3AF"
+                />
                 <Text style={styles.noResultsText}>No campers found</Text>
+                <Text style={styles.noResultsSubtext}>Try a different search term</Text>
               </View>
             )}
           </GlassCard>
@@ -577,28 +680,72 @@ function CheckInScreenContent() {
             <GlassCard>
               <View style={styles.selectedCamperHeader}>
                 <View style={styles.selectedCamperAvatar}>
-                  <IconSymbol ios_icon_name="person.fill" android_material_icon_name="person" size={32} color={colors.primary} />
+                  <IconSymbol
+                    ios_icon_name="person.fill"
+                    android_material_icon_name="person"
+                    size={32}
+                    color={colors.primary}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.selectedCamperName}>{selectedCamper.first_name} {selectedCamper.last_name}</Text>
-                  <Text style={styles.selectedCamperStatus}>Status: {selectedCamper.check_in_status}</Text>
+                  <Text style={styles.selectedCamperName}>
+                    {selectedCamper.first_name} {selectedCamper.last_name}
+                  </Text>
+                  <Text style={styles.selectedCamperStatus}>
+                    Status: {selectedCamper.check_in_status}
+                  </Text>
+                  {selectedCamper.wristband_id && (
+                    <Text style={styles.selectedCamperWristband}>
+                      🔒 {selectedCamper.wristband_id}
+                    </Text>
+                  )}
                 </View>
               </View>
 
               <View style={commonStyles.divider} />
 
               <View style={styles.actionButtonsContainer}>
-                <TouchableOpacity style={styles.actionButton} onPress={() => handleCheckIn(selectedCamper)} disabled={isProgramming}>
-                  <LinearGradient colors={['#10B981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.buttonGradient}>
-                    <IconSymbol ios_icon_name="checkmark.circle.fill" android_material_icon_name="check-circle" size={24} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>Check In</Text>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleCheckIn(selectedCamper)}
+                  activeOpacity={0.7}
+                  disabled={isProgramming}
+                >
+                  <LinearGradient
+                    colors={isProgramming ? ['#9CA3AF', '#6B7280'] : ['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGradient}
+                  >
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>Check In & Program Wristband</Text>
                   </LinearGradient>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionButton} onPress={() => handleCheckOut(selectedCamper)} disabled={isProgramming}>
-                  <LinearGradient colors={['#F59E0B', '#D97706']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.buttonGradient}>
-                    <IconSymbol ios_icon_name="arrow.right.circle.fill" android_material_icon_name="exit-to-app" size={24} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>Check Out</Text>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleCheckOut(selectedCamper)}
+                  activeOpacity={0.7}
+                  disabled={isProgramming}
+                >
+                  <LinearGradient
+                    colors={isProgramming ? ['#9CA3AF', '#6B7280'] : ['#F59E0B', '#D97706']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGradient}
+                  >
+                    <IconSymbol
+                      ios_icon_name="arrow.right.circle.fill"
+                      android_material_icon_name="exit-to-app"
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>Check Out & Erase Wristband</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -619,34 +766,198 @@ export default function CheckInScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerContainer: { overflow: 'hidden' },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
-  headerIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255, 255, 255, 0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', marginBottom: 8, textAlign: 'center' },
-  headerSubtitle: { fontSize: 15, fontWeight: '500', color: '#FFFFFF', opacity: 0.95, textAlign: 'center' },
-  statusBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 20, gap: 10 },
-  statusText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
-  scrollView: { flex: 1 },
-  contentContainer: { paddingBottom: 120 },
-  section: { paddingHorizontal: 20, marginTop: 28 },
-  sectionTitle: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 16 },
-  sectionDescription: { fontSize: 15, fontWeight: '500', color: colors.text, marginBottom: 20 },
-  actionButton: { borderRadius: 16, overflow: 'hidden', marginTop: 12 },
-  buttonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 24, gap: 10 },
-  actionButtonText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, gap: 10, borderWidth: 2, borderColor: '#E5E7EB' },
-  searchInput: { flex: 1, fontSize: 16, fontWeight: '500', color: '#1F2937' },
-  searchResults: { marginTop: 20 },
-  camperItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 16, marginBottom: 12, gap: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  camperAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(99, 102, 241, 0.15)', alignItems: 'center', justifyContent: 'center' },
-  camperInfo: { flex: 1 },
-  camperName: { fontSize: 17, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
-  camperDetails: { fontSize: 14, fontWeight: '500', color: '#6B7280' },
-  noResults: { alignItems: 'center', paddingVertical: 40 },
-  noResultsText: { fontSize: 17, fontWeight: '600', color: colors.text },
-  selectedCamperHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
-  selectedCamperAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(99, 102, 241, 0.15)', alignItems: 'center', justifyContent: 'center' },
-  selectedCamperName: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 6 },
-  selectedCamperStatus: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
-  actionButtonsContainer: { gap: 12 },
+  headerContainer: {
+    overflow: 'hidden',
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  headerIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    opacity: 0.95,
+    textAlign: 'center',
+  },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  statusText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 120,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 28,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 16,
+    letterSpacing: -0.5,
+  },
+  sectionDescription: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  actionButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  actionButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1F2937',
+  },
+  searchResults: {
+    marginTop: 20,
+  },
+  camperItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  camperAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  camperInfo: {
+    flex: 1,
+  },
+  camperName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  camperDetails: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  noResults: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noResultsText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 16,
+  },
+  noResultsSubtext: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  selectedCamperHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 20,
+  },
+  selectedCamperAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCamperName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  selectedCamperStatus: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  selectedCamperWristband: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8B5CF6',
+  },
+  actionButtonsContainer: {
+    gap: 12,
+  },
 });

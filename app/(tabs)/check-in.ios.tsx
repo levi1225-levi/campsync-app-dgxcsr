@@ -157,37 +157,49 @@ function CheckInScreenContent() {
 
   const fetchComprehensiveCamperData = async (camperId: string): Promise<WristbandCamperData | null> => {
     try {
-      console.log('Fetching comprehensive camper data for NFC write using RPC:', camperId);
+      console.log('🔍 Fetching comprehensive camper data for NFC write using RPC:', camperId);
       
       // Use RPC function to bypass RLS and get all data in one call
       const { data, error } = await supabase
         .rpc('get_comprehensive_camper_data', { p_camper_id: camperId });
       
       if (error) {
-        console.error('Error fetching comprehensive camper data via RPC:', error);
+        console.error('❌ Error fetching comprehensive camper data via RPC:', error);
         throw new Error(`Failed to fetch camper data: ${error.message}`);
       }
       
       if (!data || data.length === 0) {
-        console.error('No camper data returned from RPC');
+        console.error('❌ No camper data returned from RPC');
         throw new Error('No camper data found');
       }
       
       const camperData = data[0];
+      console.log('✅ Raw camper data from RPC:', JSON.stringify(camperData, null, 2));
       
-      // Extract medical info from JSONB
+      // Extract medical info from JSONB - handle both array and object formats
       const medicalInfo = camperData.medical_info || {};
-      const allergiesArray = Array.isArray(medicalInfo.allergies) ? medicalInfo.allergies : [];
-      const medicationsArray = Array.isArray(medicalInfo.medications) ? medicalInfo.medications : [];
+      console.log('📋 Medical info structure:', JSON.stringify(medicalInfo, null, 2));
+      
+      // Safely extract arrays from medical info
+      const allergiesArray = Array.isArray(medicalInfo.allergies) 
+        ? medicalInfo.allergies.filter((item: any) => item && typeof item === 'string' && item.trim().length > 0)
+        : [];
+      
+      const medicationsArray = Array.isArray(medicalInfo.medications)
+        ? medicalInfo.medications.filter((item: any) => item && typeof item === 'string' && item.trim().length > 0)
+        : [];
       
       // Extract parent/guardian info from JSONB
       const parentInfo = camperData.parent_guardian_info || {};
+      console.log('👨‍👩‍👧 Parent info structure:', JSON.stringify(parentInfo, null, 2));
       
       // Extract emergency contact info from JSONB
       const emergencyInfo = camperData.emergency_contact_info || {};
+      console.log('🚨 Emergency info structure:', JSON.stringify(emergencyInfo, null, 2));
       
-      console.log('📊 Comprehensive data fetched via RPC:');
+      console.log('📊 Comprehensive data extracted:');
       console.log('- Name:', camperData.first_name, camperData.last_name);
+      console.log('- DOB:', camperData.date_of_birth);
       console.log('- Allergies:', allergiesArray.length, 'items:', allergiesArray);
       console.log('- Medications:', medicationsArray.length, 'items:', medicationsArray);
       console.log('- Swim Level:', camperData.swim_level || 'Not set');
@@ -195,15 +207,15 @@ function CheckInScreenContent() {
       console.log('- Parent/Guardian:', parentInfo.full_name || 'Not set');
       console.log('- Emergency Contact:', emergencyInfo.full_name || 'Not set');
       
-      return {
+      const wristbandData: WristbandCamperData = {
         id: camperData.id,
-        firstName: camperData.first_name,
-        lastName: camperData.last_name,
-        dateOfBirth: camperData.date_of_birth,
+        firstName: camperData.first_name || '',
+        lastName: camperData.last_name || '',
+        dateOfBirth: camperData.date_of_birth || '',
         allergies: allergiesArray,
         medications: medicationsArray,
-        swimLevel: camperData.swim_level,
-        cabin: camperData.cabin_assignment,
+        swimLevel: camperData.swim_level || null,
+        cabin: camperData.cabin_assignment || null,
         checkInStatus: 'checked-in',
         sessionId: camperData.session_id || undefined,
         // Parent/Guardian Contact Info
@@ -215,8 +227,12 @@ function CheckInScreenContent() {
         emergencyContactPhone: emergencyInfo.phone || null,
         emergencyContactRelationship: emergencyInfo.relationship || null,
       };
+      
+      console.log('✅ Wristband data prepared:', JSON.stringify(wristbandData, null, 2));
+      return wristbandData;
     } catch (error: any) {
-      console.error('Error in fetchComprehensiveCamperData:', error);
+      console.error('❌ Error in fetchComprehensiveCamperData:', error);
+      console.error('❌ Error stack:', error.stack);
       throw error;
     }
   };
@@ -236,10 +252,19 @@ function CheckInScreenContent() {
         throw new Error('Failed to fetch comprehensive camper data');
       }
       
+      console.log('✅ Comprehensive data fetched successfully');
+      
       // 🔐 STEP 2: Encrypt the comprehensive camper data
       console.log('🔐 Step 2: Encrypting comprehensive camper data...');
-      const encryptedData = await encryptWristbandData(comprehensiveData);
-      console.log('✅ Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
+      let encryptedData: string;
+      try {
+        encryptedData = await encryptWristbandData(comprehensiveData);
+        console.log('✅ Comprehensive camper data encrypted successfully, size:', encryptedData.length, 'bytes');
+      } catch (encryptError: any) {
+        console.error('❌ Encryption failed:', encryptError);
+        console.error('❌ Encryption error details:', JSON.stringify(encryptError, null, 2));
+        throw new Error(`Encryption failed: ${encryptError.message}`);
+      }
 
       // Verify data size is within NFC chip capacity (540 bytes)
       if (encryptedData.length > 500) {
@@ -386,11 +411,14 @@ function CheckInScreenContent() {
       );
     } catch (error: any) {
       console.error('❌ Error in writeNFCTag:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
       
       let errorMessage = 'Failed to write to wristband. ';
       
-      if (error.message?.includes('too large')) {
+      if (error.message?.includes('Encryption failed')) {
+        errorMessage = `Encryption Error: ${error.message}\n\nPlease check that all camper data is properly formatted and try again.`;
+      } else if (error.message?.includes('too large')) {
         errorMessage = error.message + '\n\nTry reducing the amount of medical information or use shorter descriptions.';
       } else if (error.message?.includes('Database')) {
         errorMessage += 'The wristband was programmed but the database update failed. Please try again.';
@@ -596,12 +624,12 @@ function CheckInScreenContent() {
   return (
     <View style={commonStyles.container}>
       {/* Fixed Header with proper iOS spacing */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+      <View style={styles.headerContainer}>
         <LinearGradient
           colors={['#6366F1', '#8B5CF6', '#EC4899']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={[styles.header, { paddingTop: insets.top + 16 }]}
         >
           <View style={styles.headerIcon}>
             <IconSymbol
@@ -894,7 +922,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
     paddingBottom: 32,
     alignItems: 'center',
     borderBottomLeftRadius: 32,
