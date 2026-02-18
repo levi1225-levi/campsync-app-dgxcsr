@@ -1,39 +1,51 @@
+
 {
   "expo": {
     "name": "CampSync",
     "slug": "CampSync",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/natively-dark.png",
-    "scheme": "CampSync",
+    "icon": "./assets/images/final_quest_240x240.png",
+    "scheme": "campsync",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/natively-dark.png",
+      "image": "./assets/images/final_quest_240x240.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#6366F1"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "deploymentTarget": "15.1",
-      "buildNumber": "28",
+      "buildNumber": "29",
+      "icon": "./assets/images/final_quest_240x240.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
+      },
+      "splash": {
+        "image": "./assets/images/final_quest_240x240.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#6366F1"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/images/final_quest_240x240.png",
+        "backgroundColor": "#6366F1"
       },
+      "icon": "./assets/images/final_quest_240x240.png",
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
-      "versionCode": 28,
+      "versionCode": 29,
       "permissions": [
         "android.permission.NFC"
-      ]
+      ],
+      "splash": {
+        "image": "./assets/images/final_quest_240x240.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#6366F1"
+      }
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
