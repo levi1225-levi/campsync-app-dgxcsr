@@ -44,7 +44,8 @@ function NFCScannerScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
-  // Allow scanning if authenticated with permission OR if offline (emergency access)
+  // 🔥 CRITICAL: Allow scanning if offline (emergency access) OR if authenticated with permission
+  // When offline, ALWAYS allow scanning regardless of authentication status
   const canScan = isOffline || (isAuthenticated && hasPermission(['super-admin', 'camp-admin', 'staff']));
 
   const headerHeight = scrollY.interpolate({
@@ -65,41 +66,42 @@ function NFCScannerScreenContent() {
       try {
         const networkState = await Network.getNetworkStateAsync();
         const offline = !networkState.isConnected || networkState.isInternetReachable === false;
-        console.log('NFC Scanner iOS - Network status:', offline ? 'OFFLINE' : 'ONLINE');
+        console.log('🌐 NFC Scanner iOS - Network status:', offline ? 'OFFLINE ⚠️' : 'ONLINE ✅');
         setIsOffline(offline);
       } catch (error) {
-        console.error('Error checking network:', error);
-        setIsOffline(false);
+        console.error('❌ Error checking network:', error);
+        // If we can't check network, assume offline for safety (allow emergency access)
+        setIsOffline(true);
       }
     };
 
     checkNetwork();
-    const interval = setInterval(checkNetwork, 10000);
+    const interval = setInterval(checkNetwork, 5000); // Check every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
   const initNFC = useCallback(async () => {
     try {
-      console.log('Initializing NFC on iOS...');
+      console.log('🔧 Initializing NFC on iOS...');
       
       const supported = await NfcManager.isSupported();
-      console.log('NFC supported:', supported);
+      console.log('📱 NFC supported:', supported);
       setNfcSupported(supported);
       
       if (supported) {
         await NfcManager.start();
-        console.log('NFC manager started successfully');
+        console.log('✅ NFC manager started successfully');
         
         setNfcEnabled(true);
         setNfcInitialized(true);
         
-        console.log('NFC initialized successfully on iOS');
+        console.log('✅ NFC initialized successfully on iOS');
       } else {
-        console.log('NFC not supported on this device');
+        console.log('⚠️ NFC not supported on this device');
         setNfcInitialized(true);
       }
     } catch (error) {
-      console.error('Error initializing NFC:', error);
+      console.error('❌ Error initializing NFC:', error);
       setNfcInitialized(true);
       setNfcSupported(false);
     }
@@ -108,9 +110,9 @@ function NFCScannerScreenContent() {
   const cleanupNFC = useCallback(async () => {
     try {
       await NfcManager.cancelTechnologyRequest();
-      console.log('NFC cleanup complete');
+      console.log('🧹 NFC cleanup complete');
     } catch (error) {
-      console.error('Error cleaning up NFC:', error);
+      console.error('❌ Error cleaning up NFC:', error);
     }
   }, []);
 
@@ -134,7 +136,8 @@ function NFCScannerScreenContent() {
   };
 
   const handleScan = useCallback(async () => {
-    if (!canScan && !isOffline) {
+    // 🔥 CRITICAL: When offline, ALWAYS allow scanning (emergency access)
+    if (!isOffline && !canScan) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
       return;
     }
@@ -149,49 +152,61 @@ function NFCScannerScreenContent() {
       return;
     }
 
-    console.log('User tapped Scan Wristband - Starting NFC scan...');
+    console.log('👆 User tapped Scan Wristband - Starting NFC scan...');
     if (isOffline) {
-      console.log('🔌 OFFLINE MODE - Scanning wristband for offline data access');
+      console.log('🔌 OFFLINE MODE - Emergency wristband access enabled');
+      console.log('🔓 All camper data will be read from wristband encryption');
     }
     setIsScanning(true);
     setScannedData(null);
     
     try {
       await NfcManager.requestTechnology(NfcTech.Ndef);
-      console.log('NFC technology requested successfully');
+      console.log('📡 NFC technology requested successfully');
       
       const tag = await NfcManager.getTag();
-      console.log('NFC Tag detected');
+      console.log('🏷️ NFC Tag detected');
       
       if (tag && tag.ndefMessage && tag.ndefMessage.length > 0) {
         try {
           const ndefRecord = tag.ndefMessage[0];
           const encryptedPayload = Ndef.text.decodePayload(ndefRecord.payload);
-          console.log('Encrypted payload read from wristband');
+          console.log('🔐 Encrypted payload read from wristband (length:', encryptedPayload.length, 'bytes)');
 
+          // 🔓 DECRYPT WRISTBAND DATA - Works 100% offline, no network needed
           const decryptedData = await decryptWristbandData(encryptedPayload);
 
           if (decryptedData) {
             console.log('✅ Wristband data decrypted successfully - displaying offline data');
-            console.log('Camper:', decryptedData.firstName, decryptedData.lastName);
-            console.log('Allergies:', decryptedData.allergies.length);
-            console.log('Medications:', decryptedData.medications.length);
-            console.log('Swim Level:', decryptedData.swimLevel || 'Not set');
-            console.log('Cabin:', decryptedData.cabin || 'Not assigned');
+            console.log('👤 Camper:', decryptedData.firstName, decryptedData.lastName);
+            console.log('🎂 Age:', calculateAge(decryptedData.dateOfBirth));
+            console.log('🚨 Allergies:', decryptedData.allergies.length);
+            console.log('💊 Medications:', decryptedData.medications.length);
+            console.log('🏊 Swim Level:', decryptedData.swimLevel || 'Not set');
+            console.log('🏠 Cabin:', decryptedData.cabin || 'Not assigned');
+            console.log('👨‍👩‍👧 Parent/Guardian:', decryptedData.parentGuardianName || 'Not set');
+            console.log('📞 Emergency Contact:', decryptedData.emergencyContactName || 'Not set');
+            console.log('🔒 Security: Data is encrypted and verified');
             
             setScannedData(decryptedData);
+            
+            if (isOffline) {
+              console.log('✅ OFFLINE ACCESS SUCCESSFUL - All data loaded from wristband');
+            }
           } else {
+            console.error('❌ Decryption failed - wristband data is invalid or corrupted');
             Alert.alert('Invalid Wristband', 'Could not decrypt wristband data. The wristband may be corrupted or from another system.');
           }
         } catch (decryptError) {
-          console.error('Error decrypting wristband data:', decryptError);
+          console.error('❌ Error decrypting wristband data:', decryptError);
           Alert.alert('Decryption Error', 'Failed to decrypt wristband data. The wristband may be corrupted.');
         }
       } else {
+        console.log('⚠️ Empty wristband detected');
         Alert.alert('Empty Wristband', 'This wristband has not been programmed yet.');
       }
     } catch (error: any) {
-      console.error('NFC scan error:', error);
+      console.error('❌ NFC scan error:', error);
       const errorMessage = error?.message || error?.toString() || 'Unknown error';
       
       if (!errorMessage.includes('cancelled') && !errorMessage.includes('cancel')) {
@@ -202,7 +217,7 @@ function NFCScannerScreenContent() {
       try {
         await NfcManager.cancelTechnologyRequest();
       } catch (cancelError) {
-        console.error('Error cancelling NFC request:', cancelError);
+        console.error('❌ Error cancelling NFC request:', cancelError);
       }
     }
   }, [canScan, nfcSupported, nfcInitialized, isOffline]);
