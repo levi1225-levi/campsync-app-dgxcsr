@@ -5,50 +5,50 @@
     "slug": "CampSync",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
-    "scheme": "CampSync",
+    "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
+    "scheme": "campsync",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+      "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
       "resizeMode": "contain",
       "backgroundColor": "#6366F1"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "buildNumber": "30",
-      "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+      "buildNumber": "31",
+      "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
       },
       "splash": {
-        "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+        "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
         "resizeMode": "contain",
         "backgroundColor": "#6366F1"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+        "foregroundImage": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
         "backgroundColor": "#6366F1"
       },
-      "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+      "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
-      "versionCode": 30,
+      "versionCode": 31,
       "permissions": [
         "android.permission.NFC"
       ],
       "splash": {
-        "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+        "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
         "resizeMode": "contain",
         "backgroundColor": "#6366F1"
       }
     },
     "web": {
-      "favicon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
+      "favicon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613735a.png",
       "bundler": "metro"
     },
     "plugins": [
