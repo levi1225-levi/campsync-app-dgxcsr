@@ -1,53 +1,54 @@
+
 {
   "expo": {
     "name": "CampSync",
     "slug": "CampSync",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/final_quest_240x240.png",
+    "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
     "scheme": "CampSync",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/final_quest_240x240.png",
+      "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
       "resizeMode": "contain",
       "backgroundColor": "#6366F1"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.Natively",
-      "buildNumber": "29",
-      "icon": "./assets/images/final_quest_240x240.png",
+      "buildNumber": "30",
+      "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "This app needs access to NFC to scan and write to camper wristbands for check-in and identification."
       },
       "splash": {
-        "image": "./assets/images/final_quest_240x240.png",
+        "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
         "resizeMode": "contain",
         "backgroundColor": "#6366F1"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/final_quest_240x240.png",
+        "foregroundImage": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
         "backgroundColor": "#6366F1"
       },
-      "icon": "./assets/images/final_quest_240x240.png",
+      "icon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.Natively",
-      "versionCode": 29,
+      "versionCode": 30,
       "permissions": [
         "android.permission.NFC"
       ],
       "splash": {
-        "image": "./assets/images/final_quest_240x240.png",
+        "image": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
         "resizeMode": "contain",
         "backgroundColor": "#6366F1"
       }
     },
     "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
+      "favicon": "./assets/images/dfe94c43-6c65-46d6-8849-1e6bb613753a.png",
       "bundler": "metro"
     },
     "plugins": [
@@ -71,6 +72,5 @@
         "projectId": "your-project-id"
       }
     }
-  },
-  "scheme": "CampSync"
+  }
 }
