@@ -49,6 +49,12 @@ interface MedicalInfo {
   has_epi_pen: boolean | null;
 }
 
+interface EmergencyContact {
+  full_name: string;
+  phone_number: string;
+  relationship: string;
+}
+
 // Helper function to format date as MM/dd/yyyy
 function formatDate(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
@@ -107,10 +113,10 @@ function EditCamperContent() {
   const [hasEpiPen, setHasEpiPen] = useState(false);
   const [hasMedicalInfo, setHasMedicalInfo] = useState(false);
 
-  // Emergency Contact Info
-  const [emergencyContactName, setEmergencyContactName] = useState('');
-  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
-  const [emergencyContactRelationship, setEmergencyContactRelationship] = useState('');
+  // Emergency Contacts - Support multiple contacts
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([
+    { full_name: '', phone_number: '', relationship: '' }
+  ]);
 
   const canEdit = hasPermission(['super-admin', 'camp-admin']);
 
@@ -273,18 +279,43 @@ function EditCamperContent() {
         setHasEpiPen(false);
       }
 
-      // Extract emergency contact info from JSONB
-      const emergencyInfo = comprehensiveData.emergency_contact_info || {};
+      // Extract emergency contact info from JSONB - Support multiple contacts
+      const emergencyInfo = comprehensiveData.emergency_contact_info || [];
       console.log('🚨 Emergency contact info structure:', JSON.stringify(emergencyInfo, null, 2));
       
-      setEmergencyContactName(emergencyInfo.full_name || '');
-      setEmergencyContactPhone(emergencyInfo.phone_number || '');
-      setEmergencyContactRelationship(emergencyInfo.relationship || '');
+      // Parse emergency contacts - handle both array and single object formats
+      let parsedContacts: EmergencyContact[] = [];
+      
+      if (Array.isArray(emergencyInfo) && emergencyInfo.length > 0) {
+        // It's an array of contacts
+        parsedContacts = emergencyInfo.map((contact: any) => ({
+          full_name: contact.full_name || '',
+          phone_number: contact.phone_number || contact.phone || '',
+          relationship: contact.relationship || ''
+        }));
+      } else if (emergencyInfo && typeof emergencyInfo === 'object' && emergencyInfo.full_name) {
+        // It's a single contact object
+        parsedContacts = [{
+          full_name: emergencyInfo.full_name || '',
+          phone_number: emergencyInfo.phone_number || emergencyInfo.phone || '',
+          relationship: emergencyInfo.relationship || ''
+        }];
+      }
+      
+      // If no contacts, ensure at least one empty contact
+      if (parsedContacts.length === 0) {
+        parsedContacts = [{ full_name: '', phone_number: '', relationship: '' }];
+      }
+      
+      setEmergencyContacts(parsedContacts);
       
       console.log('✅ Emergency contact info set:');
-      console.log('  👤 Name:', emergencyInfo.full_name || '(empty)');
-      console.log('  📞 Phone:', emergencyInfo.phone_number || '(empty)');
-      console.log('  🔗 Relationship:', emergencyInfo.relationship || '(empty)');
+      parsedContacts.forEach((contact, index) => {
+        console.log(`  Contact ${index + 1}:`);
+        console.log('    👤 Name:', contact.full_name || '(empty)');
+        console.log('    📞 Phone:', contact.phone_number || '(empty)');
+        console.log('    🔗 Relationship:', contact.relationship || '(empty)');
+      });
 
       // Force re-render by updating key
       setDataLoadedKey(prev => prev + 1);
@@ -346,6 +377,29 @@ function EditCamperContent() {
     }
     return true;
   }, [firstName, lastName]);
+
+  const handleAddEmergencyContact = useCallback(() => {
+    console.log('➕ User tapped Add Emergency Contact');
+    setEmergencyContacts(prev => [...prev, { full_name: '', phone_number: '', relationship: '' }]);
+  }, []);
+
+  const handleRemoveEmergencyContact = useCallback((index: number) => {
+    console.log('➖ User tapped Remove Emergency Contact at index:', index);
+    if (emergencyContacts.length > 1) {
+      setEmergencyContacts(prev => prev.filter((_, i) => i !== index));
+    } else {
+      Alert.alert('Cannot Remove', 'At least one emergency contact is required');
+    }
+  }, [emergencyContacts.length]);
+
+  const handleUpdateEmergencyContact = useCallback((index: number, field: keyof EmergencyContact, value: string) => {
+    console.log(`✏️ Updating emergency contact ${index}, field: ${field}, value: ${value}`);
+    setEmergencyContacts(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }, []);
 
   const handleSave = useCallback(async () => {
     console.log('=== 💾 SAVE BUTTON PRESSED ===');
@@ -423,18 +477,23 @@ function EditCamperContent() {
 
       console.log('✅ Medical info saved successfully');
 
-      // Save emergency contact info
+      // Save emergency contacts - filter out empty contacts
+      const validContacts = emergencyContacts.filter(contact => 
+        contact.full_name.trim() || contact.phone_number.trim() || contact.relationship.trim()
+      );
+
       console.log('🔄 Calling upsert_emergency_contact_info_bypass_rls...');
-      console.log('🚨 Emergency contact data to save:');
-      console.log('  👤 Name:', emergencyContactName);
-      console.log('  📞 Phone:', emergencyContactPhone);
-      console.log('  🔗 Relationship:', emergencyContactRelationship);
+      console.log('🚨 Emergency contact data to save:', validContacts.length, 'contacts');
+      validContacts.forEach((contact, index) => {
+        console.log(`  Contact ${index + 1}:`);
+        console.log('    👤 Name:', contact.full_name);
+        console.log('    📞 Phone:', contact.phone_number);
+        console.log('    🔗 Relationship:', contact.relationship);
+      });
 
       const { data: emergencyResult, error: emergencyError } = await supabase.rpc('upsert_emergency_contact_info_bypass_rls', {
         p_camper_id: camperId,
-        p_full_name: emergencyContactName.trim() || null,
-        p_phone_number: emergencyContactPhone.trim() || null,
-        p_relationship: emergencyContactRelationship.trim() || null,
+        p_contacts: validContacts,
       });
 
       if (emergencyError) {
@@ -488,9 +547,7 @@ function EditCamperContent() {
     insuranceNumber,
     medicalNotes,
     hasEpiPen,
-    emergencyContactName,
-    emergencyContactPhone,
-    emergencyContactRelationship,
+    emergencyContacts,
     router,
   ]);
 
@@ -501,7 +558,7 @@ function EditCamperContent() {
 
   if (loading) {
     return (
-      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top + 16 }]}>
+      <View style={[commonStyles.container, styles.loadingContainer, { paddingTop: Platform.OS === 'android' ? 48 : insets.top + 16 }]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={[commonStyles.textSecondary, { marginTop: 16 }]}>
           Loading camper data...
@@ -510,31 +567,8 @@ function EditCamperContent() {
     );
   }
 
-  console.log('=== 🎨 RENDERING FORM ===');
-  console.log('📊 Current state values (these will be shown in TextInputs):');
-  console.log('  👤 Name:', firstName, lastName);
-  console.log('  🏊 Swim Level:', swimLevel);
-  console.log('  🏠 Cabin:', cabinAssignment);
-  console.log('  🎫 Wristband:', wristbandId);
-  console.log('  📅 DOB:', dobText);
-  console.log('  💊 Allergies value prop:', `"${allergiesText}"`, '(length:', allergiesText.length, ')');
-  console.log('  💉 Medications value prop:', `"${medicationsText}"`, '(length:', medicationsText.length, ')');
-  console.log('  🍽️ Dietary value prop:', `"${dietaryRestrictionsText}"`, '(length:', dietaryRestrictionsText.length, ')');
-  console.log('  🏥 Conditions value prop:', `"${medicalConditionsText}"`, '(length:', medicalConditionsText.length, ')');
-  console.log('  📋 Special care value prop:', `"${specialCareInstructions}"`, '(length:', specialCareInstructions.length, ')');
-  console.log('  👨‍⚕️ Doctor name value prop:', `"${doctorName}"`, '(length:', doctorName.length, ')');
-  console.log('  📞 Doctor phone value prop:', `"${doctorPhone}"`, '(length:', doctorPhone.length, ')');
-  console.log('  🏥 Insurance provider value prop:', `"${insuranceProvider}"`, '(length:', insuranceProvider.length, ')');
-  console.log('  🔢 Insurance number value prop:', `"${insuranceNumber}"`, '(length:', insuranceNumber.length, ')');
-  console.log('  📝 Medical notes value prop:', `"${medicalNotes}"`, '(length:', medicalNotes.length, ')');
-  console.log('  💉 EpiPen:', hasEpiPen);
-  console.log('  🚨 Emergency contact name:', `"${emergencyContactName}"`, '(length:', emergencyContactName.length, ')');
-  console.log('  🚨 Emergency contact phone:', `"${emergencyContactPhone}"`, '(length:', emergencyContactPhone.length, ')');
-  console.log('  🚨 Emergency contact relationship:', `"${emergencyContactRelationship}"`, '(length:', emergencyContactRelationship.length, ')');
-  console.log('  🔑 Data loaded key:', dataLoadedKey);
-
   return (
-    <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 + insets.top : insets.top + 16 }]}>
+    <View style={[commonStyles.container, { paddingTop: Platform.OS === 'android' ? 48 : insets.top + 16 }]}>
       <LinearGradient
         colors={[colors.primary, colors.primaryDark]}
         start={{ x: 0, y: 0 }}
@@ -1018,51 +1052,74 @@ function EditCamperContent() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Emergency Contact Information</Text>
-          
-          <View style={commonStyles.card}>
-            <Text style={styles.label}>Emergency Contact Name</Text>
-            <TextInput
-              key={`emergencyName-${dataLoadedKey}`}
-              style={styles.input}
-              placeholder="Full name of emergency contact"
-              placeholderTextColor={colors.textSecondary}
-              value={emergencyContactName}
-              onChangeText={(text) => {
-                console.log('✏️ User typing emergency contact name:', text);
-                setEmergencyContactName(text);
-              }}
-              autoCapitalize="words"
-            />
-
-            <Text style={[styles.label, { marginTop: 16 }]}>Emergency Contact Phone</Text>
-            <TextInput
-              key={`emergencyPhone-${dataLoadedKey}`}
-              style={styles.input}
-              placeholder="Emergency contact phone number"
-              placeholderTextColor={colors.textSecondary}
-              value={emergencyContactPhone}
-              onChangeText={(text) => {
-                console.log('✏️ User typing emergency contact phone:', text);
-                setEmergencyContactPhone(text);
-              }}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={[styles.label, { marginTop: 16 }]}>Relationship to Camper</Text>
-            <TextInput
-              key={`emergencyRelationship-${dataLoadedKey}`}
-              style={styles.input}
-              placeholder="e.g., Parent, Guardian, Grandparent"
-              placeholderTextColor={colors.textSecondary}
-              value={emergencyContactRelationship}
-              onChangeText={(text) => {
-                console.log('✏️ User typing emergency contact relationship:', text);
-                setEmergencyContactRelationship(text);
-              }}
-              autoCapitalize="words"
-            />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Emergency Contacts</Text>
+            <TouchableOpacity
+              style={styles.addContactButton}
+              onPress={handleAddEmergencyContact}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={24}
+                color={colors.primary}
+              />
+              <Text style={styles.addContactButtonText}>Add Contact</Text>
+            </TouchableOpacity>
           </View>
+          
+          {emergencyContacts.map((contact, index) => (
+            <View key={`contact-${index}-${dataLoadedKey}`} style={commonStyles.card}>
+              <View style={styles.contactHeader}>
+                <Text style={styles.contactTitle}>Contact {index + 1}</Text>
+                {emergencyContacts.length > 1 && (
+                  <TouchableOpacity
+                    onPress={() => handleRemoveEmergencyContact(index)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <IconSymbol
+                      ios_icon_name="trash.fill"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color={colors.error}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text style={styles.label}>Full Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Emergency contact name"
+                placeholderTextColor={colors.textSecondary}
+                value={contact.full_name}
+                onChangeText={(text) => handleUpdateEmergencyContact(index, 'full_name', text)}
+                autoCapitalize="words"
+              />
+
+              <Text style={[styles.label, { marginTop: 16 }]}>Phone Number</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Emergency contact phone"
+                placeholderTextColor={colors.textSecondary}
+                value={contact.phone_number}
+                onChangeText={(text) => handleUpdateEmergencyContact(index, 'phone_number', text)}
+                keyboardType="phone-pad"
+              />
+
+              <Text style={[styles.label, { marginTop: 16 }]}>Relationship</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., Parent, Guardian, Grandparent"
+                placeholderTextColor={colors.textSecondary}
+                value={contact.relationship}
+                onChangeText={(text) => handleUpdateEmergencyContact(index, 'relationship', text)}
+                autoCapitalize="words"
+              />
+            </View>
+          ))}
         </View>
 
         <View style={styles.section}>
@@ -1157,12 +1214,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
     letterSpacing: -0.3,
+  },
+  addContactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addContactButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  contactHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  contactTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
   },
   label: {
     fontSize: 14,

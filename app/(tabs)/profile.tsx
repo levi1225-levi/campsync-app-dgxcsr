@@ -39,6 +39,15 @@ function ProfileScreenContent() {
     }
   }, [router]);
 
+  const handleWristbandUpdates = useCallback(() => {
+    try {
+      console.log('Navigating to wristband updates');
+      router.push('/(tabs)/wristband-updates');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }, [router]);
+
   const handleUserManagement = useCallback(() => {
     try {
       console.log('Navigating to user management');
@@ -128,6 +137,34 @@ function ProfileScreenContent() {
             </Text>
           </View>
         </LinearGradient>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Access</Text>
+
+          <TouchableOpacity
+            style={commonStyles.card}
+            onPress={handleWristbandUpdates}
+            activeOpacity={0.7}
+          >
+            <View style={styles.actionRow}>
+              <View style={[styles.actionIconContainer, { backgroundColor: '#F59E0B' }]}>
+                <IconSymbol
+                  ios_icon_name="arrow.clockwise"
+                  android_material_icon_name="sync"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <Text style={styles.actionText}>Wristband Updates</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
