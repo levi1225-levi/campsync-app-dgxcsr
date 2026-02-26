@@ -1,12 +1,11 @@
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,10 +14,12 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SessionMonitor } from '@/components/SessionMonitor';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 function ProfileScreenContent() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
 
   const handleEditProfile = useCallback(() => {
     try {
@@ -26,7 +27,6 @@ function ProfileScreenContent() {
       router.push('/edit-profile');
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open edit profile screen');
     }
   }, [router]);
 
@@ -36,7 +36,15 @@ function ProfileScreenContent() {
       router.push('/forgot-password');
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open change password screen');
+    }
+  }, [router]);
+
+  const handleWristbandUpdates = useCallback(() => {
+    try {
+      console.log('🔄 Navigating to wristband updates');
+      router.push('/wristband-updates');
+    } catch (error) {
+      console.error('❌ Navigation error:', error);
     }
   }, [router]);
 
@@ -46,7 +54,6 @@ function ProfileScreenContent() {
       router.push('/user-management');
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open user management screen');
     }
   }, [router]);
 
@@ -56,34 +63,29 @@ function ProfileScreenContent() {
       router.push('/wristband-settings');
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to open wristband settings screen');
     }
   }, [router]);
 
-  const handleSignOut = useCallback(() => {
+  const handleSignOutPress = useCallback(() => {
     console.log('Sign out button pressed from profile');
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive', 
-          onPress: async () => {
-            console.log('User confirmed sign out');
-            try {
-              await signOut();
-              console.log('Sign out successful');
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
-          }
-        },
-      ]
-    );
+    setShowSignOutModal(true);
+  }, []);
+
+  const handleConfirmSignOut = useCallback(async () => {
+    console.log('User confirmed sign out');
+    setShowSignOutModal(false);
+    try {
+      await signOut();
+      console.log('Sign out successful');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   }, [signOut]);
+
+  const handleCancelSignOut = useCallback(() => {
+    console.log('User cancelled sign out');
+    setShowSignOutModal(false);
+  }, []);
 
   const displayName = user?.fullName || user?.full_name || 'User';
   const displayEmail = user?.email || '';
@@ -111,7 +113,6 @@ function ProfileScreenContent() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Gradient */}
         <LinearGradient
           colors={[colors.primary, colors.primaryDark]}
           start={{ x: 0, y: 0 }}
@@ -139,7 +140,34 @@ function ProfileScreenContent() {
 
         <SessionMonitor showDetails={true} />
 
-        {/* Profile Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Access</Text>
+
+          <TouchableOpacity
+            style={commonStyles.card}
+            onPress={handleWristbandUpdates}
+            activeOpacity={0.7}
+          >
+            <View style={styles.actionRow}>
+              <View style={[styles.actionIconContainer, { backgroundColor: '#F59E0B' }]}>
+                <IconSymbol
+                  ios_icon_name="arrow.clockwise"
+                  android_material_icon_name="sync"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <Text style={styles.actionText}>Wristband Updates</Text>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
           
@@ -197,7 +225,6 @@ function ProfileScreenContent() {
           </View>
         </View>
 
-        {/* Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
 
@@ -249,7 +276,6 @@ function ProfileScreenContent() {
             </View>
           </TouchableOpacity>
 
-          {/* Admin - Wristband Security */}
           {(displayRole === 'super-admin' || displayRole === 'camp-admin') && (
             <TouchableOpacity
               style={commonStyles.card}
@@ -276,7 +302,6 @@ function ProfileScreenContent() {
             </TouchableOpacity>
           )}
 
-          {/* Super Admin Only - User Management */}
           {displayRole === 'super-admin' && (
             <TouchableOpacity
               style={commonStyles.card}
@@ -305,7 +330,7 @@ function ProfileScreenContent() {
 
           <TouchableOpacity
             style={[commonStyles.card, { backgroundColor: colors.error }]}
-            onPress={handleSignOut}
+            onPress={handleSignOutPress}
             activeOpacity={0.7}
           >
             <View style={styles.actionRow}>
@@ -328,7 +353,6 @@ function ProfileScreenContent() {
           </TouchableOpacity>
         </View>
 
-        {/* App Info */}
         <View style={styles.section}>
           <View style={styles.appInfo}>
             <Text style={styles.appInfoText}>CampSync v1.0.0</Text>
@@ -338,6 +362,17 @@ function ProfileScreenContent() {
           </View>
         </View>
       </ScrollView>
+
+      <ConfirmModal
+        visible={showSignOutModal}
+        title="Sign Out"
+        message="Are you sure you want to sign out?"
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={handleConfirmSignOut}
+        onCancel={handleCancelSignOut}
+      />
     </View>
   );
 }

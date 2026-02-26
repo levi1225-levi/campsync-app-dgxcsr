@@ -41,10 +41,10 @@ function ProfileScreenContent() {
 
   const handleWristbandUpdates = useCallback(() => {
     try {
-      console.log('Navigating to wristband updates');
-      router.push('/(tabs)/wristband-updates');
+      console.log('🔄 Navigating to wristband updates');
+      router.push('/wristband-updates');
     } catch (error) {
-      console.error('Navigation error:', error);
+      console.error('❌ Navigation error:', error);
     }
   }, [router]);
 
