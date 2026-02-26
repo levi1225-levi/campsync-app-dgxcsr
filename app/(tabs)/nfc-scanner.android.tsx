@@ -25,11 +25,8 @@ function NFCScannerScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
-  // 🔥 CRITICAL: Allow scanning if offline (emergency access) OR if authenticated with permission
-  // When offline, ALWAYS allow scanning regardless of authentication status
   const canScan = isOffline || (isAuthenticated && hasPermission(['super-admin', 'camp-admin', 'staff']));
 
-  // Check network status
   useEffect(() => {
     const checkNetwork = async () => {
       try {
@@ -39,13 +36,12 @@ function NFCScannerScreenContent() {
         setIsOffline(offline);
       } catch (error) {
         console.error('❌ Error checking network:', error);
-        // If we can't check network, assume offline for safety (allow emergency access)
         setIsOffline(true);
       }
     };
 
     checkNetwork();
-    const interval = setInterval(checkNetwork, 5000); // Check every 5 seconds
+    const interval = setInterval(checkNetwork, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -106,7 +102,6 @@ function NFCScannerScreenContent() {
   };
 
   const handleScan = useCallback(async () => {
-    // 🔥 CRITICAL: When offline, ALWAYS allow scanning (emergency access)
     if (!isOffline && !canScan) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
       return;
@@ -160,7 +155,6 @@ function NFCScannerScreenContent() {
           const encryptedPayload = Ndef.text.decodePayload(ndefRecord.payload);
           console.log('🔐 Encrypted payload read from wristband (length:', encryptedPayload.length, 'bytes)');
 
-          // 🔓 DECRYPT WRISTBAND DATA - Works 100% offline, no network needed
           const decryptedData = await decryptWristbandData(encryptedPayload);
 
           if (decryptedData) {

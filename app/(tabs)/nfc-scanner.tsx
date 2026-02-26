@@ -8,22 +8,19 @@ import {
   Platform,
   Alert,
   ScrollView,
-  Animated,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NfcManager, { NfcTech, Ndef } from 'react-native-nfc-manager';
 import { decryptWristbandData, WristbandCamperData } from '@/utils/wristbandEncryption';
 import * as Network from 'expo-network';
 
-const HEADER_MAX_HEIGHT = 180;
-const HEADER_MIN_HEIGHT = 80;
-const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
-
 function NFCScannerScreenContent() {
   const { hasPermission, isAuthenticated } = useAuth();
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<(WristbandCamperData & { timestamp: number; isLocked: boolean }) | null>(null);
   const [nfcSupported, setNfcSupported] = useState(false);
@@ -31,23 +28,8 @@ function NFCScannerScreenContent() {
   const [nfcInitialized, setNfcInitialized] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
-  // 🔥 CRITICAL: Allow scanning if offline (emergency access) OR if authenticated with permission
-  // When offline, ALWAYS allow scanning regardless of authentication status
   const canScan = isOffline || (isAuthenticated && hasPermission(['super-admin', 'camp-admin', 'staff']));
 
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE],
-    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-    extrapolate: 'clamp',
-  });
-
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE / 2, HEADER_SCROLL_DISTANCE],
-    outputRange: [1, 0.5, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Check network status
   useEffect(() => {
     const checkNetwork = async () => {
       try {
@@ -57,13 +39,12 @@ function NFCScannerScreenContent() {
         setIsOffline(offline);
       } catch (error) {
         console.error('❌ Error checking network:', error);
-        // If we can't check network, assume offline for safety (allow emergency access)
         setIsOffline(true);
       }
     };
 
     checkNetwork();
-    const interval = setInterval(checkNetwork, 5000); // Check every 5 seconds
+    const interval = setInterval(checkNetwork, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -124,7 +105,6 @@ function NFCScannerScreenContent() {
   }, [initNFC, cleanupNFC]);
 
   const handleScan = useCallback(async () => {
-    // 🔥 CRITICAL: When offline, ALWAYS allow scanning (emergency access)
     if (!isOffline && !canScan) {
       Alert.alert('Access Denied', 'You do not have permission to scan NFC wristbands.');
       return;
@@ -181,7 +161,6 @@ function NFCScannerScreenContent() {
           const encryptedPayload = Ndef.text.decodePayload(ndefRecord.payload);
           console.log('🔐 Encrypted payload read from wristband (length:', encryptedPayload.length, 'bytes)');
 
-          // 🔓 DECRYPT WRISTBAND DATA - Works 100% offline, no network needed
           const decryptedData = await decryptWristbandData(encryptedPayload);
 
           if (decryptedData) {
@@ -242,22 +221,27 @@ function NFCScannerScreenContent() {
   const modeColor = isOffline ? colors.warning : colors.success;
 
   return (
-    <View style={[commonStyles.container, styles.container]}>
-      {/* Animated Header */}
-      <Animated.View style={[styles.header, { height: headerHeight }]}>
-        <Animated.View style={{ opacity: headerOpacity }}>
+    <View style={commonStyles.container}>
+      {/* Fixed Header with proper safe area */}
+      <LinearGradient
+        colors={['#8B5CF6', '#6366F1']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
+      >
+        <View style={styles.headerIcon}>
           <IconSymbol
             ios_icon_name="wave.3.right"
             android_material_icon_name="nfc"
-            size={32}
+            size={40}
             color="#FFFFFF"
           />
-          <Text style={styles.headerTitle}>NFC Scanner</Text>
-          <Text style={styles.headerSubtitle}>
-            {isOffline ? 'Offline wristband scanning' : 'Scan wristbands to view camper details'}
-          </Text>
-        </Animated.View>
-      </Animated.View>
+        </View>
+        <Text style={styles.headerTitle}>NFC Scanner</Text>
+        <Text style={styles.headerSubtitle}>
+          {isOffline ? 'Offline wristband scanning' : 'Scan wristbands to view camper details'}
+        </Text>
+      </LinearGradient>
 
       {/* Mode Status Banner */}
       <View style={[styles.statusBanner, { backgroundColor: modeColor }]}>
@@ -295,15 +279,10 @@ function NFCScannerScreenContent() {
         </View>
       )}
 
-      <Animated.ScrollView
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
       >
         {/* Scanner Area */}
         <View style={styles.scannerContainer}>
@@ -624,7 +603,7 @@ function NFCScannerScreenContent() {
             </View>
           </View>
         )}
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 }
@@ -634,32 +613,40 @@ export default function NFCScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: Platform.OS === 'android' ? 48 : 0,
-  },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 28,
-    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  headerIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    marginBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 16,
     fontWeight: '500',
     color: '#FFFFFF',
-    opacity: 0.9,
+    opacity: 0.95,
+    textAlign: 'center',
   },
   statusBanner: {
     flexDirection: 'row',
