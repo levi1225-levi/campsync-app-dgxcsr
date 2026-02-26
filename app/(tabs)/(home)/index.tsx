@@ -3,16 +3,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import * as Network from 'expo-network';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function HomeScreenContent() {
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isOnline, setIsOnline] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -89,24 +91,17 @@ function HomeScreenContent() {
 
   const handleStatCardPress = useCallback((type: 'total' | 'checkedIn' | 'checkedOut' | 'notArrived') => {
     console.log('User tapped stat card:', type);
-    // Navigate to campers page - in the future, we can add filtering
     handleNavigation('/(tabs)/campers');
   }, [handleNavigation]);
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-      }
-    >
-      {/* Header with Gradient */}
+    <View style={commonStyles.container}>
+      {/* Fixed Header with Gradient */}
       <LinearGradient 
         colors={[colors.primary, colors.primaryDark]} 
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         <View style={styles.headerContent}>
           <View style={styles.headerTextContainer}>
@@ -129,225 +124,132 @@ function HomeScreenContent() {
         </View>
       </LinearGradient>
 
-      {/* Stats Grid - Now Tappable */}
-      <View style={styles.statsGrid}>
-        <TouchableOpacity 
-          style={[styles.statCard, styles.statCardPrimary]}
-          onPress={() => handleStatCardPress('checkedIn')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.success, colors.success + 'CC']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statGradient}
-          >
-            <IconSymbol
-              ios_icon_name="checkmark.circle.fill"
-              android_material_icon_name="check-circle"
-              size={32}
-              color="#FFFFFF"
-            />
-            <Text style={styles.statNumber}>{stats.checkedIn}</Text>
-            <Text style={styles.statLabel}>Checked In</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.statCard, styles.statCardSecondary]}
-          onPress={() => handleStatCardPress('total')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.primary, colors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statGradient}
-          >
-            <IconSymbol
-              ios_icon_name="person.3.fill"
-              android_material_icon_name="group"
-              size={32}
-              color="#FFFFFF"
-            />
-            <Text style={styles.statNumber}>{stats.totalCampers}</Text>
-            <Text style={styles.statLabel}>Total Campers</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.statCard, styles.statCardWarning]}
-          onPress={() => handleStatCardPress('checkedOut')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.warning, colors.warning + 'CC']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statGradient}
-          >
-            <IconSymbol
-              ios_icon_name="arrow.right.circle.fill"
-              android_material_icon_name="exit-to-app"
-              size={32}
-              color="#FFFFFF"
-            />
-            <Text style={styles.statNumber}>{stats.checkedOut}</Text>
-            <Text style={styles.statLabel}>Checked Out</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.statCard, styles.statCardInfo]}
-          onPress={() => handleStatCardPress('notArrived')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.textSecondary, colors.textSecondary + 'CC']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statGradient}
-          >
-            <IconSymbol
-              ios_icon_name="clock.fill"
-              android_material_icon_name="schedule"
-              size={32}
-              color="#FFFFFF"
-            />
-            <Text style={styles.statNumber}>{stats.notArrived}</Text>
-            <Text style={styles.statLabel}>Not Arrived</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.quickActionsSection}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        
-        <TouchableOpacity 
-          style={styles.actionCard}
-          onPress={() => handleNavigation('/(tabs)/nfc-scanner')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.primary, colors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.actionCardGradient}
-          >
-            <View style={styles.actionIconContainer}>
-              <IconSymbol
-                ios_icon_name="wave.3.right"
-                android_material_icon_name="nfc"
-                size={28}
-                color="#FFFFFF"
-              />
-            </View>
-            <View style={styles.actionTextContainer}>
-              <Text style={styles.actionTitle}>NFC Scanner</Text>
-              <Text style={styles.actionSubtitle}>Scan camper wristbands</Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="arrow-forward"
-              size={24}
-              color="#FFFFFF"
-            />
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionCard}
-          onPress={() => handleNavigation('/(tabs)/campers')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.secondary, colors.secondary + 'DD']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.actionCardGradient}
-          >
-            <View style={styles.actionIconContainer}>
-              <IconSymbol
-                ios_icon_name="person.3.fill"
-                android_material_icon_name="group"
-                size={28}
-                color="#FFFFFF"
-              />
-            </View>
-            <View style={styles.actionTextContainer}>
-              <Text style={styles.actionTitle}>View Campers</Text>
-              <Text style={styles.actionSubtitle}>Browse all campers</Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="arrow-forward"
-              size={24}
-              color="#FFFFFF"
-            />
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionCard}
-          onPress={() => handleNavigation('/(tabs)/profile')}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={[colors.accent, colors.accent + 'DD']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.actionCardGradient}
-          >
-            <View style={styles.actionIconContainer}>
-              <IconSymbol
-                ios_icon_name="person.circle.fill"
-                android_material_icon_name="account-circle"
-                size={28}
-                color="#FFFFFF"
-              />
-            </View>
-            <View style={styles.actionTextContainer}>
-              <Text style={styles.actionTitle}>My Profile</Text>
-              <Text style={styles.actionSubtitle}>View and edit profile</Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="arrow-forward"
-              size={24}
-              color="#FFFFFF"
-            />
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Admin Actions - Super Admin Only */}
-      {isSuperAdmin && (
-        <View style={styles.quickActionsSection}>
-          <Text style={styles.sectionTitle}>Admin Actions</Text>
-          
+      {/* Scrollable Content */}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => handleNavigation('/manage-authorization-codes')}
+            style={[styles.statCard, styles.statCardPrimary]}
+            onPress={() => handleStatCardPress('checkedIn')}
             activeOpacity={0.7}
           >
             <LinearGradient
-              colors={[colors.error, colors.error + 'DD']}
+              colors={[colors.success, colors.success + 'CC']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statGradient}
+            >
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check-circle"
+                size={32}
+                color="#FFFFFF"
+              />
+              <Text style={styles.statNumber}>{stats.checkedIn}</Text>
+              <Text style={styles.statLabel}>Checked In</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.statCard, styles.statCardSecondary]}
+            onPress={() => handleStatCardPress('total')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statGradient}
+            >
+              <IconSymbol
+                ios_icon_name="person.3.fill"
+                android_material_icon_name="group"
+                size={32}
+                color="#FFFFFF"
+              />
+              <Text style={styles.statNumber}>{stats.totalCampers}</Text>
+              <Text style={styles.statLabel}>Total Campers</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.statCard, styles.statCardWarning]}
+            onPress={() => handleStatCardPress('checkedOut')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.warning, colors.warning + 'CC']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statGradient}
+            >
+              <IconSymbol
+                ios_icon_name="arrow.right.circle.fill"
+                android_material_icon_name="exit-to-app"
+                size={32}
+                color="#FFFFFF"
+              />
+              <Text style={styles.statNumber}>{stats.checkedOut}</Text>
+              <Text style={styles.statLabel}>Checked Out</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.statCard, styles.statCardInfo]}
+            onPress={() => handleStatCardPress('notArrived')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.textSecondary, colors.textSecondary + 'CC']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statGradient}
+            >
+              <IconSymbol
+                ios_icon_name="clock.fill"
+                android_material_icon_name="schedule"
+                size={32}
+                color="#FFFFFF"
+              />
+              <Text style={styles.statNumber}>{stats.notArrived}</Text>
+              <Text style={styles.statLabel}>Not Arrived</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => handleNavigation('/(tabs)/nfc-scanner')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.actionCardGradient}
             >
               <View style={styles.actionIconContainer}>
                 <IconSymbol
-                  ios_icon_name="key.fill"
-                  android_material_icon_name="vpn-key"
+                  ios_icon_name="wave.3.right"
+                  android_material_icon_name="nfc"
                   size={28}
                   color="#FFFFFF"
                 />
               </View>
               <View style={styles.actionTextContainer}>
-                <Text style={styles.actionTitle}>Authorization Codes</Text>
-                <Text style={styles.actionSubtitle}>Manage registration codes</Text>
+                <Text style={styles.actionTitle}>NFC Scanner</Text>
+                <Text style={styles.actionSubtitle}>Scan camper wristbands</Text>
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
@@ -360,11 +262,11 @@ function HomeScreenContent() {
 
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => handleNavigation('/user-management')}
+            onPress={() => handleNavigation('/(tabs)/campers')}
             activeOpacity={0.7}
           >
             <LinearGradient
-              colors={['#8B5CF6', '#7C3AED']}
+              colors={[colors.secondary, colors.secondary + 'DD']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.actionCardGradient}
@@ -378,8 +280,40 @@ function HomeScreenContent() {
                 />
               </View>
               <View style={styles.actionTextContainer}>
-                <Text style={styles.actionTitle}>User Management</Text>
-                <Text style={styles.actionSubtitle}>Manage users and roles</Text>
+                <Text style={styles.actionTitle}>View Campers</Text>
+                <Text style={styles.actionSubtitle}>Browse all campers</Text>
+              </View>
+              <IconSymbol
+                ios_icon_name="chevron.right"
+                android_material_icon_name="arrow-forward"
+                size={24}
+                color="#FFFFFF"
+              />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => handleNavigation('/(tabs)/profile')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.accent, colors.accent + 'DD']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.actionCardGradient}
+            >
+              <View style={styles.actionIconContainer}>
+                <IconSymbol
+                  ios_icon_name="person.circle.fill"
+                  android_material_icon_name="account-circle"
+                  size={28}
+                  color="#FFFFFF"
+                />
+              </View>
+              <View style={styles.actionTextContainer}>
+                <Text style={styles.actionTitle}>My Profile</Text>
+                <Text style={styles.actionSubtitle}>View and edit profile</Text>
               </View>
               <IconSymbol
                 ios_icon_name="chevron.right"
@@ -390,8 +324,79 @@ function HomeScreenContent() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
-      )}
-    </ScrollView>
+
+        {/* Admin Actions - Super Admin Only */}
+        {isSuperAdmin && (
+          <View style={styles.quickActionsSection}>
+            <Text style={styles.sectionTitle}>Admin Actions</Text>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => handleNavigation('/manage-authorization-codes')}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={[colors.error, colors.error + 'DD']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionCardGradient}
+              >
+                <View style={styles.actionIconContainer}>
+                  <IconSymbol
+                    ios_icon_name="key.fill"
+                    android_material_icon_name="vpn-key"
+                    size={28}
+                    color="#FFFFFF"
+                  />
+                </View>
+                <View style={styles.actionTextContainer}>
+                  <Text style={styles.actionTitle}>Authorization Codes</Text>
+                  <Text style={styles.actionSubtitle}>Manage registration codes</Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="arrow-forward"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => handleNavigation('/user-management')}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['#8B5CF6', '#7C3AED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionCardGradient}
+              >
+                <View style={styles.actionIconContainer}>
+                  <IconSymbol
+                    ios_icon_name="person.3.fill"
+                    android_material_icon_name="group"
+                    size={28}
+                    color="#FFFFFF"
+                  />
+                </View>
+                <View style={styles.actionTextContainer}>
+                  <Text style={styles.actionTitle}>User Management</Text>
+                  <Text style={styles.actionSubtitle}>Manage users and roles</Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name="chevron.right"
+                  android_material_icon_name="arrow-forward"
+                  size={24}
+                  color="#FFFFFF"
+                />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -404,16 +409,14 @@ function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scrollView: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   contentContainer: {
     paddingBottom: 120,
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'android' ? 60 : 48,
     paddingBottom: 32,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
